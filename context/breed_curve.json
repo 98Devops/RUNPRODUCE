@@ -1,0 +1,357 @@
+{
+ "source": "RUNproduce_Broiler_Management_.xlsx / Record sheet, columns G and K",
+ "note": "Day 40 weight (2789g) is a suspected typo - jumps +227g vs ~90g/day. Confirm with client.",
+ "phases": {
+  "STARTER": {
+   "days": [
+    1,
+    13
+   ],
+   "price_per_kg": 0.65
+  },
+  "GROWER": {
+   "days": [
+    14,
+    27
+   ],
+   "price_per_kg": 0.62
+  },
+  "FINISHER": {
+   "days": [
+    28,
+    41
+   ],
+   "price_per_kg": 0.6
+  }
+ },
+ "curve": [
+  {
+   "day": 1,
+   "weight_g": 57,
+   "feed_g": 10,
+   "phase": "STARTER",
+   "cum_feed_g": 10,
+   "cum_feed_cost_usd": 0.0065
+  },
+  {
+   "day": 2,
+   "weight_g": 73,
+   "feed_g": 20,
+   "phase": "STARTER",
+   "cum_feed_g": 30,
+   "cum_feed_cost_usd": 0.0195
+  },
+  {
+   "day": 3,
+   "weight_g": 86,
+   "feed_g": 20,
+   "phase": "STARTER",
+   "cum_feed_g": 50,
+   "cum_feed_cost_usd": 0.0325
+  },
+  {
+   "day": 4,
+   "weight_g": 109,
+   "feed_g": 20,
+   "phase": "STARTER",
+   "cum_feed_g": 70,
+   "cum_feed_cost_usd": 0.0455
+  },
+  {
+   "day": 5,
+   "weight_g": 131,
+   "feed_g": 20,
+   "phase": "STARTER",
+   "cum_feed_g": 90,
+   "cum_feed_cost_usd": 0.0585
+  },
+  {
+   "day": 6,
+   "weight_g": 155,
+   "feed_g": 20,
+   "phase": "STARTER",
+   "cum_feed_g": 110,
+   "cum_feed_cost_usd": 0.0715
+  },
+  {
+   "day": 7,
+   "weight_g": 182,
+   "feed_g": 20,
+   "phase": "STARTER",
+   "cum_feed_g": 130,
+   "cum_feed_cost_usd": 0.0845
+  },
+  {
+   "day": 8,
+   "weight_g": 212,
+   "feed_g": 30,
+   "phase": "STARTER",
+   "cum_feed_g": 160,
+   "cum_feed_cost_usd": 0.104
+  },
+  {
+   "day": 9,
+   "weight_g": 320,
+   "feed_g": 35,
+   "phase": "STARTER",
+   "cum_feed_g": 195,
+   "cum_feed_cost_usd": 0.1268
+  },
+  {
+   "day": 10,
+   "weight_g": 362,
+   "feed_g": 39,
+   "phase": "STARTER",
+   "cum_feed_g": 234,
+   "cum_feed_cost_usd": 0.1521
+  },
+  {
+   "day": 11,
+   "weight_g": 407,
+   "feed_g": 44,
+   "phase": "STARTER",
+   "cum_feed_g": 278,
+   "cum_feed_cost_usd": 0.1807
+  },
+  {
+   "day": 12,
+   "weight_g": 455,
+   "feed_g": 50,
+   "phase": "STARTER",
+   "cum_feed_g": 328,
+   "cum_feed_cost_usd": 0.2132
+  },
+  {
+   "day": 13,
+   "weight_g": 506,
+   "feed_g": 55,
+   "phase": "STARTER",
+   "cum_feed_g": 383,
+   "cum_feed_cost_usd": 0.249
+  },
+  {
+   "day": 14,
+   "weight_g": 561,
+   "feed_g": 61,
+   "phase": "GROWER",
+   "cum_feed_g": 444,
+   "cum_feed_cost_usd": 0.2868
+  },
+  {
+   "day": 15,
+   "weight_g": 618,
+   "feed_g": 67,
+   "phase": "GROWER",
+   "cum_feed_g": 511,
+   "cum_feed_cost_usd": 0.3283
+  },
+  {
+   "day": 16,
+   "weight_g": 678,
+   "feed_g": 73,
+   "phase": "GROWER",
+   "cum_feed_g": 584,
+   "cum_feed_cost_usd": 0.3736
+  },
+  {
+   "day": 17,
+   "weight_g": 741,
+   "feed_g": 80,
+   "phase": "GROWER",
+   "cum_feed_g": 664,
+   "cum_feed_cost_usd": 0.4232
+  },
+  {
+   "day": 18,
+   "weight_g": 806,
+   "feed_g": 86,
+   "phase": "GROWER",
+   "cum_feed_g": 750,
+   "cum_feed_cost_usd": 0.4765
+  },
+  {
+   "day": 19,
+   "weight_g": 874,
+   "feed_g": 93,
+   "phase": "GROWER",
+   "cum_feed_g": 843,
+   "cum_feed_cost_usd": 0.5342
+  },
+  {
+   "day": 20,
+   "weight_g": 944,
+   "feed_g": 100,
+   "phase": "GROWER",
+   "cum_feed_g": 943,
+   "cum_feed_cost_usd": 0.5961
+  },
+  {
+   "day": 21,
+   "weight_g": 1017,
+   "feed_g": 107,
+   "phase": "GROWER",
+   "cum_feed_g": 1050,
+   "cum_feed_cost_usd": 0.6625
+  },
+  {
+   "day": 22,
+   "weight_g": 1093,
+   "feed_g": 115,
+   "phase": "GROWER",
+   "cum_feed_g": 1165,
+   "cum_feed_cost_usd": 0.7338
+  },
+  {
+   "day": 23,
+   "weight_g": 1170,
+   "feed_g": 122,
+   "phase": "GROWER",
+   "cum_feed_g": 1287,
+   "cum_feed_cost_usd": 0.8094
+  },
+  {
+   "day": 24,
+   "weight_g": 1249,
+   "feed_g": 130,
+   "phase": "GROWER",
+   "cum_feed_g": 1417,
+   "cum_feed_cost_usd": 0.89
+  },
+  {
+   "day": 25,
+   "weight_g": 1329,
+   "feed_g": 137,
+   "phase": "GROWER",
+   "cum_feed_g": 1554,
+   "cum_feed_cost_usd": 0.975
+  },
+  {
+   "day": 26,
+   "weight_g": 1412,
+   "feed_g": 144,
+   "phase": "GROWER",
+   "cum_feed_g": 1698,
+   "cum_feed_cost_usd": 1.0642
+  },
+  {
+   "day": 27,
+   "weight_g": 1496,
+   "feed_g": 151,
+   "phase": "GROWER",
+   "cum_feed_g": 1849,
+   "cum_feed_cost_usd": 1.1579
+  },
+  {
+   "day": 28,
+   "weight_g": 1581,
+   "feed_g": 157,
+   "phase": "FINISHER",
+   "cum_feed_g": 2006,
+   "cum_feed_cost_usd": 1.2521
+  },
+  {
+   "day": 29,
+   "weight_g": 1667,
+   "feed_g": 163,
+   "phase": "FINISHER",
+   "cum_feed_g": 2169,
+   "cum_feed_cost_usd": 1.3499
+  },
+  {
+   "day": 30,
+   "weight_g": 1754,
+   "feed_g": 168,
+   "phase": "FINISHER",
+   "cum_feed_g": 2337,
+   "cum_feed_cost_usd": 1.4507
+  },
+  {
+   "day": 31,
+   "weight_g": 1843,
+   "feed_g": 172,
+   "phase": "FINISHER",
+   "cum_feed_g": 2509,
+   "cum_feed_cost_usd": 1.5539
+  },
+  {
+   "day": 32,
+   "weight_g": 1932,
+   "feed_g": 176,
+   "phase": "FINISHER",
+   "cum_feed_g": 2685,
+   "cum_feed_cost_usd": 1.6595
+  },
+  {
+   "day": 33,
+   "weight_g": 2021,
+   "feed_g": 180,
+   "phase": "FINISHER",
+   "cum_feed_g": 2865,
+   "cum_feed_cost_usd": 1.7675
+  },
+  {
+   "day": 34,
+   "weight_g": 2111,
+   "feed_g": 184,
+   "phase": "FINISHER",
+   "cum_feed_g": 3049,
+   "cum_feed_cost_usd": 1.8779
+  },
+  {
+   "day": 35,
+   "weight_g": 2201,
+   "feed_g": 187,
+   "phase": "FINISHER",
+   "cum_feed_g": 3236,
+   "cum_feed_cost_usd": 1.9901
+  },
+  {
+   "day": 36,
+   "weight_g": 2291,
+   "feed_g": 190,
+   "phase": "FINISHER",
+   "cum_feed_g": 3426,
+   "cum_feed_cost_usd": 2.1041
+  },
+  {
+   "day": 37,
+   "weight_g": 2382,
+   "feed_g": 192,
+   "phase": "FINISHER",
+   "cum_feed_g": 3618,
+   "cum_feed_cost_usd": 2.2193
+  },
+  {
+   "day": 38,
+   "weight_g": 2472,
+   "feed_g": 195,
+   "phase": "FINISHER",
+   "cum_feed_g": 3813,
+   "cum_feed_cost_usd": 2.3363
+  },
+  {
+   "day": 39,
+   "weight_g": 2562,
+   "feed_g": 197,
+   "phase": "FINISHER",
+   "cum_feed_g": 4010,
+   "cum_feed_cost_usd": 2.4545
+  },
+  {
+   "day": 40,
+   "weight_g": 2789,
+   "feed_g": 198,
+   "phase": "FINISHER",
+   "cum_feed_g": 4208,
+   "cum_feed_cost_usd": 2.5733
+  },
+  {
+   "day": 41,
+   "weight_g": 2875,
+   "feed_g": 200,
+   "phase": "FINISHER",
+   "cum_feed_g": 4408,
+   "cum_feed_cost_usd": 2.6933
+  }
+ ]
+}
