@@ -206,7 +206,23 @@ avoids the largest complexity sink in the project.
 
 ## Session Notes
 
-Context pack written. Nothing implemented.
+**U1 execution — in progress, task-by-task from
+`docs/superpowers/plans/2026-09-10-u1-scaffold.md`.**
+
+- **Task 1 — DONE** (`3c477ad`). npm-workspaces monorepo scaffolded:
+  root `package.json`, `tsconfig.base.json` (strict +
+  `noUncheckedIndexedAccess` + `resolveJsonModule`),
+  `packages/engine` (zero runtime deps, vitest), `apps/web`
+  (placeholder, no scripts), `eslint.config.js`, CI workflow pinned to
+  Node 20, `.gitignore` extended. `npm install` resolves both
+  workspaces as symlinks; `npm run lint` passes. Purity rule verified
+  by probe: `Date.now()` in `packages/engine/src` errors with
+  `no-restricted-globals` (DoD #2 met). Local toolchain is Node 24 /
+  npm 11; CI still pins Node 20.
+- **Next: Task 2** — `Money` value object with exact
+  largest-remainder `split()`. It is the only U1 code that ends green.
+
+Context pack written before U1.
 
 **Workflow:** this project runs the superpowers loop — understand,
 chunked spec, implementation plan, then subagent execution on "go".
