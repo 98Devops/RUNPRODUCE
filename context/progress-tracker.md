@@ -53,7 +53,7 @@ held count falls.
   numbers: 13,224 kg at day 41, 2.337 kg/bird at day 30, FCR 1.53 (not
   his 0.77 — KB-4), flock 3,100 with extras (KB-1).
 
-  AD-27 was logged along the way — see Architecture Decisions.
+  AD-27 and AD-28 were logged along the way — see Architecture Decisions.
 
 ## Next Up
 
@@ -125,6 +125,25 @@ once real mortality data arrives.
 Tracked in `current-issues.md`.
 
 ## Architecture Decisions
+
+**AD-28 · A carried-forward day is marked, never disguised.**
+M1 continues past a day with no record by carrying the last recorded
+cumulative forward. That is correct and stays — nothing is forecast into
+the gap, because forecasting is M4's job and the carried value is the
+optimistic direction only in the sense that unrecorded removals are not
+guessed at. The hazard is what the derived delta then looks like: zero,
+which is exactly what a real day with no deaths produces. An absence of
+data and a measured zero become the same number.
+
+`ProductionProjection` now carries a per-day `days` series, each entry
+with `carried_forward` and `days_since_last_record`, plus the same two
+fields at the top level for the asOf figures. The VALUE is untouched;
+only its provenance is exposed — the same move as CR-2's confidence
+widening for thin weight samples. Invariant 5 was extended to state the
+rule outright, and it binds the UI too: a carried-forward figure renders
+differently, on the same footing as the measured/calibrated/assumed
+badges in `ui-context.md`, so U9's decision console cannot quietly drop
+the distinction. `Carried forward` is now a CONTEXT.md glossary term.
 
 **AD-27 · `fcr` is `number | null`; a wiped-out flock has no ratio.**
 A flock with nothing left alive ate feed and produced no live weight, so

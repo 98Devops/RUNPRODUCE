@@ -205,9 +205,29 @@ The codebase must never violate these.
 4. **Only `lib/repositories` imports the Supabase client.** No route,
    component, or engine file may query the database directly.
 
-5. **The engine never invents an input.** A missing required value
-   produces a typed `MissingInput` result naming what is missing. It
-   never substitutes a default silently.
+5. **The engine never invents an input, and never passes an absence off
+   as a measurement.** A missing required value produces a typed
+   `MissingInput` result naming what is missing. It never substitutes a
+   default silently.
+
+   **Carried-forward values must be marked as such.** Where the engine
+   legitimately continues with the last known value rather than
+   refusing — a day with no daily record carries the previous
+   cumulative removals forward — the value itself is never adjusted,
+   and no forecast fills the gap. But the output must carry the fact
+   that it was carried forward (`carried_forward`, and
+   `days_since_last_record` for how stale it is), because "nobody died
+   that day" and "nobody wrote anything down that day" both derive a
+   delta of zero and are otherwise indistinguishable. Silently
+   identical is the failure mode this invariant exists to prevent: it
+   is invented data wearing a measurement's clothes.
+
+   **The UI must render the distinction**, on the same footing as the
+   `measured` / `calibrated` / `assumed` confidence badges in
+   `ui-context.md` §141. A carried-forward figure is never drawn as a
+   plain entered one — U9's decision console included. The engine's job
+   is to make the distinction available; the console's job is to show
+   it, and neither may drop it.
 
 6. **Every engine output carries provenance.** Values are returned
    wrapped as `Explained<T>` with formula, inputs, and confidence.

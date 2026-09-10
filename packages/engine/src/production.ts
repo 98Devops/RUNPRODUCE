@@ -1,6 +1,6 @@
 import { SEED_BREED_CURVE, cumulativeFeedG, pointForDay } from './breed-curve.js';
 import { dayNumberFor } from './day-number.js';
-import type { DailyRecord, EngineInput, ProductionProjection } from './types.js';
+import type { DailyRecord, EngineInput, ProductionDay, ProductionProjection } from './types.js';
 
 /**
  * M1 — flock projection.
@@ -36,37 +36,64 @@ export function projectProduction(input: EngineInput): ProductionProjection {
 
   validateRemovals(visible, flock_size);
 
-  const removalsThrough = (day: number): number => {
-    let removed = 0;
-    for (const r of visible) {
-      if (r.day_number > day) break;
-      removed = r.mortality_cumulative + r.cull_cumulative;
-    }
-    return removed;
-  };
+  const byDay = new Map(visible.map((r) => [r.day_number as number, r]));
 
-  const openingOn = (day: number): number => flock_size - removalsThrough(day - 1);
-
-  const opening_birds = openingOn(day_number);
-  const closing_birds = flock_size - removalsThrough(day_number);
-
+  const days: ProductionDay[] = [];
+  let mortality_cumulative = 0;
+  let cull_cumulative = 0;
+  let lastRecordDay: number | null = null;
   let total_feed_g = 0;
+
   for (let day = 1; day <= day_number; day += 1) {
-    total_feed_g += openingOn(day) * pointForDay(curve, day).feed_g;
+    const opening_birds = flock_size - mortality_cumulative - cull_cumulative;
+    const record = byDay.get(day);
+
+    // A day with no record carries the last recorded total forward UNCHANGED.
+    // Nothing is forecast into the gap — see the note above.
+    const daily_mortality = record ? record.mortality_cumulative - mortality_cumulative : 0;
+    const daily_culls = record ? record.cull_cumulative - cull_cumulative : 0;
+    if (record) {
+      mortality_cumulative = record.mortality_cumulative;
+      cull_cumulative = record.cull_cumulative;
+      lastRecordDay = day;
+    }
+
+    total_feed_g += opening_birds * pointForDay(curve, day).feed_g;
+
+    days.push({
+      day_number: day,
+      opening_birds,
+      closing_birds: flock_size - mortality_cumulative - cull_cumulative,
+      mortality_cumulative,
+      cull_cumulative,
+      daily_mortality,
+      daily_culls,
+      carried_forward: record === undefined,
+      days_since_last_record: record ? 0 : day - (lastRecordDay ?? 1)
+    });
   }
 
-  const live_weight_kg = (closing_birds * pointForDay(curve, day_number).weight_g) / 1000;
+  const today = days[days.length - 1];
+  if (today === undefined) {
+    throw new Error(`Day ${day_number} is before placement day 1`);
+  }
+
+  const live_weight_kg =
+    (today.closing_birds * pointForDay(curve, day_number).weight_g) / 1000;
   const total_feed_kg = total_feed_g / 1000;
 
   return {
     flock_size,
     day_number,
-    opening_birds,
-    closing_birds,
+    opening_birds: today.opening_birds,
+    closing_birds: today.closing_birds,
     cumulative_feed_kg_per_bird: cumulativeFeedG(curve, day_number) / 1000,
     total_feed_kg,
     fcr: live_weight_kg === 0 ? null : Math.round((total_feed_kg / live_weight_kg) * 100) / 100,
-    live_weight_kg
+    live_weight_kg,
+    days,
+    carried_forward: today.carried_forward,
+    days_since_last_record: today.days_since_last_record
   };
 }
 

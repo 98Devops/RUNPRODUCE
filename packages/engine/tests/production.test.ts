@@ -258,3 +258,90 @@ describe('projectProduction — nothing left alive', () => {
     ).toThrow(/monotonic/i);
   });
 });
+
+describe('projectProduction — a carried-forward day is distinguishable from a recorded one', () => {
+  /**
+   * Day 20 and day 22 are entered; day 21 is not. Day 22 restates day 20's
+   * total, so its TRUE delta is zero. Day 21's zero is an absence of data.
+   * The two must not look the same — invariant 5.
+   */
+  const withGap = () =>
+    projectProduction(
+      input({
+        asOf: '2026-02-27' as IsoDate,
+        records: [
+          record({ day_number: 20, mortality_cumulative: 40, cull_cumulative: 3 }),
+          record({ day_number: 22, mortality_cumulative: 40, cull_cumulative: 3 })
+        ]
+      })
+    );
+
+  it('flags the missing day as carried forward', () => {
+    const day21 = withGap().days.find((d) => d.day_number === 21);
+    expect(day21?.carried_forward).toBe(true);
+  });
+
+  it('does NOT flag a recorded day whose true delta happens to be zero', () => {
+    const day22 = withGap().days.find((d) => d.day_number === 22);
+    expect(day22?.carried_forward).toBe(false);
+    expect(day22?.daily_mortality).toBe(0);
+  });
+
+  it('leaves the carried-forward VALUE untouched — only its provenance is marked', () => {
+    const day21 = withGap().days.find((d) => d.day_number === 21);
+    expect(day21?.mortality_cumulative).toBe(40);
+    expect(day21?.cull_cumulative).toBe(3);
+    expect(day21?.closing_birds).toBe(2957);
+  });
+
+  it('counts how far a carried-forward day is from the last real entry', () => {
+    const days = withGap().days;
+    expect(days.find((d) => d.day_number === 20)?.days_since_last_record).toBe(0);
+    expect(days.find((d) => d.day_number === 21)?.days_since_last_record).toBe(1);
+    expect(days.find((d) => d.day_number === 22)?.days_since_last_record).toBe(0);
+  });
+
+  it('marks days before the first entry, counting from placement', () => {
+    const days = withGap().days;
+    const day1 = days.find((d) => d.day_number === 1);
+    expect(day1?.carried_forward).toBe(true);
+    expect(day1?.days_since_last_record).toBe(0);
+    expect(days.find((d) => d.day_number === 5)?.days_since_last_record).toBe(4);
+  });
+
+  it('runs the series from placement day through asOf', () => {
+    const days = withGap().days;
+    expect(days.map((d) => d.day_number)).toEqual(
+      Array.from({ length: 22 }, (_, i) => i + 1)
+    );
+  });
+
+  it('flags the headline figures when asOf itself has no entry', () => {
+    const projection = projectProduction(
+      input({
+        asOf: '2026-02-27' as IsoDate,
+        records: [record({ day_number: 20, mortality_cumulative: 40 })]
+      })
+    );
+    expect(projection.carried_forward).toBe(true);
+    expect(projection.days_since_last_record).toBe(2);
+    expect(projection.closing_birds).toBe(2960);
+  });
+
+  it('does not flag the headline figures when asOf is entered', () => {
+    const projection = projectProduction(
+      input({
+        asOf: '2026-02-27' as IsoDate,
+        records: [record({ day_number: 22, mortality_cumulative: 40 })]
+      })
+    );
+    expect(projection.carried_forward).toBe(false);
+    expect(projection.days_since_last_record).toBe(0);
+  });
+
+  it('flags an entirely unrecorded batch rather than passing zero off as measured', () => {
+    const projection = projectProduction(input());
+    expect(projection.carried_forward).toBe(true);
+    expect(projection.days.every((d) => d.carried_forward)).toBe(true);
+  });
+});

@@ -217,6 +217,38 @@ export interface MissingInput {
   readonly why: string;
 }
 
+/**
+ * One day of the projection, carrying its own provenance.
+ *
+ * `carried_forward` is the difference between "nobody died that day" and
+ * "nobody wrote anything down that day". Both produce a derived delta of zero
+ * and are otherwise indistinguishable — exactly the ambiguity invariant 5
+ * forbids. The VALUE is never adjusted for it: a carried-forward cumulative is
+ * the last recorded total, unchanged, and no fallback ramp fills the gap.
+ * Only its provenance is marked, the same way `Confidence` marks a value that
+ * was assumed rather than measured, so the console renders it differently
+ * rather than showing an absence of data as a measured zero.
+ */
+export interface ProductionDay {
+  readonly day_number: number;
+  readonly opening_birds: number;
+  readonly closing_birds: number;
+  /** The last recorded cumulative total as of this day. Never adjusted. */
+  readonly mortality_cumulative: number;
+  readonly cull_cumulative: number;
+  /** Derived: cumulative[d] − cumulative[d−1]. Zero on a carried-forward day. */
+  readonly daily_mortality: number;
+  readonly daily_culls: number;
+  /** True when no record exists for this day, so its totals are carried forward. */
+  readonly carried_forward: boolean;
+  /**
+   * 0 on a recorded day. Otherwise days since the most recent record — or since
+   * placement, when nothing has been recorded yet. How stale the figure is, so
+   * the console can widen its treatment as the gap grows (compare CR-2).
+   */
+  readonly days_since_last_record: number;
+}
+
 export interface ProductionProjection {
   /** chick_count + extra_chick_count. Invariant 9 — nothing is hardcoded off this. */
   readonly flock_size: number;
@@ -238,6 +270,12 @@ export interface ProductionProjection {
    */
   readonly fcr: number | null;
   readonly live_weight_kg: number;
+  /** Placement day through asOf, one entry per day, each carrying its provenance. */
+  readonly days: readonly ProductionDay[];
+  /** True when asOf itself has no record and the headline figures are carried forward. */
+  readonly carried_forward: boolean;
+  /** How stale the headline figures are. 0 when asOf is recorded. */
+  readonly days_since_last_record: number;
 }
 
 export interface CostingResult {

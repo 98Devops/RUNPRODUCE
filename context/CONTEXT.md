@@ -121,6 +121,7 @@ Named, capitalised, and used consistently in code and UI:
 | **Provisional fixture** | A golden fixture whose expected value rests on an assumption rather than client data. **It still asserts** — it is not held. |
 | **Placeholder** | `expect.placeholder` in a fixture file: the expected value is not knowable yet, and this names the OQ it waits on. |
 | **Missing input** | The engine's refusal to compute when a required value is unknown. Never a silent default. |
+| **Carried forward** | A day with no daily record, whose cumulative totals are the last recorded ones, unchanged. Marked `carried_forward`, with `days_since_last_record` for staleness. Distinct from a recorded day whose delta was genuinely zero, and always rendered differently. Invariant 5. | ~~estimated, filled, interpolated~~ (nothing is forecast into the gap) |
 | **Unit** | One step of the build, U1–U11 |
 | **OQ-n** | An open question in `current-issues.md` |
 | **AD-n** | An architecture decision in `progress-tracker.md` |
