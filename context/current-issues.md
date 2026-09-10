@@ -163,22 +163,32 @@ absent from the Netlify build output.
 `vitest --watch` or a vite dev server on a shared/untrusted network, or
 either package moving into runtime dependencies.
 
-### TD-3 · No git remote configured — CI has never run 🔴
-**Raised:** 2026-09-10. **Blocks:** the entire premise of TD-2's close-out.
+### TD-3 · No git remote configured — CI has never run ✅ CLOSED
+**Raised:** 2026-09-10. **Closed:** 2026-09-10.
 
 `.github/workflows/ci.yml` triggers correctly on `push: branches:
-[main]` **and** `pull_request`. But `git remote -v` is empty. There is
-nowhere to push, so no commit in this repo has ever been validated by
-CI — every green result so far is local-only, on Node 24.
+[main]` **and** `pull_request`. But `git remote -v` was empty. There was
+nowhere to push, so no commit in this repo had ever been validated by
+CI — every green result was local-only, on Node 24.
 
-**Consequence:** TD-2 cannot be closed at task 6 as written, because
-"observe CI green on Node 20" is impossible until a remote exists.
+**Resolution:** remote added
+(`https://github.com/98Devops/RUNPRODUCE.git`) and `main` pushed. The
+workflow **did** trigger on the push — the failure mode this issue
+warned about did not materialise.
 
-**Fix:** create the GitHub repo and `git remote add origin`, then push.
-Until then, treat every "CI passes" claim as unverified.
+**Evidence:** run
+[34452361699](https://github.com/98Devops/RUNPRODUCE/actions/runs/34452361699)
+— `verify` green in 16s on commit `bca826a`; lint, typecheck and test
+all passed.
+
+**Note for future runs:** GitHub annotates that `actions/checkout@v4`
+and `actions/setup-node@v4` are forced onto Node 24 — that is the
+runner's *action* runtime and is unrelated to the Node running our
+code. The run log confirms `setup-node` acquired **Node v20.20.2** for
+the `run` steps, which is what TD-2 cares about.
 
 ### TD-2 · Local Node 24 vs. CI Node 20 🟡
-**Raised:** 2026-09-10. **Must be closed at U1 task 6.** **See TD-3 — currently impossible.**
+**Raised:** 2026-09-10. **Must be closed at U1 task 6.** **Now reachable — TD-3 closed — but not yet satisfied.**
 
 Local is Node v24.11.0; `.github/workflows/ci.yml` pins `node-version:
 '20'`. Harmless at scaffold stage, but `bigint` and
@@ -189,6 +199,15 @@ money-as-`bigint`-cents is a hard invariant (CLAUDE.md rule 2).
 not done until CI is observed **green on Node 20 with the real
 fixtures** — not just locally green on 24. If it diverges, that is a
 runtime discrepancy to fix now, not in U4.
+
+**Progress 2026-09-10 — partial, not closing.** First real CI run
+([34452361699](https://github.com/98Devops/RUNPRODUCE/actions/runs/34452361699))
+was green on **Node v20.20.2**: `money.test.ts`, 19/19 passed. That is
+the first evidence that `bigint` money behaviour matches between local
+Node 24 and CI Node 20 — but it covers `Money` only. The close-out
+condition is unchanged and unmet: it requires the **task 5 golden
+fixtures** running green on Node 20 in this same CI. Do not close TD-2
+before then.
 
 ---
 
