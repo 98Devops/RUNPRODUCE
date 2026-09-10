@@ -22,24 +22,53 @@ Two client artifacts were read in full:
 stated by Daniel.** Replace with his actual answer when it arrives; do
 not treat any of it as settled.
 
-### What the spreadsheet CONFIRMS (fixtures corroborated)
+### What the spreadsheet CONFIRMS (fixtures match the source workbook)
+
+**Read this table for what it is — CORRECTED 2026-09-10.** It was
+originally headed "from an independent source". It is not one.
+`breed_curve.json` was itself extracted from this workbook, so checking
+our fixtures against the workbook confirms **that we extracted and
+recomputed it faithfully**. That is worth having and it is what this
+table establishes. It is **not** a second opinion on whether the
+workbook's own inputs are right or current, and it must not be cited as
+one. The feed-cost row in particular is circular — see the note under
+the table.
 
 Record sheet row 43 (day 41) and Final Report agree with our fixtures
-exactly, from an independent source:
+exactly:
 
 | Value | Spreadsheet | Our fixture |
 |---|---|---|
 | Cum feed/bird, day 41 | `L43 = 4408` g | fixture 3 input |
 | Total feed, day 41 | `M43 = 13224` kg | fixture 2 |
-| Feed cost, day 41 | `O43 = Final!C4 = 8079.81` | fixture 1 (807981c) |
+| Feed cost, day 41 | `O43` = 8079.81; `Final!C4` is **not independent**, see below | fixture 1 (807981c) |
 | Weight day 30 / 31 | `1754` / `1843` g | fixture 10, OQ-7 |
 | Cum feed/bird day 30 | `L32 = 2337` g | fixture 4 |
 | Starter bags | `Feed!C2 = M16/50 = 26.64` | fixture 5 |
 | Chick price | `Init!B7 = 1` ($1.00) | fixtures 1–5, 12 |
 | Feed $/kg | `0.65 / 0.62 / 0.60` | breed_curve.json |
 
-Fixtures 1, 2, 3, 4, 5, 10 and 12 are now corroborated against the
-client's own working file, not just against `breed_curve.json`.
+Fixtures 1, 2, 3, 4, 5, 10 and 12 all reproduce the client's own working
+file, not just `breed_curve.json`. Since the seed came from that file,
+this is an **extraction check**, not corroboration by a second source.
+
+**The Final Report is not a second source for the feed cost — verified
+in the XML 2026-09-10.** The chain is:
+
+    Record!F (price/kg, the Record sheet's own price set)
+      -> Record!N{row} = F*H          (daily feed kg x that price)
+        -> Record!N93   = SUM(N3:N92) (column total)
+          -> Final!C4   = Record!N93  (a bare cell reference)
+
+`Final!C4` performs no arithmetic of its own. It is the Record sheet's
+daily cost column, summed and displayed on another tab. Reconciling the
+Record price set to the Final Report therefore proves only that Excel
+can add up its own column, and the same applies to our AD-20 hand-check
+(`383x0.65 + 1466x0.62 + 2559x0.60 = $8,079.81`), which re-derives the
+Record arithmetic from the Record prices. **Both confirm our engine
+reproduces the workbook. Neither is evidence about which price set is
+current.** That question is OQ-13's alone, and it has no cross-check
+available. See the OQ-13 correction.
 
 ### Formula-level confirmation of three known bugs
 
@@ -66,7 +95,12 @@ for "KB-7 (FCR)" or "KB-8 (two feed prices)", they are **KB-4** and
   per 50 kg). Feed Account and the 30,000 brief both use **$31.60 /
   $29.60 / $28.60 per 50 kg** (= $0.632 / $0.592 / $0.572 per kg). Our
   fixtures follow the Record sheet, which is what reproduces $8,079.81.
-  **No action: the source we already chose is the one that reconciles.**
+  **No action on the fixtures — but the "it reconciles" reason was
+  wrong** (corrected 2026-09-10): `Final!C4 = Record!N93 = SUM(N3:N92)`,
+  so the Final Report just re-displays the Record sheet's own total. Of
+  course the Record prices reconcile to it. Keeping that price set is
+  still right, on the narrower ground that it is the set the workbook
+  actually used and the one our fixtures reproduce.
   Which set is *current* is still worth asking — see OQ-13, which blocks
   nothing.
 
@@ -91,12 +125,33 @@ one. See AD-26, and OQ-14 below, which this closes.
 **Status:** Open, and deliberately not blocking. **Affects:** every money
 figure downstream *if* the answer turns out to be the cheaper set.
 
-**Decision 2026-09-10:** ask it, block nothing on it. The source we chose
-— the Record sheet's `0.65 / 0.62 / 0.60` — is independently confirmed
-by reconciling to the Final Report's $8,079.81, which is the only
-cross-check available. Switching price source later is a parameter edit,
-not a rewrite, and fixture 1 would be regenerated against an AD at that
-point. Put the question to Daniel with the rest; carry on meanwhile.
+**Decision 2026-09-10, and it stands — but one of its two reasons was
+false. CORRECTED 2026-09-10.**
+
+The original decision rested partly on this: *"the Record sheet's
+0.65/0.62/0.60 is independently confirmed by reconciling to the Final
+Report's $8,079.81, which is the only cross-check available."* **That is
+withdrawn.** Reading the workbook XML shows `Final!C4 = Record!N93 =
+SUM(N3:N92)`, where `N = F*H` — the Record sheet's own price column
+times its own daily feed column. The Final Report adds nothing and
+checks nothing; it re-displays the Record total on another tab.
+Reconciling to it is circular, and it is not a cross-check at all, let
+alone the only one.
+
+**This is the AD-33 failure mode again** — treating a second
+*presentation* of one figure as a second *source* for it. Found by the
+scan that AD-33's correction prompted.
+
+**There is no cross-check available for the price set.** Only Daniel can
+answer which is current.
+
+**The decision not to block survives on its other reason, which is
+sound:** switching price source later is a parameter edit, not a
+rewrite, and fixture 1 would be regenerated against an AD at that point.
+What changes is the confidence — we are keeping `0.65/0.62/0.60` because
+it is the set the workbook actually used to produce its own totals, not
+because anything corroborates it. **Ask Daniel with the rest, and treat
+it as more open than it read before.**
 
 The client's own workbook contains two contradictory feed price sets
 (KB-8). Our fixtures use the Record sheet's, which is the one that
@@ -108,8 +163,9 @@ starter bag on the daily sheet and $31.60 on the feed account. Which is
 current?"*
 
 **Handling until answered:** keep the Record sheet's `0.65/0.62/0.60`,
-because it is the set that reconciles to the Final Report. Do not
-switch on the brief alone.
+because it is the set the workbook itself used — not because it
+"reconciles to the Final Report", which is circular. Do not switch on
+the brief alone.
 
 ### OQ-14 · Do overheads belong in core credit? ✅ ANSWERED 2026-09-10 — by his own brief
 **Answer:** the question was a false choice, and the client's brief had

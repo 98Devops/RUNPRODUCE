@@ -219,6 +219,33 @@ metadata correction, not a regeneration, and it is flagged here the way
 AD-30 flagged the harness encoding: fixtures are the client contract and
 nothing about them moves silently.
 
+**AD-36 · A second presentation of a figure is not a second source.**
+Logged 2026-09-10 after the same mistake was found twice in one day.
+
+AD-33 claimed day 31 was "robust" because 1,770 g and a back-solved
+1,774 g both land there — two roundings of one 62% estimate. OQ-13
+claimed the Record price set was "independently confirmed" by the Final
+Report — where `Final!C4 = Record!N93 = SUM(N3:N92)`, the Record
+sheet's own column, re-displayed on another tab. Different documents,
+identical error: a figure restated in a second place was read as a
+second source for it.
+
+**The test to apply before writing "confirms", "corroborates",
+"independent" or "robust":** name the input that would have to be wrong
+for both figures to be wrong together. If it is the *same* input, there
+is one source and one estimate, however many places it appears.
+
+**Where this bites hardest:** client workbooks are full of summary tabs
+that reference detail tabs. A cell reference looks like agreement and
+carries none. Check the formula, not the value — the XML is readable
+(`unzip -p book.xlsx xl/worksheets/sheetN.xml`) and it took minutes.
+
+Not every such claim was wrong. OQ-1's "independently corroborated by
+the 30,000 brief" is sound: a different document, written before
+Daniel's verbal answer, reaching the same conclusion from its own
+reasoning — and it flags rather than hides that our fallback ramp is
+~2x the brief's figure. That is what the real thing looks like.
+
 **AD-32 · The offal transfer is recorded but not costed.**
 The abattoir keeps the offals on top of its 10c/bird cash fee. Only the
 10 cents flows through the financial model. The transfer is recorded on
@@ -577,9 +604,12 @@ elsewhere) needs a renumber decision. Flagged, not resolved.
   values were verified against `context/breed_curve.json` **before**
   the test was written, so nothing was fitted to output: cum feed 444 g
   (d14) / 2,337 g (d30) / 4,408 g (d41), per-phase 383 / 1,466 / 2,559,
-  weights 1,754 g (d30) / 1,843 g (d31) / 2,875 g (d41). AD-20 checked
-  independently: `383×0.65 + 1466×0.62 + 2559×0.60` = $2.693270/bird,
-  ×3,000 = **$8,079.81** exactly, matching fixture 1. The seed's own
+  weights 1,754 g (d30) / 1,843 g (d31) / 2,875 g (d41). AD-20 checked by hand, independently of the code:
+  `383×0.65 + 1466×0.62 + 2559×0.60` = $2.693270/bird,
+  ×3,000 = **$8,079.81** exactly, matching fixture 1. **"Independently"
+  here means independently of our implementation, not of the client's
+  price set** — the check uses those same prices, so it says nothing
+  about whether they are current (OQ-13, corrected 2026-09-10). The seed's own
   `cum_feed_g` column agrees with the derived sum on all 41 rows, but
   is still ignored in favour of computing — the *cost* column is the
   one that drifts.
