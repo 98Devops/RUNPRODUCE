@@ -195,19 +195,43 @@ Local is Node v24.11.0; `.github/workflows/ci.yml` pins `node-version:
 `Intl.NumberFormat` behaviour has shifted between Node majors and
 money-as-`bigint`-cents is a hard invariant (CLAUDE.md rule 2).
 
-**Close-out condition:** once the golden fixtures land in task 5, U1 is
-not done until CI is observed **green on Node 20 with the real
-fixtures** — not just locally green on 24. If it diverges, that is a
-runtime discrepancy to fix now, not in U4.
+**Close-out condition (restated 2026-09-10, after the CI split):** the
+**full pipeline including the Golden fixtures step is green on Node 20
+with zero held fixtures.** Green *while fixtures are held* does not
+count and never did — a held fixture proves nothing about `bigint`
+behaviour on Node 20, because its assertion never runs. The step prints
+`held N`; TD-2 closes when that line reads `held 0` on a Node 20 run.
+If Node 20 and local Node 24 diverge, that is a runtime discrepancy to
+fix then, not in U4.
 
 **Progress 2026-09-10 — partial, not closing.** First real CI run
 ([34452361699](https://github.com/98Devops/RUNPRODUCE/actions/runs/34452361699))
 was green on **Node v20.20.2**: `money.test.ts`, 19/19 passed. That is
 the first evidence that `bigint` money behaviour matches between local
-Node 24 and CI Node 20 — but it covers `Money` only. The close-out
-condition is unchanged and unmet: it requires the **task 5 golden
-fixtures** running green on Node 20 in this same CI. Do not close TD-2
-before then.
+Node 24 and CI Node 20 — but it covers `Money` only.
+
+**2026-09-10 — CI stopped signalling regressions blindly.** From
+`fb4a15e` until this change, `npm test` was one CI step containing both
+the unit suites and the deliberately-red golden fixtures, so a red run
+carried no information: the expected failure and a real regression
+looked identical. That window is closed. Lint, typecheck, unit tests and
+build are now four separate gating steps — `build` was not in CI at all
+before this and is now — and the golden fixtures run as a fifth step
+whose excusals are **derived, not declared**: a fixture is held only
+when the engine call throws the typed `NotImplementedError`, or when the
+fixture carries a `placeholder` instead of an expected value. A fixture
+targeting a module that now exists gates like any other test. Verified
+by probe before commit: a fixture asserting `807981` against an
+implemented `computeDecision` returning `999999` exits the step 1, while
+a `NotImplementedError` throw and a placeholder fixture both skip and
+exit 0.
+
+**Honest caveat as of today:** all 13 fixtures route through the single
+`computeDecision()` entry point, which is still the U1 stub — so the
+step currently holds *everything* it is given. The discrimination is
+structural rather than currently-exercised, and it becomes real
+per-fixture the moment U2 implements a path. It needs no list updated
+when that happens.
 
 ---
 

@@ -110,6 +110,9 @@ Named, capitalised, and used consistently in code and UI:
 | **Explained value** | A number returned with its formula, inputs and confidence |
 | **Confidence** | `measured` (from farm data), `calibrated` (derived from farm data), `assumed` (our guess — flag it) |
 | **Golden fixture** | A test encoding the client's real spreadsheet output. The contract. |
+| **Held fixture** | A golden fixture CI reports but does not fail on, because the engine call throws `NotImplementedError` or the fixture has no expected value yet. Derived per run, never a declared list. |
+| **Provisional fixture** | A golden fixture whose expected value rests on an assumption rather than client data. **It still asserts** — it is not held. |
+| **Placeholder** | `expect.placeholder` in a fixture file: the expected value is not knowable yet, and this names the OQ it waits on. |
 | **Missing input** | The engine's refusal to compute when a required value is unknown. Never a silent default. |
 | **Unit** | One step of the build, U1–U11 |
 | **OQ-n** | An open question in `current-issues.md` |

@@ -67,6 +67,18 @@ Tracked in `current-issues.md`.
 
 ## Architecture Decisions
 
+**AD-21 · The golden fixture suite is a separate CI step, and excusals
+are derived rather than declared.**
+An executable spec is red on purpose, which makes a single test step
+useless as a regression signal for the whole time the spec is unmet. The
+suite is therefore split out. What keeps the split honest is that no
+list anywhere says which fixtures are allowed to fail: a fixture is held
+only if the engine throws the typed `NotImplementedError`, or if the
+fixture declares `expect.placeholder` because an OQ is unanswered. Both
+are observed at run time, so the excusal expires by itself when the
+module lands. The step consequently needs no `continue-on-error` — it
+gates on everything except the two derived cases.
+
 **AD-1 · Pure calculation engine, no I/O.**
 The engine runs identically on server and in browser, enabling instant
 scenario sliders without a round trip, and making the whole business
@@ -274,9 +286,22 @@ avoids the largest complexity sink in the project.
   `no-unused-vars` does not honour the leading underscore that `tsc`'s
   `noUnusedParameters` does, so the stub's `_input` failed lint. The two
   conventions are now aligned repo-wide in `eslint.config.js`.
-- **Next: Task 5** — the 13 golden fixtures. Fixtures 7, 8, 10 and 11
-  stay held pending OQ-1 through OQ-4; nothing in task 4 depended on
-  them.
+- **Task 4b — DONE.** The CI split (see below). `src/errors.ts`,
+  `tests/golden-classify.test.ts`, `tests/golden-integrity.test.ts`,
+  `tests/golden-fixtures.test.ts` (replaces `golden.test.ts`), two
+  vitest configs, `test:golden` script, five-step workflow. 22 new tests
+  green (56 total in the gating step); golden step green with 1 held.
+- **Next: Task 5** — the 13 golden fixtures. Build the 9 unblocked ones
+  first; 7, 8, 10 and 11 are held back pending OQ-1 through OQ-4.
+  **Vocabulary collision to keep straight:** "held back" in the plan
+  means *written last, pending a client answer* — those four carry
+  concrete expected values ($3,305, −$537, day 31, day 38) and are
+  marked `provisional`, so they **assert**. That is not the same as a
+  CI-**held** fixture, which is one CI reports and does not fail on. Use
+  `expect.placeholder` only where the expected value is genuinely
+  unknowable, not merely assumed. On current information all four take
+  values, and `placeholder` may go unused at task 5. Nothing in task 4
+  depended on them.
 
 **Zod vs. the zero-dependency invariant — settled (task 4).** The
 invariant wins. `code-standards.md` now states it as a rule rather than
@@ -284,15 +309,50 @@ leaving it as an implicit precedent from `breed-curve.ts`: Zod stops at
 the app/API boundary, and JSON compiled into the engine is validated at
 import by hand. Validation stays mandatory; only the library is not.
 
-**⚠️ CI is red from here until U2, by design.** `npm test` is a CI step
-and the golden fixtures are meant to fail — so every run from `fb4a15e`
-until `computeDecision()` is implemented reports failure. That is the
-executable spec working as intended, but it means **CI red no longer
-signals a regression during this window**, and TD-2's close-out
-condition ("observed green on Node 20 with the real fixtures") cannot be
-met while the fixtures are red. Decide at task 5 whether to keep it red
-and read run logs by hand, or split the CI test step so the golden
-suite reports separately from the unit suites.
+**CI split — done, 2026-09-10.** The problem: `npm test` was a single CI
+step holding both the unit suites and the deliberately-red golden
+fixtures, so from `fb4a15e` a red run carried no information — the
+expected failure and a real regression were indistinguishable. Resolved:
+
+- Five named steps. **Lint, Typecheck, Unit tests, Build** gate
+  unconditionally; red there is a regression, always. `Build` was absent
+  from CI before this.
+- **Golden fixtures** is a fifth step running
+  `packages/engine/tests/golden-fixtures.test.ts` under
+  `vitest.golden.config.ts`. It reports written / passing / held counts.
+- **It has no `continue-on-error`.** The permissiveness is per-fixture
+  and *derived*, not step-wide and declared. `classifyFixture()` in
+  `tests/golden/_shared.ts` holds a fixture in exactly two cases: the
+  engine call threw the typed `NotImplementedError` (new,
+  `src/errors.ts`), or the fixture declares `expect.placeholder`
+  instead of `expect.value` because an OQ is unanswered. Held fixtures
+  `skip`. Everything else asserts, and asserting includes failing.
+- So a fixture rejoins the gate **automatically** when its module lands.
+  Replacing the `computeDecision` stub is the only action required;
+  there is no list of excuses to remember to update.
+- `provisional` ≠ held. A provisional fixture asserts, locking in
+  assumed behaviour so regressions are caught, exactly as planned.
+- Fixture *integrity* gates (unit step): schema valid, ids unique, no id
+  outside 1–13, never more than 13, `validateFixture` reports every
+  problem not just the first. Fixture *completeness* (all 13 written) is
+  held in the golden step, because writing them is task 5.
+- **Verified by probe, not asserted:** with `computeDecision` temporarily
+  returning `999999` and a fixture expecting `807981`, the step exits 1.
+  With the `NotImplementedError` stub and a placeholder fixture, both
+  skip and the step exits 0. Probe reverted before commit.
+
+**The honest limit, stated plainly:** all 13 fixtures route through the
+one `computeDecision()` entry point, which is still the U1 stub — so
+today the step holds everything it is given. There is currently no
+fixture that *should* be passing; the already-implemented modules
+(`money`, `breed-curve`) are covered by unit tests in the gating step,
+not by fixtures. The discrimination is structural rather than
+currently-exercised.
+
+**Task 5 close-out:** when the 13th fixture is written, move
+`expect(fixtures.map(f => f.id)).toEqual(FIXTURE_IDS)` out of
+`golden-fixtures.test.ts` and into the gating `golden-integrity.test.ts`,
+so a vanished fixture fails the build from then on.
 
 **CI is live as of task 2.** Remote
 `https://github.com/98Devops/RUNPRODUCE.git`; first green run

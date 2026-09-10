@@ -13,6 +13,25 @@ jobs:
         with:
           node-version: '20'
       - run: npm ci
-      - run: npm run lint
-      - run: npm run typecheck
-      - run: npm test
+
+      # These four gate unconditionally. Red here is a regression, always.
+      - name: Lint
+        run: npm run lint
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Unit tests
+        run: npm test
+      - name: Build
+        run: npm run build
+
+      # The golden fixtures — the contract with the client — reported
+      # separately so their state is legible without reading the unit results.
+      #
+      # This step still gates. It has no continue-on-error, deliberately: a
+      # fixture is excused only when the engine call it makes throws the typed
+      # NotImplementedError, or when the fixture has no expected value yet
+      # (an unanswered OQ). Those skip and are counted. A fixture whose module
+      # exists and whose number is wrong fails this step and the workflow.
+      # See packages/engine/tests/golden/_shared.ts — classifyFixture.
+      - name: Golden fixtures
+        run: npm run test:golden
