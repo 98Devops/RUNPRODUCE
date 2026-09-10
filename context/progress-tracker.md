@@ -22,9 +22,10 @@ M2 also charges **production overheads** from the client's own Final
 Report (AD-26) — four measured lines, $1,222.00 at his 3,000-bird scale —
 without folding them into core credit.
 
-Expected outcome: the previously-held fixtures assert real values,
-`computeDecision()` no longer throws for them, and the golden step's
-held count falls.
+**Outcome, 2026-09-10: done.** Fixtures 1, 2, 3, 4, 12 and 13 assert
+real values, `computeDecision()` returns production and costing, and the
+golden step's held count fell from 10 to 4 — the remaining three are
+waiting on M3 and M4, plus the U1 completeness hold.
 
 ## Completed
 
@@ -37,10 +38,20 @@ held count falls.
 
 ## In Progress
 
-- **U2 / M1 production.** Task 1 (day number), task 2 (types + AD-26
-  overheads) and **task 3 (M1 projection)** done. Task 4 — M2 costing —
-  is next, and is what wires `computeDecision()` and turns fixtures 1-4
-  and 12 green.
+- **U2 / M1 + M2.** Tasks 1-4 done. **Six golden fixtures now assert for
+  real** — 1, 2, 3, 4, 12 and 13 — against the client's own numbers.
+  Held is down from 10 to 4: completeness (U1 task 5), fixture 5 and 9
+  (M3, U3), fixture 10 (M4, U4). U2 is complete pending a close-out
+  review.
+
+  Task 4 landed `packages/engine/src/costing.ts` and wired
+  `computeDecision()`. Feed is priced by phase from integer grams against
+  per-kg rates in cents, `bigint` throughout, rounding **up** per AD-26 —
+  reproducing his $8,079.81 exactly. Core credit stays chicks + feed
+  (invariant 15); overheads sit beside it in `overhead_cost_cents` and
+  `full_production_cost_cents` at $12,301.81 total. A BULK sale with no
+  abattoir fee returns `missing_input` naming both gaps, never a guess
+  (fixture 13, invariant 5).
 
   Task 3 landed `packages/engine/src/production.ts`: `projectProduction()`
   returning `ProductionProjection`, 20 tests, TDD throughout. Removals are
@@ -125,6 +136,29 @@ once real mortality data arrives.
 Tracked in `current-issues.md`.
 
 ## Architecture Decisions
+
+**AD-29 · Unbuilt modules are getters that throw, and the golden runner
+reads the fixture's path inside its try.**
+`computeDecision()` now returns real production and costing, but M3, M4
+and M5 do not exist. Exposing them as `undefined` would make fixtures 5,
+9 and 10 assert against nothing and fail — or worse, pass vacuously.
+They are getters that throw `NotImplementedError` when read, and the
+golden runner resolves the fixture's dotted path inside the same `try` as
+the engine call, so "not built yet" classifies as held rather than
+failing. This keeps U1's design property intact: a fixture stops being
+excused the moment its module lands, with no list of excuses anywhere to
+update.
+
+**AD-30 · Fixture money is a decimal string; the harness encodes both
+ways, the fixture values never change.**
+JSON has no bigint, so the fixture files hold money as `"807981"`. The
+harness gained `parseFixtureInput` (string → `bigint` on the way in) and
+`toComparable` (`bigint` → string on the way out). The decode keys off
+CONTEXT.md's own naming rule — a money field always carries `cents` in
+its name — rather than a hand-listed set of fields that would drift as
+soon as a new money field appears. The client's numbers in those files
+were not touched, which is the point: the contract is the value, not its
+encoding.
 
 **AD-28 · A carried-forward day is marked, never disguised.**
 M1 continues past a day with no record by carrying the last recorded

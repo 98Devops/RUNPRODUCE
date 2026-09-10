@@ -4,7 +4,9 @@ import type { EngineInput } from '../src/types.js';
 import {
   classifyFixture,
   loadFixtures,
+  parseFixtureInput,
   resolvePath,
+  toComparable,
   FIXTURE_IDS,
   type Fixture,
   type FixtureOutcome
@@ -25,9 +27,17 @@ const fixtures = loadFixtures();
 const passed: number[] = [];
 const held: { id: number; reason: string }[] = [];
 
+/**
+ * Reading the value the fixture asks for is part of the engine call, not a step
+ * after it. A module U3-U5 has not built is exposed on the decision as a getter
+ * that throws `NotImplementedError`, so a fixture targeting `decision.feed`
+ * only classifies as held if that throw happens inside this try. Resolving the
+ * path outside it would report "not built yet" as a failure.
+ */
 function run(fixture: Fixture): FixtureOutcome {
   try {
-    return { kind: 'returned', value: computeDecision(fixture.input as unknown as EngineInput) };
+    const decision = computeDecision(parseFixtureInput(fixture.input) as EngineInput);
+    return { kind: 'returned', value: resolvePath(decision, fixture.expect.path) };
   } catch (error) {
     return { kind: 'threw', error };
   }
@@ -66,9 +76,10 @@ describe('golden fixtures — the contract with the client', () => {
         return;
       }
 
-      const returned = outcome.kind === 'returned' ? outcome.value : undefined;
-      const actual = resolvePath(returned, fixture.expect.path);
-      expect(actual, `fixture ${fixture.id} (${fixture.name})`).toEqual(verdict.expected);
+      const actual = outcome.kind === 'returned' ? outcome.value : undefined;
+      expect(toComparable(actual), `fixture ${fixture.id} (${fixture.name})`).toEqual(
+        verdict.expected
+      );
       passed.push(fixture.id);
     });
   }
