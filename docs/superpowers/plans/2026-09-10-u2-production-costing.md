@@ -159,7 +159,15 @@ git commit -m "feat(engine): add dayNumberFor, placement day is day 1"
 
 ---
 
-### Task 2: Production and costing types
+### Task 2: Production and costing types — DONE 2026-09-10 (`03feb91`)
+
+> **Landed wider than planned, deliberately.** `CostingResult` also
+> carries `overhead_cost_cents`, `overhead_lines` and
+> `full_production_cost_cents`, and `Parameters` gained an optional
+> `overheads` model — AD-26, from the client's own Final Report figures.
+> `src/types.ts` on disk is the current contract. **Do not re-apply the
+> code block below over it**; it predates the overhead work and would
+> drop three fields. Task 4's step 3 has been updated to match.
 
 **Files:**
 - Modify: `packages/engine/src/types.ts` (the `Decision` interface)
@@ -491,6 +499,24 @@ git commit -m "feat(engine): add M1 production projection with cumulative remova
 - Consumes: `ProductionProjection` (Task 2), `projectProduction` (Task 3), `feedGByPhase` from `breed-curve.js`, `inputAt` / `withFlock` from `tests/_fixtures.js`.
 - Produces: `export function computeCosting(input: EngineInput, production: ProductionProjection): CostingResult`.
 
+**Overheads (AD-26) are part of this task.** `overheads.ts` already
+exists, is unit-tested and is exported — this task only calls it. Add to
+`computeCosting`:
+
+```typescript
+const overheadModel = input.parameters.overheads ?? SEED_OVERHEADS;
+const overhead_lines = overheadBreakdown(overheadModel, production.flock_size);
+const overhead_cost_cents = overheadCostCents(overheadModel, production.flock_size);
+```
+
+and return `core_credit_cents` as chick + feed **only**, with
+`full_production_cost_cents = core_credit_cents + overhead_cost_cents`.
+Invariant 15: never blend the two. Tests to add alongside the four below:
+overheads total `122200n` on the 3,000-bird batch; `core_credit_cents`
+is unchanged by them; `full_production_cost_cents` is their sum;
+`overhead_lines` sums to `overhead_cost_cents`; an explicit
+`{ lines: [] }` charges nothing while *absent* charges the seed.
+
 **The number this must reproduce**, verified by hand at U1 task 3 and recorded in the tracker:
 `383 g × $0.65 + 1,466 g × $0.62 + 2,559 g × $0.60 = $2.693270/bird`, `× 3,000 = $8,079.81` = `807981` cents. Per-phase grams come from `feedGByPhase`; per-phase prices from `curve.phases[].price_per_kg_cents`.
 
@@ -570,10 +596,16 @@ export function computeCosting(
   const chick_cost_cents = (BigInt(production.flock_size) *
     (input.batch.chick_price_cents as bigint)) as Cents;
   const feed_cost_cents = feedCostCents(curve, production.day_number, production.flock_size);
+  const overheadModel = input.parameters.overheads ?? SEED_OVERHEADS;
+  const overhead_cost_cents = overheadCostCents(overheadModel, production.flock_size);
+  const core_credit_cents = (chick_cost_cents + feed_cost_cents) as Cents;
   return {
     chick_cost_cents,
     feed_cost_cents,
-    core_credit_cents: (chick_cost_cents + feed_cost_cents) as Cents,
+    core_credit_cents,
+    overhead_cost_cents,
+    overhead_lines: overheadBreakdown(overheadModel, production.flock_size),
+    full_production_cost_cents: (core_credit_cents + overhead_cost_cents) as Cents,
   };
 }
 ```

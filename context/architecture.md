@@ -103,6 +103,13 @@ memberships     (org_id, user_id, role)          -- OWNER | MANAGER | WORKER
 parameter_sets  (id, org_id, name, effective_from, is_active)
 parameters      (parameter_set_id, key, value_numeric, unit, confidence)
                 -- confidence: MEASURED | CALIBRATED | ASSUMED
+                -- Overheads live here, one row per line item
+                -- (overhead_vaccine_cents, overhead_labour_cents, ...),
+                -- each with its basis in `unit` (PER_BIRD | PER_BATCH)
+                -- and MEASURED confidence where the figure is the
+                -- client's own. No separate overheads table: the shape
+                -- is already key/value/unit/confidence. The engine's
+                -- SEED_OVERHEADS is the default when a set carries none.
 
 breed_curves       (id, org_id, name, source)
 breed_curve_points (curve_id, day, weight_g, feed_g, phase)
@@ -249,6 +256,16 @@ The codebase must never violate these.
     `MortalityModel` are a **fallback**, used only where insufficient
     own-batch history exists, and never as the permanent source. See
     OQ-12 for the sufficiency threshold.
+
+15. **Core credit is chick cost plus feed cost, and nothing else.**
+    Overheads are real money and are charged — `overhead_cost_cents`,
+    `full_production_cost_cents` — but they are never folded into
+    `core_credit_cents`. The client's brief requires the break-evens to
+    be displayed separately ("These are NOT the same number. Display
+    them separately"), and a single blended figure cannot be
+    un-blended afterwards. An overhead line declares its basis,
+    `PER_BIRD` or `PER_BATCH`, because the brief separates variable
+    from fixed costs and says "do not double-count".
 
 ## Hosting notes (Netlify)
 

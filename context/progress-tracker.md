@@ -18,6 +18,10 @@ are the near-term targets: they carry `records: []`, so they exercise
 the curve-and-parameters path without needing entered history. Feed
 consumption is based on **opening** birds (AD-7, invariant 10).
 
+M2 also charges **production overheads** from the client's own Final
+Report (AD-26) — four measured lines, $1,222.00 at his 3,000-bird scale —
+without folding them into core credit.
+
 Expected outcome: the previously-held fixtures assert real values,
 `computeDecision()` no longer throws for them, and the golden step's
 held count falls.
@@ -33,7 +37,8 @@ held count falls.
 
 ## In Progress
 
-- **U2 / M1 production.** Just started.
+- **U2 / M1 production.** Task 1 (day number) and task 2 (types, plus
+  AD-26 overheads) done. Task 3 — M1 projection — is next.
 
 ## Next Up
 
@@ -45,8 +50,11 @@ held count falls.
    CLAUDE.md; blocked on OQ-2.
 
 **Outstanding client questions** — OQ-2, OQ-3, OQ-4, OQ-7, OQ-8 are
-compiled into a single message awaiting Daniel. OQ-1 is answered.
-OQ-9 and OQ-11 were reframed and are no longer client questions.
+compiled into a single message awaiting Daniel, and **OQ-13, OQ-15 and
+OQ-16 go in the same message**: none of the three blocks anything, all
+three are worth asking while he is answering. OQ-1 and OQ-14 are
+answered. OQ-9 and OQ-11 were reframed and are no longer client
+questions.
 
 **Outstanding internal decision** — the AD-9 collision needs a renumber.
 
@@ -102,6 +110,35 @@ once real mortality data arrives.
 Tracked in `current-issues.md`.
 
 ## Architecture Decisions
+
+**AD-26 · Overheads are measured parameters; core credit stays chicks +
+feed.**
+The Final Report books four costs we were not modelling: vaccine $42,
+electricity and heating $140, labour $640, other and transport $400 —
+$1,222.00 on the 3,000-bird batch, 11.02% on top of core credit. They are
+now `SEED_OVERHEADS` in `packages/engine/src/overheads.ts`, every line
+`confidence: 'measured'`, because every figure is his own. This closed
+OQ-14 without a client round trip.
+
+What it does **not** do is change core credit. The client's brief asks for
+four break-evens and says "These are NOT the same number. Display them
+separately", so `core_credit_cents` stays chicks + feed (his "DOC + feed
+break-even") and `overhead_cost_cents` / `full_production_cost_cents`
+sit beside it, with a per-line `overhead_lines` breakdown for the UI.
+Invariant 15 forbids blending them, because a blended figure cannot be
+un-blended later.
+
+Each line declares a basis, `PER_BIRD` or `PER_BATCH`, taken from the
+brief's own variable/fixed split rather than guessed. A PER_BIRD line
+stores the measured amount plus the flock it was measured at, not a
+pre-divided per-bird rate: $42 over 3,000 birds is 1.4 cents a bird and
+integer cents cannot hold it. Scaling is `bigint` and rounds **up** —
+a cost rounded down flatters a break-even, which is the one direction
+this engine must never err in. At most one cent per line.
+
+**Overheads were ruled out as the explanation for fixture 6**, verified
+rather than assumed: they move the 2,675 gap from 175 to 528, the wrong
+way. OQ-15 and OQ-16 are the two follow-ons, neither blocking.
 
 **AD-25 · Culls are entered cumulatively too, under a joint bound.**
 Same treatment as AD-24, for the same reason, on a structurally
@@ -427,6 +464,56 @@ elsewhere) needs a renumber decision. Flagged, not resolved.
   values, and `placeholder` may go unused at task 5. Nothing in task 4
   depended on them.
 
+**U2 task 2 — DONE, plus overheads (AD-26), 2026-09-10.**
+`ProductionProjection` and `CostingResult` replace the `unknown`
+halves of the `Decision` envelope, and `CostingResult` carries the
+overhead figures from the start rather than having them retrofitted.
+New `packages/engine/src/overheads.ts`: `SEED_OVERHEADS`,
+`overheadLineCents`, `overheadBreakdown`, `overheadCostCents`,
+`validateOverheadModel`. The seed is validated at import, the same
+treatment `breed-curve.ts` gives its JSON and for the same reason —
+hand-transcribed client data should throw at load, not surface later as a
+wrong figure on a break-even screen. 33 new tests; **89 green total**;
+lint, typecheck and build clean.
+
+`Parameters.overheads` is **optional**, absent meaning
+`SEED_OVERHEADS` — the AD-23 convention, so no fixture carries a copy
+of client data it does not assert on. An empty `lines` array means
+"charge no overheads" and is a different thing from absent; null is never
+used for either.
+
+**No golden fixture was regenerated, and that was checked mechanically
+rather than by eye.** Every written fixture's asserted path was listed
+and compared: fixture 1 asserts `costing.feed_cost_cents` (feed only),
+2/3/4/12 assert production quantities, 5 and 9 the feed module, 10 the
+harvest day, 13 a `missing_input`. Overheads touch none of them, and
+they add no `MissingInputKey` — they are measured, so they can never be
+missing. Fixture 6 (break-even) is unwritten and blocked on OQ-8; the
+overhead arithmetic was run against it anyway and **widens** its gap
+(2,850 → 3,203 against a contract 2,675), which is recorded under OQ-14
+as ruling overheads out.
+
+**Three context findings mined from the client's brief while doing this,
+all verified against the file:**
+- OQ-14 is answered by section 19 — four break-evens, displayed
+  separately. It was never an either/or.
+- The brief's own variable/fixed cost split supplies each line's basis,
+  so the classification is his, not ours.
+- The brief assumes ~$0.59/bird overheads where his measured figures give
+  $0.407/bird — logged as OQ-15, which our PER_BATCH lines surface as
+  $0.173/bird at 30,000. The model exposes the discrepancy instead of
+  hiding it.
+
+**KB numbering collision resolved.** The three bugs written up after
+reading the formulas were numbered KB-6/7/8 and collided with the
+existing KB-6/7/8. They needed no numbers: they **confirm** KB-2, KB-4
+and KB-3 from formulas rather than inference, and are folded into those.
+No KB number is now used twice. The AD-9 collision is still open.
+
+**OQ-13 (feed price set) explicitly blocks nothing.** The Record sheet's
+prices are the ones that reconcile to the Final Report's $8,079.81, which
+is the only cross-check that exists. Ask Daniel; do not wait for him.
+
 **OQ-1 answered — the mortality model changed shape, 2026-09-10.**
 Daniel: *"It varies."* Not a constant to plug in. Three consequences,
 applied before U2 so M1 is not built on the old assumption:
@@ -469,7 +556,8 @@ conversation. Actual state of this file:
 - The `kind:'ok'`/`missing_input` contradiction fix **is already AD-22**;
   `curve`-optional **is already AD-23**. They did not need new numbers.
 - **AD-24** and **AD-25** were then assigned off this list (mortality
-  model; culls cumulative). Next genuinely free number is **AD-26**.
+  model; culls cumulative). **AD-26** is now taken (overheads). Next
+  genuinely free number is **AD-27**.
 - **Rule: grep this file before assigning any AD number.** Never infer
   the next number from a previous chat message.
 

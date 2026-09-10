@@ -83,7 +83,10 @@ chicks, raises them ~30 days, sells through two channels.
 
 | Term | Meaning | Not |
 |---|---|---|
-| **Core credit** | Chick cost + feed cost to harvest. What gate sales must cover. | |
+| **Core credit** | Chick cost + feed cost to harvest, and nothing else. What gate sales must cover. The brief's "DOC + feed break-even". | ~~total cost~~ (overheads are not in it) |
+| **Overhead** | A production cost that is neither chicks nor feed: vaccine, electricity and heating, labour, transport and other. Booked in the client's own Final Report. | ~~indirect cost, opex~~ |
+| **Overhead basis** | `PER_BIRD` or `PER_BATCH`. The client's brief separates variable from fixed costs and says "do not double-count"; the basis is what keeps that honest. | |
+| **Full production cost** | Core credit + overheads. Drives the brief's "full production break-even", which is shown **beside** the core-credit one, never instead of it. | ~~total cost~~ |
 | **Cashflow days** | Market date − draw due date. Negative means the bill lands before the birds are sellable. **The client's own term — keep it.** | |
 | **Market date** | The day birds become sellable | |
 | **Reserve floor** | The cash level below which no recommendation may take him | ~~minimum balance~~ |

@@ -41,36 +41,62 @@ exactly, from an independent source:
 Fixtures 1, 2, 3, 4, 5, 10 and 12 are now corroborated against the
 client's own working file, not just against `breed_curve.json`.
 
-### New known bugs in the spreadsheet (confirmed by reading formulas)
+### Formula-level confirmation of three known bugs
 
-- **KB-6 · Feed is charged to CLOSING birds.** `H = J*K/1000` where
-  `J` is Closing Birds. Invariant 10 and AD-7 already say do not copy
-  this; now confirmed in the formula rather than inferred.
-- **KB-7 · FCR double-counts sold weight on the sale day.**
+**Numbering note, resolved 2026-09-10.** These three were first written
+up as "KB-6 / KB-7 / KB-8", colliding with the existing KB-6, KB-7 and
+KB-8 further down this file. They needed no new numbers: reading the
+formulas did not find new bugs, it **confirmed three we had already
+logged from inference**. They are folded into KB-2, KB-4 and KB-3
+accordingly, and no KB number is used twice. If you arrived here looking
+for "KB-7 (FCR)" or "KB-8 (two feed prices)", they are **KB-4** and
+**KB-3**.
+
+- **KB-2 confirmed · Feed is charged to CLOSING birds.** `H = J*K/1000`
+  where `J` is Closing Birds. Invariant 10 and AD-7 already say do not
+  copy this; now confirmed in the formula rather than inferred.
+- **KB-4 confirmed · FCR double-counts sold weight on the sale day.**
   `P43 = M43/((J43*G43/1000)+SUM(R$3:R43))` — on day 41 all 3,000 birds
   are sold, so `R43 = 8625` kg is added to a denominator that already
   counts those same birds as live, giving `0.7666` instead of
-  `1.5332`. Our fixture 3 asserts `1.53`, the correct value. Correct.
-- **KB-8 · The workbook prices feed two different ways.** Record uses
-  `0.65 / 0.62 / 0.60` per kg (= $32.50 / $31.00 / $30.00 per 50 kg).
-  Feed Account and the 30,000 brief both use **$31.60 / $29.60 / $28.60
-  per 50 kg** (= $0.632 / $0.592 / $0.572 per kg). Our fixtures follow
-  the Record sheet, which is what reproduces $8,079.81. **Which price
-  set is current is a live question** — see OQ-13.
+  `1.5332`. Our fixture 3 asserts `1.53`, the correct value.
+  **No action: independently confirmed correct.**
+- **KB-3 confirmed · The workbook prices feed two different ways.**
+  Record uses `0.65 / 0.62 / 0.60` per kg (= $32.50 / $31.00 / $30.00
+  per 50 kg). Feed Account and the 30,000 brief both use **$31.60 /
+  $29.60 / $28.60 per 50 kg** (= $0.632 / $0.592 / $0.572 per kg). Our
+  fixtures follow the Record sheet, which is what reproduces $8,079.81.
+  **No action: the source we already chose is the one that reconciles.**
+  Which set is *current* is still worth asking — see OQ-13, which blocks
+  nothing.
 
-### Cost categories we do not model at all
+### Cost categories — now modelled, from his own figures ✅ 2026-09-10
 
 Final Report books, for the 3,000-bird batch: Chicks $3,000, Feed
 $8,079.81, **Vaccine $42, Electricity & Heating $140, Labour $640,
 Other/Transport $400**. Total $12,301.81 against our core credit
-(chicks + feed) of $11,079.81 — a **$1,222 gap, ~11%**. The 30,000
-brief also calls for "production overheads such as labour, electricity,
-transport/handling". See OQ-14.
+(chicks + feed) of $11,079.81 — a **$1,222 gap**, which is **11.02% on
+top of core credit and 9.93% of his total booked cost** (both computed,
+neither estimated).
+
+**These four are now engine parameters** — `SEED_OVERHEADS` in
+`packages/engine/src/overheads.ts`, every line
+`confidence: 'measured'`, because every figure is read out of his own
+spreadsheet. This did not wait for a client response and did not need
+one. See AD-26, and OQ-14 below, which this closes.
 
 ---
 
-### OQ-13 · Which feed price set is current? 🟠 NEW, from KB-8
-**Status:** Open. **Affects:** every money figure downstream.
+### OQ-13 · Which feed price set is current? 🟠 BLOCKS NOTHING
+**Status:** Open, and deliberately not blocking. **Affects:** every money
+figure downstream *if* the answer turns out to be the cheaper set.
+
+**Decision 2026-09-10:** ask it, block nothing on it. The source we chose
+— the Record sheet's `0.65 / 0.62 / 0.60` — is independently confirmed
+by reconciling to the Final Report's $8,079.81, which is the only
+cross-check available. Switching price source later is a parameter edit,
+not a rewrite, and fixture 1 would be regenerated against an AD at that
+point. Put the question to Daniel with the rest; carry on meanwhile.
 
 The client's own workbook contains two contradictory feed price sets
 (KB-8). Our fixtures use the Record sheet's, which is the one that
@@ -85,21 +111,78 @@ current?"*
 because it is the set that reconciles to the Final Report. Do not
 switch on the brief alone.
 
-### OQ-14 · Do overheads belong in core credit? 🟠 NEW
-**Status:** Open. **Affects:** break-even, and therefore every strategy.
+### OQ-14 · Do overheads belong in core credit? ✅ ANSWERED 2026-09-10 — by his own brief
+**Answer:** the question was a false choice, and the client's brief had
+already answered it. Section 19 asks for **four** break-evens and says so
+outright:
 
-Vaccine, electricity/heating, labour and transport total $1,222 on a
-3,000-bird batch (~$0.41/bird, ~11% of cost). Our `core_credit_cents`
-is chicks + feed only. If break-even must cover overheads too, every
-break-even figure we produce is ~11% low.
+> Feed break-even … DOC + feed break-even … **Full production
+> break-even** (DOC + Feed + Overheads + Other costs) … Cashflow
+> break-even. **"These are NOT the same number. Display them
+> separately."**
 
-**Ask the client:** *"When you work out how many birds must be sold to
-cover the batch, do you include labour, electricity and vaccine, or
-just chicks and feed?"*
+So overheads neither belong inside core credit nor get dropped: both
+figures are produced and shown side by side. Landed as **AD-26**:
 
-**Handling until answered:** `core_credit_cents` stays chicks + feed,
-matching AD-4's definition in CONTEXT.md, and overheads are **not
-invented**. Flag the omission in any break-even the UI shows.
+- `core_credit_cents` stays chicks + feed, as CONTEXT.md defines it.
+  This is his "DOC + feed break-even".
+- `overhead_cost_cents` and `full_production_cost_cents` are new on
+  `CostingResult`, with a per-line `overhead_lines` breakdown carrying
+  each line's label, basis and confidence, so the UI can show both the
+  make-up and the badge.
+- Invariant 15 now forbids folding overheads into core credit: a blended
+  figure cannot be un-blended afterwards.
+
+**Verified, and it matters for OQ-8:** overheads do **not** explain
+fixture 6's 2,675. On the 5,000-bird day-30 scenario, core-credit
+break-even is 2,850 birds and full-production break-even is **3,203**.
+Adding overheads moves the gap against the contract value from 175 to
+528 — the wrong direction. Overheads are therefore ruled out as the
+explanation, and OQ-8's chick-price reading stands as the only live one.
+
+**Follow-ons, neither blocking:** OQ-15 (do the fixed lines stay fixed at
+30,000 birds?) and OQ-16 (is the $400 transport line the abattoir run?).
+
+### OQ-15 · Do labour and electricity stay flat at 30,000 birds? 🟠 NEW
+**Status:** Open, blocks nothing. **Affects:** overhead cost at any scale
+other than 3,000 birds.
+
+His figures are measured on a 3,000-bird batch. Classified by the brief's
+own variable/fixed split, labour ($640) and electricity ($140) are FIXED
+and so are charged per batch whatever the size. That is very likely wrong
+at 30,000 birds, and the arithmetic shows how wrong: our model gives
+**$0.173/bird at 30,000** against the brief's own working assumption of
+**~$0.59/bird**. Even treating all four lines as fully variable gives
+only $0.407/bird.
+
+**Ask the client:** *"Your own figures put overheads at 41c a bird on the
+3,000-bird batch — $640 labour, $140 electricity, $42 vaccine, $400
+transport. The 30,000-bird plan assumes 59c a bird. At 30,000, does
+labour go up with the bird count, or is it the same team?"*
+
+**Handling until answered:** the measured figures stand as the defaults
+on their measured basis, which is exactly right at his current scale and
+is his own data at any scale. Nothing is extrapolated. When a 30,000
+scenario is modelled the overhead lines are editable — the brief says
+"Make this editable" — and anything the user changes stops being
+`measured`.
+
+### OQ-16 · Is the $400 "Other/Transport" the abattoir run? 🟠 NEW
+**Status:** Open, blocks nothing. **Affects:** whether bulk economics
+double-counts transport.
+
+`overhead_lines.transport_other` is the Final Report's $400 on a batch
+sold at the gate. `Parameters.transport_cents_per_bird` is the run to
+the abattoir, still null pending OQ-2. The brief says "Do not
+double-count costs", and these two could be the same truck.
+
+**Ask the client:** *"Is the $400 transport on your final report the feed
+and chick collection, or does it include taking birds to the abattoir?"*
+
+**Handling until answered:** both are charged, because each is a real
+cost on its own terms and neither is invented — but the risk is
+documented in `overheads.ts` and must be resolved before the bulk
+recommendation ships, which is blocked on OQ-2 regardless.
 
 ---
 
