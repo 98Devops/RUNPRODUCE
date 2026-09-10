@@ -151,8 +151,14 @@ Next Up.
 1. ~~**U2** — M1 production + M2 costing~~ done
 2. ~~**U3** — M3 feed liability~~ done ← fixtures 5, 9 green
 3. ~~**U4** — M4 harvest optimiser~~ done ← fixtures 7, 10, 11 green
-4. **U5** — M5 allocation optimiser. **Run `/grill-me` first** per
-   CLAUDE.md. Blocked on **OQ-2's transport half** (the abattoir fee
+4. **U5** — M5 allocation optimiser. **`/grill-me` complete 2026-09-10**,
+   both rounds: AD-40 to AD-45 and OQ-18 came out of it. The frontier is
+   closed and the spec is complete —
+   `context/plans/u5-allocation-optimiser.md`. **The enumeration's shape and
+   mechanics are buildable today; bulk-inclusive candidate scores are not**
+   (OQ-2 transport, OQ-16), and two of three modes returning
+   `missing_input` while Maximum Growth returns a real number is the
+   expected behaviour while they are open — see AD-43. Blocked on **OQ-2's transport half** (the abattoir fee
    landed, transport did not) **and** OQ-16 (bulk net double-count), and
    Mode set decided (AD-35): three modes, Maximum Growth reframed as
    leveraged rollover. Enumeration must respect invariant 16's 14-day
@@ -309,6 +315,171 @@ EXPECTED VALUE did not change — day 31 before, day 31 after. This is a
 metadata correction, not a regeneration, and it is flagged here the way
 AD-30 flagged the harness encoding: fixtures are the client contract and
 nothing about them moves silently.
+
+**AD-45 · M5 has two entry points, and a candidate's cash calendar is
+projected exactly once.**
+Decided 2026-09-10 in the U5 grilling session, round 2.
+
+**The decision path returns four objects:** the winner per mode plus
+`place_nothing`, each fully explained, with the candidate count considered
+and its tie count. The full candidate surface is 271 sizes x 31 dates =
+**8,401**, and returning it scored three times over is ~25,000 objects
+crossing the engine boundary to a cheap Android.
+
+**The surface gets its own function,** `enumerateCandidates()`, called
+explicitly by the scenario sliders — which are in MVP scope and want the
+curve rather than three points on it. One function per question.
+
+**One projection per candidate, shared across modes.** A candidate's cash
+position is mode-independent, so the calendar for (8,400 birds, floor + 12)
+is the same object whichever mode ranks it. Projecting per mode would
+permit the three modes to disagree about the same candidate's cash
+position; projecting once makes consistency structural rather than
+something tests have to chase.
+
+**AD-44 · The allocation tie-break is deterministic, stated, and the tie
+is reported.**
+Decided 2026-09-10 in the U5 grilling session, round 2. **Earliest date
+first, then smaller size** — earliest because invariant 16 already handles
+biosecurity and idle days earn nothing, smaller because at an equal score
+it risks less capital.
+
+Ties are routine rather than exotic: Maximum Growth maximises size in
+100-bird steps (AD-41), so every date that affords 8,400 birds scores
+identically. The rule is therefore stated and tested, never implicit. An
+implicit tie-break — whichever candidate the loop reached first — makes the
+output depend on enumeration order, which no test pins down and which
+changes silently the day someone reorders the loops.
+
+**The tie is reported, not resolved away:** `tied_candidates` on the
+winner. Eleven candidates scoring identically means the choice is
+insensitive, which is decision-relevant — Daniel can then choose on
+grounds the engine cannot see, like a delivery he would rather not rush.
+
+**AD-43 · Three integer scalars; the reserve floor filters rather than
+scores; each candidate is scored over its OWN completion horizon.**
+Decided 2026-09-10 in the U5 grilling session, round 2.
+
+| Mode | Scalar | Direction |
+|---|---|---|
+| Cover Fast | days until cumulative receipts clear the new batch's core credit | minimise |
+| Maximum Growth | placement size in birds | maximise |
+| Build Reserve | cash retained in cents once obligations are discharged | maximise |
+
+All three are integers — days, birds, cents — so no float touches the
+ranking (invariant 2).
+
+**The reserve floor filters; it never scores.** A breaching candidate is
+excluded from every mode's ranking rather than ranked lower. OQ-3 settled
+it as a hard constraint with an override path; folding it into Build
+Reserve's objective would double-count it AND let a high-scoring candidate
+buy its way past a constraint that is not for sale.
+
+**The horizon is per candidate: `placement + 41 + terms_days`, not the
+fixed 90-day display calendar.** Scoring every candidate over 90 days from
+`asOf` gives a candidate placed at floor + 30 thirty fewer days of its own
+cycle inside the window than one placed at the floor — so Build Reserve
+would prefer early placement for a **window-truncation artefact** rather
+than an economic reason. **That is the AD-36 error**: two quantities
+compared at mismatched points, the mismatch read as a real difference.
+Found by asking what the scoring window actually was, which is the check
+AD-36 asks for.
+
+**A consequence to state rather than smooth over.** Cover Fast's and Build
+Reserve's scalars both need receipts, which need bulk net — blocked on
+OQ-2's transport half and OQ-16. Maximum Growth's scalar is placement size,
+which needs neither. So until those land, a bulk-inclusive candidate makes
+**two modes return `missing_input` while the third returns a real
+number**. That is correct and expected, not a regression: invariant 5
+declining to compute what it cannot while still answering what it can. The
+`missing_input` says so in its own `why`, so a test run or demo reads as
+intended without anyone having to find the spec.
+
+**AD-42 · No Auto mode. M5 enumerates three strategies and points at
+none of them.**
+Decided 2026-09-10 in the U5 grilling session. AD-35 settled that there is
+no fourth *objective*; this settles the question it did not reach — whether
+the system picks among the three for him. It does not.
+
+A `recommended` flag may be built later, but it is a **UI concern for
+U7-U11**, computed after the three strategies and never part of the
+enumeration. If built, its whole rule must be statable in one line the user
+can check — "this is the only mode that does not breach the reserve floor" —
+and with more than one mode qualifying it shows **no flag** rather than an
+invisible tie-break.
+
+The brief's own design principle is the reason: *"Rather than pick one, the
+system presents three named strategies side by side and lets him choose."*
+A black box carrying the authority of three transparent ones is worse than
+no pointer at all, especially on a decision screen used outdoors on a cheap
+Android.
+
+**AD-41 · M5's enumeration: size x date, stepped by box, place-nothing
+included, one placement.**
+Decided 2026-09-10 in the U5 grilling session. Three parts, all shape
+rather than arithmetic:
+
+**Step.** Batch size steps by `placement_step_birds`, a **named parameter**
+defaulting to an assumed **100** — the conventional day-old-chick box,
+which divides 3,000 and 30,000 exactly. Never a literal, and anything it
+determines carries `confidence: 'assumed'` until **OQ-18** lands the unit
+Daniel's hatchery actually invoices in. Stepping to the bird is wrong both
+ways: 27,000 candidates a date is pointless, and 7,432 birds is not
+orderable.
+
+**Place nothing.** Size 0 is a real candidate. Build Reserve's honest
+optimum is sometimes to place nothing, and suppressing it would be the
+engine declining to say something true. It is reported as its own outcome,
+`place_nothing`, carrying the overhead arithmetic that justifies it — NOT
+as a zero-bird batch through the standard fields, which would put $0
+revenue and $780 of `PER_BATCH` overhead (AD-26) into a projection as
+though a batch existed.
+
+**One placement.** The free variables are size and date for a **single**
+next placement. No joint optimisation across two placements — a
+combinatorial jump for a case AD-8 caps at two batches anyway. But every
+candidate is scored against the **full cash calendar including any
+already-running second batch's obligations**: its draws compete for the
+same headroom and the same cash. If those obligations make every candidate
+breach the reserve floor, that is a real and reportable answer.
+
+**AD-40 · The placement date is ENUMERATED from the floor, not determined
+by it. This sharpens AD-31 and AD-35; it reverses neither.**
+Decided 2026-09-10 in the U5 grilling session. Stated carefully because a
+future read could easily mistake it for a contradiction.
+
+**What AD-31 settled, and still settles:** placement cannot precede
+`harvest_completion + 14`. Biosecurity, not finance. M5 never generates a
+candidate below the floor; it is not a penalty term a mode could out-argue.
+**Untouched by this decision.**
+
+**What AD-35 settled, and still settles:** the mode set is three, and
+Maximum Growth means leveraged rollover — a **size** objective with draw
+timing as a second lever — rather than the old "earliest possible next
+placement" **date** objective. The pure date objective is gone and does not
+come back. **Untouched by this decision.**
+
+**What AD-40 adds:** both of the above reasoned that the placement date was
+"largely determined" by the floor. That is true of the space *below* the
+floor and false of the space *above* it. Bulk proceeds land **30 days**
+after the sale while the floor is only harvest_end + **14**, so for roughly
+16 days past the floor, waiting longer means more cash has arrived, which
+finances a larger batch. That is a live trade-off in the placement date,
+running in the **opposite direction** from the floor — which is exactly why
+the floor does not foreclose it.
+
+So M5's enumeration is **two-dimensional, size x date**: dates from the
+floor forward to **floor + 30 days**, stepped daily. The range ends at 30
+because that is the bulk terms length — past it no further receivable is
+unlocked by waiting, so the space genuinely closes rather than being
+truncated for convenience.
+
+**The distinction that keeps all three consistent:** AD-31 and AD-35 were
+right that there is nothing to optimise in being *earlier*. AD-40 observes
+there is something to optimise in being *later*, and that it is financed by
+the same receivable leveraged rollover already reasons about. Reframing
+Maximum Growth was still correct; pinning the date at the floor would not
+have been.
 
 **AD-39 · `hold_cost_to_day` — the hold cost is a range, so the output
 carries a range.**

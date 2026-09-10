@@ -873,6 +873,28 @@ Note what this does to OQ-11: $4.30/bird at the 1,770 g target implies
 **$2.43/kg**, which is where the plan's unsourced "$2.46/kg" came from.
 The spreadsheet's actual $2.00/kg is a materially different number.
 
+### OQ-18 · What unit does the hatchery invoice chicks in? 🟡
+**Status:** Open, assumed default. **Raised:** 2026-09-10, from the U5
+grilling session. **Affects:** the granularity of every batch-size
+recommendation M5 makes.
+
+**The ask, and it is a small one:** *when you order day-old chicks, what
+does the hatchery invoice in — boxes, crates, or a flat bird count? And how
+many birds is one of those?*
+
+**Why it matters more than it looks.** M5 enumerates candidate batch sizes
+and recommends one. A recommendation Daniel cannot place an order for is
+not a recommendation — "7,432 birds" is arithmetic, not an instruction. The
+step size is what makes the output orderable.
+
+**Handling until answered:** `placement_step_birds`, a named parameter
+defaulting to **100** — the conventional day-old-chick box, which divides
+both 3,000 and 30,000 exactly. It is **not a client figure**; anything the
+step determines carries `confidence: 'assumed'`. See AD-41.
+
+**Does not block U5.** The parameter is the whole mechanism, and a different
+answer changes its default rather than any code. Ask it with the rest.
+
 ### OQ-12 · How much own-batch history is "sufficient" to calibrate 🟡
 **Status:** Open, assumed default. **Raised:** 2026-09-10, from OQ-1's answer.
 **Affects:** when the harvest optimiser switches off the fallback ramp.
@@ -1179,6 +1201,7 @@ recommendation — divergences are the most valuable data available.
 |---|---|
 | Bulk allocation recommendation | OQ-2 — **transport half only**; abattoir fee answered 2026-09-10 |
 | U5 · bulk net revenue computation | OQ-2 (transport) **and** OQ-16 — both required, neither sufficient alone |
+| U5 · any **bulk-inclusive** candidate score | OQ-2 (transport) **and** OQ-16. The enumeration's SHAPE is buildable today and is spec'd; a candidate routing birds to bulk returns `missing_input` naming both gaps, never a gate-only figure dressed as complete |
 | Calibrated `MaxSafeBatchSize` | OQ-1 (mortality data) |
 | Default strategy selection | ~~OQ-3~~ answered; mode set decided (AD-35) |
 | ~~Gate harvest window past day 32~~ | **Moot.** Built in U4: under the settled flat gate price the window ends at day 31, so there is no "past day 32" to unblock. It reopens only if per-kg gate pricing becomes the default — see OQ-11 |

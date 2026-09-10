@@ -160,7 +160,7 @@ strategies side by side and lets him choose:
 | Strategy | Optimises for |
 |---|---|
 | **Cover Fast** | Minimum days to clear chick + feed credit |
-| **Maximum Growth** | Earliest possible next placement |
+| **Maximum Growth** | **Leveraged rollover** — the largest next batch the proceeds can finance, with draws timed against sales proceeds (AD-35) |
 | **Build Reserve** | Highest cash balance retained after obligations |
 
 ### Explainability

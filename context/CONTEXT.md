@@ -98,6 +98,8 @@ chicks, raises them ~30 days, sells through two channels.
 | **Harvest window** | The day range in which harvesting is sensible, e.g. day 29–31. Always a range — weight comes from a sample. | ~~harvest date~~ |
 | **Max safe batch size** | Largest placement that gate capacity can clear before pre-harvest mortality eats the gain | |
 | **Cost of delay** | What one more day of holding costs, per channel | |
+| **Place nothing** | The outcome where the best candidate is to place no next batch at all. A real answer with its own overhead justification, never a zero-bird batch through the standard fields. AD-41. | ~~skip a cycle~~ |
+| **Placement step** | The bird count the allocation enumeration steps batch size by — the hatchery's order unit, so a recommendation is orderable. Assumed 100 pending OQ-18. | ~~increment, granularity~~ |
 
 ---
 
