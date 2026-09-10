@@ -6,6 +6,16 @@ export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
+    // Match tsc's noUnusedParameters convention: a leading underscore marks a
+    // parameter that is deliberately unused, such as a stub's input.
+    rules: {
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' }
+      ]
+    }
+  },
+  {
     files: ['packages/engine/src/**/*.ts'],
     rules: {
       'no-restricted-globals': [
