@@ -196,9 +196,18 @@ The target is not "reach the top of a band and stop" — that earlier
 reading is **withdrawn**, see OQ-7. The rule stays exactly *first day
 `weight_g >= slaughter_target_g`*, and it is now grounded rather than
 provisional. On the client's own curve that is **day 31** (1,754 g at
-day 30, 1,843 g at day 31), and the result is robust to the rounding:
-back-solving an exact 1.1 kg dressed target gives 1,774 g live, which is
-also first met on day 31.
+day 30, 1,843 g at day 31).
+
+**But the day is sensitive to the yield, and the yield is an estimate.**
+Sensitivity run 2026-09-10 across 58–66%: day 31 holds only between
+**59.7% and 62.8%**. Below that the target falls on day 32; above it,
+day 30, and day 29 by 66%. Daniel's ~62% sits **0.8 points** from
+flipping the answer to day 30. On this curve a bird gains ~87 g/day, so
+one harvest day is worth only ~3 points of dressing yield — the day
+cannot be pinned more precisely than the yield is known, and "~62%" is
+not known that precisely. Harvest-day output therefore keeps
+`confidence: 'assumed'` until a measured dressing percentage exists.
+See **OQ-17**.
 
 **Overshoot still costs money, and that part of OQ-7 survives.** The
 bulk contract bands on dressed weight and pays LESS per bird as the bird

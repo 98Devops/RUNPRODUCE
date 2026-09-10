@@ -319,11 +319,21 @@ logic 1,754 g yields 1.088 kg dressed, which is **below** 1.1 kg, so day
 30 does not reach the target at all.
 
 **The rule is unchanged and now grounded:** *first day
-`weight_g >= slaughter_target_g`* → **day 31** on his curve. The result
-is robust to the rounding: back-solving an exact 1.1 kg dressed target
-gives 1,774 g live, also first met on day 31. `slaughter_target_g` stays
+`weight_g >= slaughter_target_g`* → **day 31** on his curve.
+`slaughter_target_g` stays
 1,770 — his stated number — rather than being quietly re-derived to
 1,774, which would be inventing precision on top of an approximate 62%.
+
+**AMENDED 2026-09-10 — day 31 is sensitive to the yield.** This answer
+originally called the result "robust to the rounding" because an exact
+1.1 kg dressed target back-solves to 1,774 g, also day 31. That claim is
+withdrawn: it varies the target's rounding while holding the yield fixed
+at 62%, and the yield is the uncertain input. A proper sweep (58, 60,
+62, 64, 66%) gives days **32, 31, 31, 30, 29**. Day 31 holds only on
+**59.7–62.8%**, and ~62% sits 0.8 points below the edge where the answer
+becomes day 30. The rule and fixture 10 do not change — day 31 remains
+what the stated inputs give — but harvest-day output keeps
+`confidence: 'assumed'`. **OQ-17** asks for the measured figure.
 
 **Golden fixture 10 is CONFIRMED, not regenerated.** Its expected value
 was already day 31 and stays day 31; the answer removed the reason it
@@ -371,6 +381,58 @@ from an unverified reading that rounded 1,754 to 1.77 kg.
   currently written. Raise it with the client before U4.
 - Golden fixture 10 encodes **day 31**, provisionally.
 - Harvest-day outputs carry `confidence: 'assumed'` until answered.
+
+### OQ-17 · Daniel's measured dressing percentage 🔴 HIGH — does not block U3
+
+**Status:** Open. **Raised:** 2026-09-10, from the AD-33 sensitivity
+check. **Affects:** the bulk harvest day (fixture 10), M4's harvest rule,
+and every downstream revenue figure that prices a dressed bird.
+
+**The ask, and it is a measurement, not an opinion:** on the next batch,
+**weigh ~20 birds live, then weigh the same birds dressed, and give us
+both sets of numbers.** Not a recalled percentage — the paired weights,
+so we can compute the yield and see its spread across birds.
+
+**Why it is worth the trouble.** Every dressing-yield number in this
+project traces back to one rough "~62%" and has never been measured.
+That single estimate sets `slaughter_target_g = 1770`, which sets the
+harvest day, which sets feed cost, hold cost and the gate/bulk split. The
+sensitivity check shows how little slack there is:
+
+| Dressing yield | Target live weight | First day at target |
+|---|---|---|
+| 58% | 1,896.6 g | day 32 |
+| 60% | 1,833.3 g | day 31 |
+| **62%** | **1,774.2 g** | **day 31** |
+| 64% | 1,718.8 g | day 30 |
+| 66% | 1,666.7 g | day 29 |
+
+Day 31 survives only between **59.7% and 62.8%**. Daniel's ~62% sits
+**0.8 points** from the boundary at which the answer becomes day 30.
+
+**The structural reason it is this tight:** on his own curve a bird gains
+~87 g/day around harvest, and 1 point of dressing yield moves the target
+live weight by ~29 g. So **one harvest day is worth only ~3 points of
+yield.** A yield known to "about 62%" cannot pin a harvest day at all —
+the precision of the answer exceeds the precision of the input, which is
+exactly what invariant 5 exists to prevent.
+
+**Handling until answered:**
+- `slaughter_target_g` stays **1,770** — his stated number. Do not
+  re-derive it from a guessed yield.
+- The rule stays *first day `weight_g >= slaughter_target_g`*. Not
+  softened, not widened to a range.
+- Harvest-day output carries `confidence: 'assumed'`, and U4 must show
+  the yield it assumed alongside the day, so the day is never read as
+  measured.
+- **Do not present day 31 to Daniel as a precise recommendation.** It is
+  the right answer given his stated inputs and it is one rounding away
+  from day 30.
+
+**Note on history:** this was never asked as its own question. It has
+been an embedded assumption inside OQ-7 and the CONTEXT.md glossary
+entry since the brief, carried as fact because it appeared in a client
+document. The sensitivity check is what turned it into a question.
 
 ---
 

@@ -83,7 +83,10 @@ waiting on M3 and M4, plus the U1 completeness hold.
 
 **Outstanding client questions, after Daniel's 2026-09-10 answers** —
 **OQ-8** and the **transport half of OQ-2** are what remain outstanding,
-plus **OQ-13, OQ-15, OQ-16**, none of which block. Answered: OQ-1,
+plus **OQ-13, OQ-15, OQ-16, OQ-17**, none of which block. **OQ-17 is the
+highest-value ask of that group**: a measured dressing percentage from
+~20 paired live/dressed weights. It blocks nothing, but the harvest day
+rests on an unmeasured ~62% that is 0.8 points from changing the answer. Answered: OQ-1,
 OQ-14, OQ-3, OQ-4, OQ-7, and OQ-2 in part. OQ-9 and OQ-11 were reframed
 and are not client questions. **OQ-3's internal decision is settled** —
 leveraged rollover reframes Maximum Growth; three modes (AD-35).
@@ -107,7 +110,7 @@ These encode the client's real spreadsheet. Write all 13 in U1.
 | 7 | Hold cost day 30 → 35, 5,000 flock | $3,305 |
 | 8 | Bulk net per day held, 5,000 flock, day 30 | −$537 |
 | 9 | Feed draw due dates from 2026-02-06 | Mar 8, Mar 22, Mar 29, Apr 5, Apr 12 |
-| 10 | Bulk harvest day, default params | day 31 — CONFIRMED by OQ-7, no longer provisional |
+| 10 | Bulk harvest day, default params | day 31 — CONFIRMED by OQ-7; sensitive to dressing yield, see OQ-17 |
 | 11 | Gate harvest window end, default params | day 38 |
 | 12 | 3,000 chicks + 100 extra | flock = 3,100 |
 | 13 | Abattoir fee unset | returns `missing_input`, not a guess |
@@ -123,6 +126,13 @@ rule `first day weight_g >= 1770` applied literally to the client's own
 curve (1,754 g at day 30, 1,843 g at day 31). **OQ-7 answered 2026-09-10
 confirms day 31** on dressing-yield grounds, so the `provisional` marker
 was lifted. The expected value never changed. See AD-33.
+
+**Still assumed, though no longer provisional.** Lifting the marker
+recorded that the *reasoning* is now Daniel's rather than ours. It did
+not make the number measured: day 31 holds only at a dressing yield of
+59.7–62.8%, and his ~62% is an estimate. The fixture stays at day 31 —
+it is what the stated inputs give — but see **OQ-17** before treating
+the day as settled.
 
 Fixtures 6, 7, 8 and 11 could not be reproduced from the client's curve
 under the specified parameters, so they were not written rather than
@@ -184,11 +194,23 @@ is confirmed, not regenerated.**
 answered). Our earlier "hit the 1.1 kg band and stop" reading — which
 argued for day 30 — is WITHDRAWN, not left on record as an alternative.
 The rule stays *first day weight_g >= slaughter_target_g*, now grounded
-rather than provisional, and still yields day 31. Robust to rounding:
-an exact 1.1 kg dressed target back-solves to 1,774 g live, also first
-met on day 31. slaughter_target_g stays his stated 1,770 rather than
-being re-derived to 1,774, which would invent precision on top of an
-approximate 62%.
+rather than provisional, and still yields day 31. slaughter_target_g
+stays his stated 1,770 rather than being re-derived to 1,774, which
+would invent precision on top of an approximate 62%.
+
+**CORRECTED 2026-09-10 — "robust" was wrong, and the test that produced
+it was the wrong test.** AD-33 originally claimed robustness on the
+grounds that an exact 1.1 kg dressed target back-solves to 1,774 g live,
+also first met on day 31. That is true, and it establishes nothing: it
+varies the *target*'s rounding while holding the *yield* fixed at 62%,
+which is the one input actually in doubt. Varying the yield instead —
+58, 60, 62, 64, 66% — gives harvest days **32, 31, 31, 30, 29**. Day 31
+survives only on a **59.7–62.8%** window, and ~62% sits 0.8 points from
+its upper edge. Two roundings of one estimate agreeing is not
+independent confirmation. The rule and fixture 10 are unchanged — day 31
+is still the best available answer and still what the stated inputs
+give — but it is now recorded as **assumed and sensitive**, not robust.
+The measured yield is asked for in **OQ-17**.
 
 **Fixture 10 changed, and the change is declared.** Its 
 marker was lifted because the assumption it named is now answered. The
