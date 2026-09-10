@@ -4,30 +4,68 @@ Update this file after every meaningful implementation change.
 
 ## Current Phase
 
-**U3 — M3 feed liability.** Started 2026-09-10, after U2 closed.
-**Outcome: done.** Fixtures 5 and 9 assert; held is down from 4 to 2.
+**U4 — M4 harvest optimiser.** Started 2026-09-10, after U3 closed.
+**Outcome: done.** Fixtures 7, 10 and 11 assert; written is 11 of 13 and
+held is down to the single U1 completeness hold.
 
 ## Current Goal
 
-Implement `packages/engine/src/production.ts` (M1 flock projection) and
-`src/costing.ts` (M2 cost engine), turning held golden fixtures green.
+**U5 — M5 allocation optimiser, and it is blocked.** Per CLAUDE.md, run
+`/grill-me` on the open questions in `current-issues.md` **before**
+building it: an optimiser fed a wrong curve is still wrong, and looks
+authoritative while being so.
 
-M1 must be built against **cumulative** mortality and cull columns with
-derived deltas (AD-24, AD-25) — not per-day entry. Fixtures 1–5 and 12
-are the near-term targets: they carry `records: []`, so they exercise
-the curve-and-parameters path without needing entered history. Feed
-consumption is based on **opening** birds (AD-7, invariant 10).
+Blocked on **OQ-2's transport half** (the abattoir fee landed, transport
+did not) and **OQ-16** (the bulk-net double-count). Three modes, with
+Maximum Growth reframed as leveraged rollover (AD-35), and enumeration
+must respect invariant 16's 14-day floor (AD-31).
 
-M2 also charges **production overheads** from the client's own Final
-Report (AD-26) — four measured lines, $1,222.00 at his 3,000-bird scale —
-without folding them into core credit.
+Two fixtures stay unwritten and neither is U5's to write: **6** waits on
+OQ-8, **8** waits on OQ-10 and OQ-2. They are what holds the U1
+completeness fixture.
 
-**Outcome, 2026-09-10: done.** Fixtures 1, 2, 3, 4, 12 and 13 assert
-real values, `computeDecision()` returns production and costing, and the
-golden step's held count fell from 10 to 4 — the remaining three are
-waiting on M3 and M4, plus the U1 completeness hold.
+*The U2 and U3 goals that stood here are recorded under Completed.*
 
 ## Completed
+
+- **U4 — M4 harvest optimiser.** `packages/engine/src/harvest.ts`, 24 new
+  tests, TDD throughout. **Fixtures 7, 10 and 11 now assert**; written is
+  11 of 13 and held is down from 2 to 1 — the U1 completeness hold, which
+  only closes when fixtures 6 and 8 are written (OQ-8, OQ-10). 192 tests
+  green; lint, typecheck and build clean. Spec and plan:
+  `context/plans/u4-harvest-optimiser.md`.
+
+  **D1 was the decision the unit opened with, and it was a decision NOT to
+  act** — see AD-36's D1 entry. The fallback ramp stands unchanged. Its
+  compounded figures are now a test, so it cannot be quietly recalibrated
+  later without the comparison that justified leaving it alone failing
+  first.
+
+  **Gate and bulk are answered separately** (AD-34). The bulk harvest day
+  is pure curve arithmetic — first day `weight_g >= slaughter_target_g`,
+  day 31. The gate window is derived from the marginal day's economics,
+  and under the settled flat $4.25 it collapses onto day 31: flat pricing
+  means growth adds no gate revenue, so every further day is pure cost.
+  One implementation, and the pricing basis decides — not a constant
+  swapped in.
+
+  **`yield_sensitivity` is mandatory on the output, not optional.** The
+  harvest day rests on an unmeasured ~62% (OQ-17), so a consumer reading
+  only `bulk_harvest_day` must actively choose to drop the caveat rather
+  than find it absent. The derived window is **59.7-62.7%**, not the
+  59.7-62.8% this tracker and the spec both carried: 1,100 ÷ 1,754 =
+  62.714%, rounded inward. Corrected here and in the plan.
+
+  **The EMA calibrates on the observed rate directly, not on a ratio
+  against the ramp.** OQ-1 describes the weight curve's "actual vs
+  standard" pattern, but there is no client standard for mortality — "it
+  varies" was the answer — and the only candidate standard is our own
+  assumed ramp. Calibrating a ratio against it would anchor calibrated
+  output to the assumption OQ-1 exists to retire. Carried-forward days are
+  skipped outright: their derived zero means nobody wrote anything down,
+  not that nothing died.
+
+  AD-38 and AD-39 logged. OQ-9 and OQ-11 are closed by generation.
 
 - **U3 — M3 feed liability.** `packages/engine/src/feed.ts`, 25 new
   tests, TDD throughout. **Fixtures 5 and 9 now assert**; held fell
@@ -75,6 +113,11 @@ waiting on M3 and M4, plus the U1 completeness hold.
 
 ## In Progress
 
+Nothing. U4 closed 2026-09-10; U5 has not started and is blocked — see
+Next Up.
+
+### Closed, kept for the reasoning
+
 - **U2 / M1 + M2.** Tasks 1-4 done. **Six golden fixtures now assert for
   real** — 1, 2, 3, 4, 12 and 13 — against the client's own numbers.
   Held is down from 10 to 4: completeness (U1 task 5), fixture 5 and 9
@@ -107,10 +150,7 @@ waiting on M3 and M4, plus the U1 completeness hold.
 
 1. ~~**U2** — M1 production + M2 costing~~ done
 2. ~~**U3** — M3 feed liability~~ done ← fixtures 5, 9 green
-3. **U4** — M4 harvest optimiser. **OQ-7 answered — no longer blocked.**
-   Built against AD-33 (dressing-yield target), AD-34 (bulk as presale)
-   and OQ-4's quality-gated gate pricing. Also where AD-24's per-batch
-   EMA calibration and OQ-12's sufficiency threshold land.
+3. ~~**U4** — M4 harvest optimiser~~ done ← fixtures 7, 10, 11 green
 4. **U5** — M5 allocation optimiser. **Run `/grill-me` first** per
    CLAUDE.md. Blocked on **OQ-2's transport half** (the abattoir fee
    landed, transport did not) **and** OQ-16 (bulk net double-count), and
@@ -124,8 +164,9 @@ plus **OQ-13, OQ-15, OQ-16, OQ-17**, none of which block. **OQ-17 is the
 highest-value ask of that group**: a measured dressing percentage from
 ~20 paired live/dressed weights. It blocks nothing, but the harvest day
 rests on an unmeasured ~62% that is 0.8 points from changing the answer. Answered: OQ-1,
-OQ-14, OQ-3, OQ-4, OQ-7, and OQ-2 in part. OQ-9 and OQ-11 were reframed
-and are not client questions. **OQ-3's internal decision is settled** —
+OQ-14, OQ-3, OQ-4, OQ-7, and OQ-2 in part. **OQ-9 and OQ-11 were never
+client questions and are now CLOSED** — both were reframed, then closed by
+generating fixtures 7 and 11 from the model in U4. **OQ-3's internal decision is settled** —
 leveraged rollover reframes Maximum Growth; three modes (AD-35).
 
 **Outstanding internal decision** — the AD-9 collision needs a renumber.
@@ -144,19 +185,20 @@ These encode the client's real spreadsheet. Write all 13 in U1.
 | 4 | Cumulative feed at day 30 | 2.337 kg/bird |
 | 5 | First draw bags (cum feed day 14 ÷ 50) | 26.64 bags — path renamed, AD-37 |
 | 6 | Break-even gate birds, 5,000 flock, day 30 | 2,675 (54%) |
-| 7 | Hold cost day 30 → 35, 5,000 flock | $3,305 |
+| 7 | Hold cost day 30 → 35, 5,000 flock | ~~$3,305~~ → **$3,200.71**, generated — OQ-9 |
 | 8 | Bulk net per day held, 5,000 flock, day 30 | −$537 |
 | 9 | Feed draw due dates from 2026-02-06 | Mar 8, Mar 22, Mar 29, Apr 5, Apr 12 |
 | 10 | Bulk harvest day, default params | day 31 — CONFIRMED by OQ-7; sensitive to dressing yield, see OQ-17 |
-| 11 | Gate harvest window end, default params | day 38 |
+| — | Every fixture's gate price | $4.25, reconciled across all nine — AD-38 |
+| 11 | Gate harvest window end, default params | ~~day 38~~ → **day 31**, generated — OQ-11 |
 | 12 | 3,000 chicks + 100 extra | flock = 3,100 |
 | 13 | Abattoir fee unset | returns `missing_input`, not a guess |
 
-**Status after U1 task 5 (2026-09-10): 9 of 13 written.**
+**Status after U4 (2026-09-10): 11 of 13 written.**
 
 | Written and verified | Not written |
 |---|---|
-| 1, 2, 3, 4, 5, 9, 10, 12, 13 | **6, 7, 8, 11** |
+| 1, 2, 3, 4, 5, 7, 9, 10, 11, 12, 13 | **6** (OQ-8), **8** (OQ-10) |
 
 Fixture 10 encodes **day 31**, not the day 30 in the original table — the
 rule `first day weight_g >= 1770` applied literally to the client's own
@@ -167,9 +209,19 @@ was lifted. The expected value never changed. See AD-33.
 **Still assumed, though no longer provisional.** Lifting the marker
 recorded that the *reasoning* is now Daniel's rather than ours. It did
 not make the number measured: day 31 holds only at a dressing yield of
-59.7–62.8%, and his ~62% is an estimate. The fixture stays at day 31 —
+**59.7–62.7%** (derived in U4; this document and the U4 spec both carried
+62.8, which was a stray rounding of 1,100 ÷ 1,754 = 62.714%), and his
+~62% is an estimate. The fixture stays at day 31 —
 it is what the stated inputs give — but see **OQ-17** before treating
 the day as settled.
+
+**Fixtures 7 and 11 were generated in U4 and now assert** — $3,200.71
+and day 31, reported before they were written and fitted to nothing. The
+discredited $3,305 and day 38 are retired; see OQ-9 and OQ-11. Fixtures 6
+and 8 remain unwritten.
+
+The paragraph below is how 6, 7, 8 and 11 stood before U4, kept for the
+reasoning.
 
 Fixtures 6, 7, 8 and 11 could not be reproduced from the client's curve
 under the specified parameters, so they were not written rather than
@@ -183,7 +235,9 @@ abattoir fee from OQ-2 and is not computable without it), **OQ-11**
 Fixtures 7, 8 and 11 additionally depend on the **uncalibrated mortality
 model** — see OQ-1. When they are eventually written they lock in
 assumed behaviour so regressions are caught, and will need regenerating
-once real mortality data arrives.
+once real mortality data arrives. **7 and 11 are now written on exactly
+that footing:** both carry `provisional`, both assert, and both need
+regenerating when real mortality data lands.
 
 ## Open Questions
 
@@ -256,6 +310,43 @@ metadata correction, not a regeneration, and it is flagged here the way
 AD-30 flagged the harness encoding: fixtures are the client contract and
 nothing about them moves silently.
 
+**AD-39 · `hold_cost_to_day` — the hold cost is a range, so the output
+carries a range.**
+Logged 2026-09-10 during U4. The approved output shape had
+`cost_of_delay_per_day: { gate, bulk }` — one marginal day — and nothing a
+range total could address, which is what fixture 7 actually asks for
+("hold cost day 30 → 35"). So `HarvestPlan` also carries
+`hold_cost_to_day`: cumulative hold cost from `asOf` forward, **keyed by
+the day held through** rather than indexed, so a fixture names the day it
+means instead of counting array positions.
+
+The two fields answer different questions and are anchored differently on
+purpose. `hold_cost_to_day` is anchored on `asOf` — "what does holding
+from today cost". `cost_of_delay_per_day` is anchored on the target day,
+the same way `bulk_harvest_day` is, so it stays a planning figure rather
+than drifting with the calendar.
+
+Forecast birds are rounded to whole birds each day *before* any money is
+computed, so no float ever touches a money path (invariant 2).
+
+**AD-38 · One gate price across the whole fixture set: $4.25.**
+Logged 2026-09-10 during U4. OQ-4 and `architecture.md` both settle the
+default gate price at flat **$4.25**, and **all nine** previously written
+fixtures carried $4.30 — not just fixture 10. All nine were rewritten to
+$4.25 in one pass.
+
+**No expected value moved.** None of fixtures 1-5, 9, 10, 12 or 13
+asserts on a gate price: they assert feed cost, feed weight, FCR,
+cumulative feed, draw bags, due dates, the harvest day, flock size and a
+`missing_input`. Fixture 10's day 31 in particular is pure curve
+arithmetic and is price-independent. Confirmed by re-running the golden
+step: 9 written, 9 passing, before fixtures 7 and 11 were added.
+
+This is a deliberate fixture change and is logged because of that. A
+golden fixture that changes without an `AD-` entry is one of the red
+flags `orient` looks for, and "it was only an input constant" is exactly
+the reasoning that would let a real contract change through unnoticed.
+
 **AD-37 · Fixture 5's assert PATH changed; its value did not.**
 `decision.feed.starter_bags_to_day_14` became
 `decision.feed.first_draw_bags_to_day_14`. Expected value stays
@@ -286,6 +377,44 @@ second source for it.
 "independent" or "robust":** name the input that would have to be wrong
 for both figures to be wrong together. If it is the *same* input, there
 is one source and one estimate, however many places it appears.
+
+**Third instance, 2026-09-10 — and this one was our own flag, not a
+client document. D1 is a REVERSAL.**
+
+OQ-1 carried a rider that the fallback mortality ramp is "roughly double"
+the client's planning figure, to be resolved at U4. It is not. The claim
+compared the ramp's **day-41** cumulative figure (9.85%) against the
+brief's 5% — which is a **harvest-day** figure (30,000 → 28,500 saleable).
+Day 41 is not when anyone harvests. Compared at the same point, the ramp
+gives **5.21% at the day-31 harvest against the brief's 5%**: close
+agreement, not a 2x discrepancy.
+
+**D1: the ramp is NOT recalibrated.** Recalibrating on the strength of
+the mismatched comparison would have understated mortality on the one day
+the ramp is actually consulted — and it is consulted precisely when there
+is no own-batch history to calibrate from, which is every new batch's
+harvest decision.
+
+Same species of error as the two above, one layer further in: two
+quantities compared at mismatched points, and the mismatch read as a real
+disagreement. The difference is that here the mismatched comparison was
+**ours**, and the artifact it corrupted was our own open question rather
+than a reading of a client workbook. AD-36's test catches it either way —
+name the input that would have to be wrong for both figures to be wrong
+together. Here it was not even two figures: it was one curve read at two
+different days.
+
+**The asymmetry is why declining to act was right.** If the correction
+were itself wrong, the ramp stays as it has been through U1-U3 — already
+shipped, already working. Recalibrating on a flawed premise would have
+put a *new* error into the one number the harvest decision depends on. A
+wrong reason to leave something alone costs nothing; a wrong reason to
+change it costs the change.
+
+The ramp's compounded figures — 4.74% at day 30, 5.21% at day 31, 7.10%
+at day 35, 9.85% at day 41 — are now asserted in
+`tests/harvest.test.ts`, so the ramp cannot be quietly recalibrated later
+without the comparison that justified leaving it alone failing first.
 
 **Where this bites hardest:** client workbooks are full of summary tabs
 that reference detail tabs. A cell reference looks like agreement and

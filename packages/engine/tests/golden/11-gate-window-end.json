@@ -1,7 +1,8 @@
 {
-  "id": 10,
-  "name": "bulk-harvest-day",
-  "description": "Bulk harvest day, default params — day 31 (first day weight_g >= 1770)",
+  "id": 11,
+  "name": "gate-window-end",
+  "description": "Gate window end under the settled flat $4.25 gate price — day 31, not day 38. Flat pricing means growth adds no gate revenue, so the window collapses onto the first day the bird reaches the slaughter target. GENERATED from the model (OQ-11).",
+  "provisional": "Rests on the assumed flat $4.25 gate price (OQ-4) and the assumed dressing yield behind the 1,770 g target (OQ-17). Day 38 was only ever reachable under PER_KG.",
   "input": {
     "asOf": "2026-03-18",
     "batch": {
@@ -32,5 +33,5 @@
     "draws": [],
     "sales": []
   },
-  "expect": { "path": "decision.harvest.bulk_harvest_day", "value": 31 }
+  "expect": { "path": "decision.harvest.gate_window.last_day", "value": 31 }
 }

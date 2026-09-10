@@ -3,6 +3,7 @@ import { NotImplementedError } from './errors.js';
 import { projectProduction } from './production.js';
 import { computeCosting } from './costing.js';
 import { computeFeedLiability } from './feed.js';
+import { planHarvest } from './harvest.js';
 
 export * from './types.js';
 export { NotImplementedError, isNotImplemented } from './errors.js';
@@ -12,6 +13,15 @@ export { dayNumberFor, addDays, daysBetween } from './day-number.js';
 export { projectProduction } from './production.js';
 export { computeCosting } from './costing.js';
 export { computeFeedLiability } from './feed.js';
+export {
+  SEED_BULK_BANDS,
+  SEED_DRESSING_YIELD_PCT,
+  DEFAULT_CALIBRATION_TRAILING_DAYS_MIN,
+  bandForDressedG,
+  calibrateMortalityRate,
+  dailyMortalityRateBp,
+  planHarvest
+} from './harvest.js';
 export {
   SEED_OVERHEADS,
   overheadBreakdown,
@@ -23,9 +33,9 @@ export {
 /**
  * The only public entry point to the engine.
  *
- * U2 lands production (M1) and costing (M2). Feed liability, the harvest
- * optimiser and the allocation optimiser are not built, and each is exposed as
- * a getter that throws `NotImplementedError` when read.
+ * U2 lands production (M1) and costing (M2), U3 feed liability (M3) and U4 the
+ * harvest optimiser (M4). The allocation optimiser is not built, and is exposed
+ * as a getter that throws `NotImplementedError` when read.
  *
  * That is deliberate and load-bearing, not a placeholder: the golden step holds
  * a fixture only when reading the value it asks for throws that exact type. A
@@ -43,6 +53,7 @@ export function computeDecision(input: EngineInput): DecisionResult {
   const production = projectProduction(input);
   const costing = computeCosting(input, production);
   const feed = computeFeedLiability(input, production);
+  const harvest = planHarvest(input, production);
 
   return {
     kind: 'ok',
@@ -50,9 +61,7 @@ export function computeDecision(input: EngineInput): DecisionResult {
       production,
       costing,
       feed,
-      get harvest(): never {
-        throw new NotImplementedError('harvest optimiser (M4)', 'U4');
-      },
+      harvest,
       get allocation(): never {
         throw new NotImplementedError('allocation optimiser (M5)', 'U5');
       }

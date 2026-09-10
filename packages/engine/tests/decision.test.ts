@@ -97,10 +97,19 @@ describe('computeDecision', () => {
     expect(result.decision.feed.due_dates).toEqual([]);
   });
 
-  it('still holds the modules U4-U5 have not built', () => {
+  it('returns a harvest plan now that U4 has built it', () => {
     const result = computeDecision(input());
     if (result.kind !== 'ok') throw new Error('expected ok');
-    for (const key of ['harvest', 'allocation'] as const) {
+    expect(result.decision.harvest.bulk_harvest_day).toBe(31);
+    expect(result.decision.harvest.confidence).toBe('assumed');
+    // The yield caveat travels with the day, never behind an optional field.
+    expect(result.decision.harvest.yield_sensitivity.holds_to_pct).toBeCloseTo(62.7, 1);
+  });
+
+  it('still holds the module U5 has not built', () => {
+    const result = computeDecision(input());
+    if (result.kind !== 'ok') throw new Error('expected ok');
+    for (const key of ['allocation'] as const) {
       let thrown: unknown;
       try {
         void result.decision[key];

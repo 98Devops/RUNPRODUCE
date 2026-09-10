@@ -187,6 +187,27 @@ export interface Parameters {
    * never used to mean either.
    */
   readonly overheads?: OverheadModel;
+  /**
+   * Dressing percentage, as a percentage. Omitted means
+   * `SEED_DRESSING_YIELD_PCT` — Daniel's stated ~62%.
+   *
+   * It is a real parameter because M4 must show the yield it assumed beside the
+   * day it derived (OQ-17). It does NOT re-derive `slaughter_target_g`: that
+   * stays his stated 1,770 g, because re-deriving it would invent precision on
+   * top of an approximate 62% (AD-33).
+   */
+  readonly dressing_yield_pct?: number;
+  /** Omitted means `SEED_BULK_BANDS` — the client's own contract bands. */
+  readonly bulk_bands?: readonly BulkBand[];
+  /**
+   * Recorded own-batch days required before the calibrated mortality rate
+   * overrides the assumed fallback ramp. Omitted means
+   * `DEFAULT_CALIBRATION_TRAILING_DAYS_MIN`.
+   *
+   * A named parameter rather than a literal because the value itself is an
+   * assumption — 3 to 5 days, validated by nothing yet (OQ-12).
+   */
+  readonly calibration_trailing_days_min?: number;
 }
 
 export interface EngineInput {
@@ -386,6 +407,115 @@ export interface FeedLiability {
   readonly planned_confidence: Confidence;
 }
 
+/**
+ * One step of the bulk contract's dressed-weight band schedule.
+ *
+ * The contract pays LESS per bird as the bird gets heavier — $3.90 at 1.1 kg
+ * dressed, $3.80 at 1.2 kg, $3.70 at 1.3 kg — so the slaughter target is a
+ * floor to reach, not a direction to keep travelling in (AD-33). The floor is
+ * integer grams, not 1.1 as a float, per invariant 2.
+ */
+export interface BulkBand {
+  readonly dressed_floor_g: Grams;
+  readonly price_cents_per_bird: Cents;
+}
+
+/**
+ * What the harvest day would have to be if the dressing yield were different.
+ *
+ * Mandatory on `HarvestPlan`, not optional. The harvest day rests on an
+ * unmeasured ~62% that sits under a point from flipping the answer (OQ-17), so
+ * a consumer reading only `bulk_harvest_day` must actively choose to drop the
+ * caveat rather than find it absent by default. That is the whole reason this
+ * field exists.
+ *
+ * The bounds are rounded INWARD — `holds_from_pct` up, `holds_to_pct` down — so
+ * the reported window never claims the day holds at a yield where it does not.
+ */
+export interface YieldSensitivity {
+  readonly holds_from_pct: number;
+  readonly holds_to_pct: number;
+  /** The harvest day at a yield below `holds_from_pct`. */
+  readonly day_below: number;
+  /** The harvest day at a yield above `holds_to_pct`. */
+  readonly day_above: number;
+}
+
+/**
+ * The cost of holding the flock from `asOf` through `through_day`, cumulative.
+ *
+ * Two components, kept separate because they are different kinds of fact: feed
+ * actually eaten, and the sale value of birds forecast to die before the hold
+ * ends. A bird lost during the hold is valued at the price it would have
+ * fetched at the END of the hold — that is what the hold was for.
+ *
+ * The bulk figures are `null` when the bird's forecast dressed weight falls
+ * below the lowest contract band. A bulk bird with no band is still taken
+ * (AD-34) but cannot be priced, and invariant 5 forbids inventing the price.
+ */
+export interface HoldCost {
+  readonly through_day: number;
+  readonly feed_cents: Cents;
+  /** Forecast, from the calibrated rate or the assumed ramp. Whole birds. */
+  readonly birds_lost: number;
+  readonly gate_value_lost_cents: Cents;
+  readonly bulk_value_lost_cents: Cents | null;
+  readonly gate_total_cents: Cents;
+  readonly bulk_total_cents: Cents | null;
+}
+
+/**
+ * M4 — the harvest plan.
+ *
+ * Gate and bulk are two different decisions, not one optimisation with a
+ * swapped price constant (AD-34). A bulk bird has no weight gate and needs to
+ * reach the target only to be PRICED; a gate bird has a real quality gate the
+ * engine cannot see (OQ-4), and under flat per-bird pricing another day of
+ * growth adds it no revenue at all.
+ */
+export interface HarvestPlan {
+  /** First day the curve reaches `slaughter_target_g`. Fixture 10 asserts 31. */
+  readonly bulk_harvest_day: number;
+  /** Required beside the day, never omitted. See YieldSensitivity and OQ-17. */
+  readonly assumed_dressing_yield_pct: number;
+  readonly yield_sensitivity: YieldSensitivity;
+  /** 'assumed' until OQ-17 lands a measured dressing percentage. */
+  readonly confidence: Confidence;
+  /**
+   * The days over which selling at the gate is not value-destroying. Under the
+   * settled flat per-bird rule this collapses onto the first qualifying day:
+   * growth adds no gate revenue, so every further day is pure cost. Day 38 was
+   * only ever reachable under PER_KG — see OQ-11.
+   */
+  readonly gate_window: { readonly first_day: number; readonly last_day: number };
+  /**
+   * What one more day past each channel's target costs, charged against the
+   * flock alive at `asOf`. Anchored on the target day rather than on `asOf`,
+   * the same way `bulk_harvest_day` is, so it stays a planning figure. `null`
+   * once the marginal day falls off the end of the curve.
+   */
+  readonly cost_of_delay_per_day: {
+    readonly gate: Cents | null;
+    readonly bulk: Cents | null;
+  };
+  /**
+   * Revenue given up by sitting in a lower-paying band than the best one, at
+   * the bulk harvest day, across the flock. Zero at the target; positive once
+   * the bird is held into a heavier, worse-paying band (AD-33).
+   */
+  readonly band_overshoot_loss_cents: Cents | null;
+  /** Whether the mortality charged here was calibrated or the assumed fallback. */
+  readonly mortality_source: 'calibrated' | 'assumed';
+  /** Recorded own-batch days the calibration had to work with. */
+  readonly trailing_days_used: number;
+  /**
+   * Cumulative hold cost from `asOf` forward, keyed by the day held through.
+   * Keyed rather than indexed so a caller — a golden fixture included — names
+   * the day it means instead of counting array positions. Fixture 7's quantity.
+   */
+  readonly hold_cost_to_day: Readonly<Record<string, HoldCost>>;
+}
+
 export interface Lever {
   readonly key: string;
   readonly description: string;
@@ -397,7 +527,7 @@ export interface Decision {
   readonly production: ProductionProjection;
   readonly costing: CostingResult;
   readonly feed: FeedLiability;
-  readonly harvest: unknown;
+  readonly harvest: HarvestPlan;
   readonly allocation: unknown;
 }
 

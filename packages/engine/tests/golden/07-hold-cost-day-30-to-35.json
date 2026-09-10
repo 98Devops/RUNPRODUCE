@@ -1,12 +1,13 @@
 {
-  "id": 10,
-  "name": "bulk-harvest-day",
-  "description": "Bulk harvest day, default params — day 31 (first day weight_g >= 1770)",
+  "id": 7,
+  "name": "hold-cost-day-30-to-35",
+  "description": "Gate hold cost from day 30 through day 35, 5,000 birds — $2,669.46 feed plus 125 birds lost at $4.25 = $3,200.71. GENERATED from the model (OQ-9), never back-fitted to the discredited $3,305.",
+  "provisional": "Rests on the assumed fallback ramp (OQ-1) and the assumed flat $4.25 gate price (OQ-4). Regenerate when real mortality data arrives.",
   "input": {
-    "asOf": "2026-03-18",
+    "asOf": "2026-03-07",
     "batch": {
       "placement_date": "2026-02-06",
-      "chick_count": 3000,
+      "chick_count": 5000,
       "extra_chick_count": 0,
       "chick_price_cents": "100"
     },
@@ -32,5 +33,5 @@
     "draws": [],
     "sales": []
   },
-  "expect": { "path": "decision.harvest.bulk_harvest_day", "value": 31 }
+  "expect": { "path": "decision.harvest.hold_cost_to_day.35.gate_total_cents", "value": "320071" }
 }

@@ -473,6 +473,25 @@ yield.** A yield known to "about 62%" cannot pin a harvest day at all —
 the precision of the answer exceeds the precision of the input, which is
 exactly what invariant 5 exists to prevent.
 
+**Structurally enforced in U4, 2026-09-10.** `HarvestPlan` carries
+`assumed_dressing_yield_pct` and a **mandatory, non-optional**
+`yield_sensitivity` beside `bulk_harvest_day`. A consumer reading only the
+day must now actively choose to drop the caveat rather than find it absent
+by default — which is what makes this question protective rather than a
+paragraph nobody's code reads.
+
+**The derived window is 59.7-62.7%, not the 59.7-62.8% recorded here.**
+1,100 g dressed ÷ 1,754 g (day 30's live weight) = 62.714%, rounded
+inward so the reported window never claims the day holds at a yield where
+it does not. The lower bound, 1,100 ÷ 1,843 = 59.685% → 59.7%, was right.
+The table below is otherwise unchanged and still correct. Daniel's ~62%
+sits **0.7 points** from the upper edge.
+
+The sensitivity is computed against the bulk contract's **first band**
+(1.1 kg dressed) rather than against `slaughter_target_g × yield`. Taking
+the dressed goal from client band data is what stops the check from
+re-rounding its own assumption — the AD-36 error.
+
 **Handling until answered:**
 - `slaughter_target_g` stays **1,770** — his stated number. Do not
   re-derive it from a guessed yield.
@@ -480,7 +499,7 @@ exactly what invariant 5 exists to prevent.
   softened, not widened to a range.
 - Harvest-day output carries `confidence: 'assumed'`, and U4 must show
   the yield it assumed alongside the day, so the day is never read as
-  measured.
+  measured. **Done — see above.**
 - **Do not present day 31 to Daniel as a precise recommendation.** It is
   the right answer given his stated inputs and it is one rounding away
   from day 30.
@@ -535,8 +554,29 @@ fixture 6 is the 5,000-bird scenario, so this is not decisive — but the
 one-sentence close stays as written and should not be softened toward
 $0.85.
 
-### OQ-9 · Fixture 7 — hold cost day 30 → 35, 5,000 flock 🟠 REFRAMED
-**Status:** Not a discrepancy to reconcile. **Blocked on:** OQ-1 (answered)
+### OQ-9 · Fixture 7 — hold cost day 30 → 35, 5,000 flock ✅ CLOSED 2026-09-10
+**Closed by generation in U4.** The fixture is written and asserts.
+
+**The generated value is $3,200.71** (`hold_cost_to_day.35.gate_total_cents`
+= 320071), reported before it was written and fitted to nothing:
+
+| Component | |
+|---|---|
+| Feed, days 31–35, charged to opening birds at $0.60/kg finisher | $2,669.46 |
+| 125 birds forecast lost × $4.25 flat gate | $531.25 |
+| **Gate total** | **$3,200.71** |
+| Bulk total (125 × $3.70, the 1.3 kg band at day 35) | $3,131.96 |
+
+The discredited $3,305 sits 3.3% above this and the $3,713.89 recorded
+below sits 16% above — that figure used the compounding ramp D1 has since
+retired, and $4.30 rather than the settled $4.25. **Neither was fitted
+to.** The fixture carries `provisional`: it rests on the assumed fallback
+ramp and the assumed flat gate price, and needs regenerating when real
+mortality data lands.
+
+**Superseded detail below, kept for the reasoning.**
+
+**Status (before U4):** Not a discrepancy to reconcile. **Blocked on:** OQ-1 (answered)
 implementation, then regenerate.
 
 **The $3,305 is not a client figure.** It came from Daniel's own early
@@ -564,8 +604,40 @@ both subtrahends are `null` pending OQ-2. The fee does not cancel out
 of a per-day difference. This fixture is blocked on OQ-2 rather than
 disputed — it becomes writable the moment the fee arrives.
 
-### OQ-11 · Fixture 11 — gate window end day 38, and the per-kg rate 🟠 UNBLOCKED 2026-09-10
-**Status:** Not a discrepancy to reconcile. **Was blocked on OQ-4, which
+### OQ-11 · Fixture 11 — gate window end day 38, and the per-kg rate ✅ CLOSED 2026-09-10
+**Closed by generation in U4.** The fixture is written and asserts.
+
+**The generated value is day 31** — `gate_window: { first_day: 31,
+last_day: 31 }`. The tripwire was cleared by a wide margin, not narrowly.
+Under flat per-bird pricing the marginal day's revenue gain is exactly
+zero against a real feed-and-mortality cost, so the window collapses onto
+the first day the bird reaches the slaughter target. The degenerate
+one-day window is the honest result, and it comes from a **revenue**
+mechanism, not a mortality one.
+
+**Day 38 is not reproducible under any per-kg rate either, and that is
+worth recording.** Controls run at both rates:
+
+| Gate pricing | Window end |
+|---|---|
+| Flat $4.25/bird (settled default, OQ-4) | **31** |
+| $2.00/kg (the real heavy-bird rate) | 41 |
+| $2.46/kg (the discredited rate) | 41 |
+
+Day 38 originally meant *"growth pays until mortality overtakes it"*. That
+crossover cannot happen under our ramp: the ramp is a flat **step** at day
+30, not an escalation, so mortality cost stops rising while growth keeps
+paying, and the window runs to the end of the curve. **Day 38 rested on
+the compounding ramp that D1 retired** (see AD-36's D1 entry) — not on the
+$2.46/kg rate alone, which is what this question originally suspected. Two
+discredited inputs, one discredited output.
+
+The fixture carries `provisional`: it rests on the assumed flat gate price
+and on the assumed yield behind the 1,770 g target (OQ-17).
+
+**Superseded detail below, kept for the reasoning.**
+
+**Status (after OQ-4 landed, before U4):** Not a discrepancy to reconcile. **Was blocked on OQ-4, which
 is now answered** — so fixture 11 can be generated from the model when
 U4 lands. It is still unwritten, and still must be generated rather than
 back-fitted.
@@ -815,6 +887,28 @@ overrides the fallback.
 trailing days** — enough to smooth a single bad entry, short enough to
 respond within a 41-day cycle — and mark it as such. It is not validated
 by anything yet.
+
+**Implemented in U4, 2026-09-10.** The threshold is
+`Parameters.calibration_trailing_days_min`, defaulting to the exported
+`DEFAULT_CALIBRATION_TRAILING_DAYS_MIN` = **3**, the short end of the
+range. Below it `calibrateMortalityRate` returns `rate_bp: null` and the
+fallback ramp is used, with `mortality_source: 'assumed'`; at or above it
+the EMA rate is used and the source reads `'calibrated'`.
+`trailing_days_used` is reported either way, so the badge can say what it
+actually had to work with.
+
+**One thing U4 settled that this question did not ask.** Only **recorded**
+days count toward the threshold. A carried-forward day's derived delta is
+zero because nobody wrote anything down, not because nothing died, and
+counting it would both inflate the day count and drag the rate toward zero
+with fabricated data. Sparse history therefore calibrates slowly, which is
+the correct behaviour.
+
+**The rider OQ-1 parked here never arrived, because it was withdrawn.**
+OQ-1's claim that the fallback ramp is "roughly double" the brief's
+planning figure was to be logged against this question at U4. It was
+instead found to be a mismatched comparison and reversed — see **D1**
+under AD-36. The ramp is unchanged and nothing about it lands here.
 
 **Handling until validated:**
 - The threshold is a named parameter, not a literal buried in M4
@@ -1087,9 +1181,9 @@ recommendation — divergences are the most valuable data available.
 | U5 · bulk net revenue computation | OQ-2 (transport) **and** OQ-16 — both required, neither sufficient alone |
 | Calibrated `MaxSafeBatchSize` | OQ-1 (mortality data) |
 | Default strategy selection | ~~OQ-3~~ answered; mode set decided (AD-35) |
-| Gate harvest window past day 32 | OQ-1. ~~OQ-4~~ answered 2026-09-10 |
+| ~~Gate harvest window past day 32~~ | **Moot.** Built in U4: under the settled flat gate price the window ends at day 31, so there is no "past day 32" to unblock. It reopens only if per-kg gate pricing becomes the default — see OQ-11 |
 
-None of these block U1–U4. Build the engine; these affect output
-accuracy and default selection, not structure. **Invariant 16's 14-day
+None of these blocked U1–U4, all four of which are now done. They affect
+output accuracy and default selection, not structure. **Invariant 16's 14-day
 inter-batch gap is not in this table on purpose** — it is not blocked on
 anything, it is a settled hard constraint M5 builds against (AD-31).
