@@ -219,8 +219,21 @@ avoids the largest complexity sink in the project.
   by probe: `Date.now()` in `packages/engine/src` errors with
   `no-restricted-globals` (DoD #2 met). Local toolchain is Node 24 /
   npm 11; CI still pins Node 20.
-- **Next: Task 2** — `Money` value object with exact
-  largest-remainder `split()`. It is the only U1 code that ends green.
+- **Task 2 — DONE** (`526d7d1`). `packages/engine/src/money.ts` +
+  `tests/money.test.ts`. 19 tests green; lint and typecheck clean.
+  `Cents` is the branded `bigint` and is declared here — Task 3's
+  `types.ts` re-exports it. `split()` is largest-remainder: **largest
+  remainder wins, ties break by lowest index**, so `split(100n,
+  [1,1,1])` → `[34n, 33n, 33n]` and the CR-3 bird-days case
+  `split(807981n, [35000,15000])` → `[565587n, 242394n]`, both summing
+  exactly. Negative totals allocate on the magnitude then negate, so
+  rounding is symmetric about zero. All-zero weights **throw** rather
+  than equal-splitting — an all-zero bird-days allocation means the
+  caller has no live batches and is a bug worth surfacing, not
+  smoothing over. A single zero weight among non-zero ones is legal and
+  yields `0n`. The CR-3 case passed on the first run of the
+  implementation; no test was adjusted to fit output.
+- **Next: Task 3** — domain types and the seeded breed curve.
 
 Context pack written before U1.
 

@@ -163,8 +163,22 @@ absent from the Netlify build output.
 `vitest --watch` or a vite dev server on a shared/untrusted network, or
 either package moving into runtime dependencies.
 
+### TD-3 · No git remote configured — CI has never run 🔴
+**Raised:** 2026-09-10. **Blocks:** the entire premise of TD-2's close-out.
+
+`.github/workflows/ci.yml` triggers correctly on `push: branches:
+[main]` **and** `pull_request`. But `git remote -v` is empty. There is
+nowhere to push, so no commit in this repo has ever been validated by
+CI — every green result so far is local-only, on Node 24.
+
+**Consequence:** TD-2 cannot be closed at task 6 as written, because
+"observe CI green on Node 20" is impossible until a remote exists.
+
+**Fix:** create the GitHub repo and `git remote add origin`, then push.
+Until then, treat every "CI passes" claim as unverified.
+
 ### TD-2 · Local Node 24 vs. CI Node 20 🟡
-**Raised:** 2026-09-10. **Must be closed at U1 task 6.**
+**Raised:** 2026-09-10. **Must be closed at U1 task 6.** **See TD-3 — currently impossible.**
 
 Local is Node v24.11.0; `.github/workflows/ci.yml` pins `node-version:
 '20'`. Harmless at scaffold stage, but `bigint` and
