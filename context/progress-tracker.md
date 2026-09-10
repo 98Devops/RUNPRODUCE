@@ -9,9 +9,9 @@ Not started. Context files written, awaiting U1.
 ## Current Goal
 
 **U1 — Scaffold.** Monorepo, domain types, seed the breed curve, and
-write the 12 golden fixtures as failing tests.
+write the 13 golden fixtures as failing tests.
 
-Expected outcome: `npm run build` passes and `npm test` shows 12
+Expected outcome: `npm run build` passes and `npm test` shows 13
 failing tests with clear expected values. Red tests at the end of U1
 are the correct result — they are the executable spec.
 
@@ -38,7 +38,7 @@ See `ai-workflow-rules.md` for the full build order.
 
 ## Golden fixtures — the contract
 
-These encode the client's real spreadsheet. Write all 12 in U1.
+These encode the client's real spreadsheet. Write all 13 in U1.
 
 | # | Test | Expected |
 |---|---|---|
@@ -51,7 +51,7 @@ These encode the client's real spreadsheet. Write all 12 in U1.
 | 7 | Hold cost day 30 → 35, 5,000 flock | $3,305 |
 | 8 | Bulk net per day held, 5,000 flock, day 30 | −$537 |
 | 9 | Feed draw due dates from 2026-02-06 | Mar 8, Mar 22, Mar 29, Apr 5, Apr 12 |
-| 10 | Bulk harvest day, default params | day 30 |
+| 10 | Bulk harvest day, default params | day 31 — provisional, see OQ-7 |
 | 11 | Gate harvest window end, default params | day 38 |
 | 12 | 3,000 chicks + 100 extra | flock = 3,100 |
 | 13 | Abattoir fee unset | returns `missing_input`, not a guess |
@@ -221,9 +221,11 @@ web-design-guidelines (accessibility gate on every UI unit).
 Key things for the next session to know:
 
 - `context/breed_curve.json` is real client data extracted from their
-  spreadsheet. Day 30 = 1,754 g = their stated 1.77 kg slaughter
-  target. Feed phases: starter days 1–13 ($0.65/kg), grower 14–27
-  ($0.62), finisher 28+ ($0.60).
+  spreadsheet. **Day 30 = 1,754 g does *not* meet the 1,770 g slaughter
+  target — see OQ-7.** The earlier note here asserted that it did; that
+  unverified rounding is the source of the fixture 10 contradiction and
+  has been removed. Feed phases: starter days 1–13 ($0.65/kg), grower
+  14–27 ($0.62), finisher 28+ ($0.60).
 - The client's existing spreadsheet has 10 known bugs. We deliberately
   diverge from three of them (extra chicks ignored, feed on closing
   birds, two conflicting feed prices). See `current-issues.md` KB-1

@@ -64,6 +64,25 @@ Also needed: an edge-case toggle for delivering direct to the buyer
 instead of via the abattoir. Model as `delivery_mode: 'ABATTOIR' |
 'DIRECT'` with its own cost field.
 
+### OQ-7 · Slaughter target vs. the client's own curve 🔴 BLOCKS BULK HARVEST DAY
+**Status:** Unanswered. **Blocks:** exact bulk harvest day, band-crossing logic (U4).
+
+Slaughter target is 1,770 g but the client's own curve gives 1,754 g at
+day 30 (16 g short) and 1,843 g at day 31. Rule as written — *first day
+`weight_g >= 1770`* — yields day 31; the tracker's expected day 30 came
+from an unverified reading that rounded 1,754 to 1.77 kg.
+
+**Ask the client:**
+- (a) does the buyer pay full price for a 1,754 g bird, or must it clear
+  1,770 g?
+- (b) is the real target nearer 1,750 g?
+
+**Handling until answered:**
+- The rule stays exactly `first day weight_g >= 1770`. Not weakened to
+  "approximate", not changed to "nearest day".
+- Golden fixture 10 encodes **day 31**, provisionally.
+- Harvest-day outputs carry `confidence: 'assumed'` until answered.
+
 ---
 
 ## Open questions — non-blocking but important

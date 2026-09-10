@@ -1,6 +1,13 @@
 node_modules/
 dist/
 build/
+
+# Stray Python venv artifacts (headroom-ai install)
+Lib/
+Scripts/
+share/
+pyvenv.cfg
+
 .next/
 .env
 .env.local

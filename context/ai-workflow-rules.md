@@ -89,7 +89,7 @@ Do not reorder. Each unit depends on the one before it.
 
 | Unit | Scope | Verified by |
 |---|---|---|
-| **U1** | Monorepo scaffold, types, seed `breed_curve.json`, 12 golden fixtures written and failing | 12 red tests, `npm run build` passes |
+| **U1** | Monorepo scaffold, types, seed `breed_curve.json`, 13 golden fixtures written and failing | 13 red tests, `npm run build` passes |
 | **U2** | M1 production + M2 costing | Fixtures 1–4, 12 green |
 | **U3** | M3 feed liability | Fixtures 5, 9 green |
 | **U4** | M4 harvest optimiser | Fixtures 7, 8, 10, 11 green |
