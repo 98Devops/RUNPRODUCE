@@ -77,17 +77,16 @@ waiting on M3 and M4, plus the U1 completeness hold.
 4. **U5** — M5 allocation optimiser. **Run `/grill-me` first** per
    CLAUDE.md. Blocked on **OQ-2's transport half** (the abattoir fee
    landed, transport did not) **and** OQ-16 (bulk net double-count), and
-   its mode set waits on the OQ-3 open decision — fourth mode or
-   reframed Maximum Growth. Enumeration must respect invariant 16's
-   14-day floor (AD-31).
+   Mode set decided (AD-35): three modes, Maximum Growth reframed as
+   leveraged rollover. Enumeration must respect invariant 16's 14-day
+   floor (AD-31).
 
 **Outstanding client questions, after Daniel's 2026-09-10 answers** —
 **OQ-8** and the **transport half of OQ-2** are what remain outstanding,
 plus **OQ-13, OQ-15, OQ-16**, none of which block. Answered: OQ-1,
 OQ-14, OQ-3, OQ-4, OQ-7, and OQ-2 in part. OQ-9 and OQ-11 were reframed
-and are not client questions. **OQ-3 raised an internal decision** — is
-leveraged rollover a fourth mode or a reframing of Maximum Growth — put
-to the user and not yet settled.
+and are not client questions. **OQ-3's internal decision is settled** —
+leveraged rollover reframes Maximum Growth; three modes (AD-35).
 
 **Outstanding internal decision** — the AD-9 collision needs a renumber.
 
@@ -144,6 +143,29 @@ once real mortality data arrives.
 Tracked in `current-issues.md`.
 
 ## Architecture Decisions
+
+**AD-35 · Maximum Growth is reframed as leveraged rollover. Three modes,
+not four.**
+Daniel's actual pattern (OQ-3) is leveraged rollover: proceeds fund a
+LARGER next batch, with grower and finisher draws timed against sales
+proceeds so growth compounds. Rather than add a fourth mode beside the
+three, **Maximum Growth is redefined to mean exactly this**.
+
+The reason is AD-31. "Earliest possible next placement" was Maximum
+Growth's whole objective, and the 14-day inter-batch gap now determines
+that date in nearly every case — the mode was emptying out. Reframing
+fills a mode that had little left to decide; adding a fourth would have
+put another column on a decision screen used outdoors on a cheap Android
+to preserve a distinction the floor had mostly erased.
+
+**The cost, recorded so it is not rediscovered as a surprise:** the label
+"Maximum Growth" is now slightly loose for a size-and-leverage objective,
+and the pure date objective no longer exists. If a reason to optimise the
+placement date alone ever returns — a change to the 14-day gap, another
+house — this is the decision to revisit. Use "leveraged rollover" when
+explaining what the mode does; "Maximum Growth" is the UI label.
+
+M5's enumeration keeps three columns and its existing shape.
 
 **AD-34 · Bulk is modelled as a presale, and that drives M4.**
 The contract buyer takes birds regardless of finish size. That is a

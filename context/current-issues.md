@@ -521,11 +521,19 @@ Growth's optimisation space has mostly collapsed. The mode as originally
 defined has little left to decide. That is a strong argument that this
 is a **reframing of Maximum Growth**, not a fourth mode beside it.
 
-**OPEN DECISION — put to the user 2026-09-10, not yet settled:** fourth
-named mode, or reframe Maximum Growth to mean leveraged rollover
-specifically? Recommendation on record is **reframe**, on the AD-31
-grounds above. Do not build M5's mode set until this is answered — it
-determines whether the enumeration has three columns or four.
+**DECIDED 2026-09-10: reframe Maximum Growth.** It now means leveraged
+rollover specifically — the largest next batch the proceeds can finance,
+with draws timed against sales, subject to invariant 16's 14-day floor.
+The mode set stays **three**, and M5's enumeration keeps its shape.
+
+The reasoning is AD-31's: the placement date is now floor-determined, so
+the original "earliest next placement" objective was emptying out. This
+fills a mode rather than adding a fourth column to a decision screen used
+outdoors on a cheap Android. **The cost, stated so it is not rediscovered
+later:** "Maximum Growth" is now a slightly loose label for a
+size-and-leverage objective, and the pure date objective is gone. If a
+reason to optimise the date alone ever returns — a change to the 14-day
+gap, say — this is the decision to revisit. See AD-35.
 
 **What is settled regardless:** the reserve floor stays a hard
 constraint with the override path (below), and the mode set is a
@@ -943,9 +951,8 @@ recommendation — divergences are the most valuable data available.
 |---|---|
 | Bulk allocation recommendation | OQ-2 — **transport half only**; abattoir fee answered 2026-09-10 |
 | U5 · bulk net revenue computation | OQ-2 (transport) **and** OQ-16 — both required, neither sufficient alone |
-| U5 · mode set (3 or 4 columns) | OQ-3 open decision — fourth mode vs. reframed Maximum Growth |
 | Calibrated `MaxSafeBatchSize` | OQ-1 (mortality data) |
-| Default strategy selection | OQ-3 — answered as leveraged rollover; naming decision open |
+| Default strategy selection | ~~OQ-3~~ answered; mode set decided (AD-35) |
 | Gate harvest window past day 32 | OQ-1. ~~OQ-4~~ answered 2026-09-10 |
 
 None of these block U1–U4. Build the engine; these affect output

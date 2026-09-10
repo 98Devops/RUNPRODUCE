@@ -108,15 +108,14 @@ Named, capitalised, and used consistently in code and UI:
 | Strategy | Optimises for |
 |---|---|
 | **Cover Fast** | Fewest days to clear core credit |
-| **Maximum Growth** | Earliest possible next placement |
+| **Maximum Growth** | **Leveraged rollover** — the largest next batch the proceeds can finance, with grower and finisher draws timed against sales proceeds so growth compounds. Subject to the 14-day inter-batch gap. |
 | **Build Reserve** | Highest cash retained after obligations |
 
-**Pending, OQ-3:** Daniel's actual pattern is **leveraged rollover** —
-proceeds fund a LARGER next batch, with grower and finisher draws timed
-against sales proceeds so growth compounds. Whether that becomes a
-fourth mode or a reframing of Maximum Growth is an open decision. Use
-his name for it either way; do not call it Maximum Growth until that is
-settled.
+**Settled 2026-09-10 (AD-35).** "Maximum Growth" now names Daniel's own
+**leveraged rollover** pattern rather than an earliest-placement-date
+objective, which invariant 16's 14-day floor had largely determined
+anyway. Three modes, not four. Say "leveraged rollover" when explaining
+what the mode does; "Maximum Growth" is the label it wears in the UI.
 
 ---
 
