@@ -233,7 +233,43 @@ avoids the largest complexity sink in the project.
   smoothing over. A single zero weight among non-zero ones is legal and
   yields `0n`. The CR-3 case passed on the first run of the
   implementation; no test was adjusted to fit output.
-- **Next: Task 3** — domain types and the seeded breed curve.
+- **Task 3 — DONE** (`5ec4e58`). `packages/engine/src/types.ts` +
+  `src/breed-curve.ts` + `tests/breed-curve.test.ts`. 8 new tests green
+  (27 total); lint, typecheck and build clean. All eight expected
+  values were verified against `context/breed_curve.json` **before**
+  the test was written, so nothing was fitted to output: cum feed 444 g
+  (d14) / 2,337 g (d30) / 4,408 g (d41), per-phase 383 / 1,466 / 2,559,
+  weights 1,754 g (d30) / 1,843 g (d31) / 2,875 g (d41). AD-20 checked
+  independently: `383×0.65 + 1466×0.62 + 2559×0.60` = $2.693270/bird,
+  ×3,000 = **$8,079.81** exactly, matching fixture 1. The seed's own
+  `cum_feed_g` column agrees with the derived sum on all 41 rows, but
+  is still ignored in favour of computing — the *cost* column is the
+  one that drifts.
+  `types.ts` re-exports `Cents` from `money.ts` as planned.
+  The seed is validated at import (contiguous days from 1, phase label
+  vs. phase day range, non-negative integer grams) rather than trusted.
+  **Standards deviation, deliberate:** `code-standards.md` requires Zod
+  for JSON seed files; the engine's zero-runtime-dependency invariant
+  forbids it. Hand-rolled validation serves the intent. If a third
+  place needs seed validation, revisit — the rule or the invariant
+  should give, not the code silently.
+- **Next: Task 4** — `computeDecision()` stub and the golden fixture
+  runner.
+
+**CI is live as of task 2.** Remote
+`https://github.com/98Devops/RUNPRODUCE.git`; first green run
+[34452361699](https://github.com/98Devops/RUNPRODUCE/actions/runs/34452361699)
+on **Node v20.20.2**. TD-3 closed. TD-2 stays open until the task 5
+fixtures run green on Node 20 in that same CI.
+
+**Latent, not yet biting:** CI runs `npm install`, not `npm ci`, so it
+resolves a fresh dependency tree rather than the one tested locally —
+a weaker guarantee than TD-2 assumes. Also `packages/engine/tsconfig.json`
+sets `rootDir: "."` while `breed-curve.ts` imports
+`../../../context/breed_curve.json` from outside it; harmless while
+both `build` and `typecheck` are `--noEmit`, but it will error the day
+the engine actually emits. Both are candidates for the task 6
+close-out.
 
 Context pack written before U1.
 
