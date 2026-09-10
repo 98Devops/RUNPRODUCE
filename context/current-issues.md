@@ -138,6 +138,46 @@ the client to confirm.
 
 ---
 
+## Tracked but deferred
+
+### TD-1 · `npm audit` critical in the dev toolchain 🟡
+**Raised:** 2026-09-10. **Decision:** accepted, not remediated. **Revisit:** when vitest is next upgraded.
+
+`npm audit` reports 1 critical, 1 high, 3 moderate — all dev-only,
+all in the vitest/vite chain.
+
+| Advisory | Package | Severity | Note |
+|---|---|---|---|
+| [GHSA-5xrq-8626-4rwp](https://github.com/advisories/GHSA-5xrq-8626-4rwp) | `vitest` 2.1.9 (`<3.2.6`) | critical, CVSS 9.8 | Arbitrary file read/execute **only while the Vitest UI server is listening** |
+| [GHSA-fx2h-pf6j-xcff](https://github.com/advisories/GHSA-fx2h-pf6j-xcff) | `vite` 5.4.21 (`<=6.4.2`) | high, CVSS 7.5 | `server.fs.deny` bypass on Windows alternate paths |
+| GHSA-82fw-gwwq-j7x9 / GHSA-4w7w-66w2-5vf9 / GHSA-v6wh-96g9-6wx3 | `@vitest/mocker`, `vite`, `esbuild` | moderate | mocker path traversal; optimized-deps `.map` traversal; launch-editor NTLM leak |
+
+**Why it is accepted:** the critical requires the Vitest UI server to
+be listening. `@vitest/ui` is not installed, no script passes `--ui`,
+and the only test command is `vitest run` (one-shot, no server). The
+vite advisories require a running dev server reachable by an attacker.
+None of this ships — vitest and vite are `devDependencies` and are
+absent from the Netlify build output.
+
+**What would change the decision:** adding `@vitest/ui`, running
+`vitest --watch` or a vite dev server on a shared/untrusted network, or
+either package moving into runtime dependencies.
+
+### TD-2 · Local Node 24 vs. CI Node 20 🟡
+**Raised:** 2026-09-10. **Must be closed at U1 task 6.**
+
+Local is Node v24.11.0; `.github/workflows/ci.yml` pins `node-version:
+'20'`. Harmless at scaffold stage, but `bigint` and
+`Intl.NumberFormat` behaviour has shifted between Node majors and
+money-as-`bigint`-cents is a hard invariant (CLAUDE.md rule 2).
+
+**Close-out condition:** once the golden fixtures land in task 5, U1 is
+not done until CI is observed **green on Node 20 with the real
+fixtures** — not just locally green on 24. If it diverges, that is a
+runtime discrepancy to fix now, not in U4.
+
+---
+
 ## Known bugs in the client's spreadsheet
 
 We deliberately diverge from these. **Tell the client we did** — framed
