@@ -580,8 +580,17 @@ export interface CashCalendar {
   /** The first date the floor is breached, or null if it never is. */
   readonly first_breach_date: IsoDate | null;
   /**
-   * 'assumed' while overhead timing rests on charging at placement (OQ-19).
-   * Never 'measured' — no overhead payment date has been observed.
+   * How well-founded the overhead TIMING is — not the amounts, which are
+   * measured from the client's own Final Report.
+   *
+   * 'assumed' today: the amounts carry no dates, so they are charged as a
+   * lump at placement. It becomes 'measured' when OQ-19 lands an actual
+   * payment schedule — Daniel pays labour and electricity on some real
+   * cadence, probably monthly, and a monthly schedule would flatten the
+   * early-cycle trough materially. Until that observation exists, nothing
+   * may set this to 'measured': the amounts being measured does not make
+   * their timing measured, and that is the distinction this field exists
+   * to keep visible.
    */
   readonly overhead_timing: Confidence;
 }
