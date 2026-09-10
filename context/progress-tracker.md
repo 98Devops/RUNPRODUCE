@@ -4,29 +4,59 @@ Update this file after every meaningful implementation change.
 
 ## Current Phase
 
-**U4 — M4 harvest optimiser.** Started 2026-09-10, after U3 closed.
-**Outcome: done.** Fixtures 7, 10 and 11 assert; written is 11 of 13 and
-held is down to the single U1 completeness hold.
+**U5 — M5a cash calendar.** Started 2026-09-10, after U4 closed and the
+U5 grilling session cleared the assumptions that gate the allocation
+optimiser (AD-40 through AD-45, OQ-18).
+**Outcome: done.** `packages/engine/src/cash.ts`, 7 tasks, TDD
+throughout, 209 unit tests passing, golden suite unchanged at 11
+written / 11 passing / 1 held, lint/typecheck/build clean.
 
 ## Current Goal
 
-**U5 — M5 allocation optimiser, and it is blocked.** Per CLAUDE.md, run
-`/grill-me` on the open questions in `current-issues.md` **before**
-building it: an optimiser fed a wrong curve is still wrong, and looks
-authoritative while being so.
+**U5 — M5b allocation enumeration, and it is blocked.** Blocked on
+**OQ-2's transport half** (the abattoir fee landed, transport did not)
+and **OQ-16** (the bulk-net double-count). Three modes, with Maximum
+Growth reframed as leveraged rollover (AD-35), and enumeration must
+respect invariant 16's 14-day floor (AD-31). `projectCashCalendar`'s
+real signature now exists (AD-46, AD-47), so M5b's plan can be written
+against it rather than against a guessed one.
 
-Blocked on **OQ-2's transport half** (the abattoir fee landed, transport
-did not) and **OQ-16** (the bulk-net double-count). Three modes, with
-Maximum Growth reframed as leveraged rollover (AD-35), and enumeration
-must respect invariant 16's 14-day floor (AD-31).
-
-Two fixtures stay unwritten and neither is U5's to write: **6** waits on
+Two fixtures stay unwritten and neither is M5's to write: **6** waits on
 OQ-8, **8** waits on OQ-10 and OQ-2. They are what holds the U1
 completeness fixture.
 
-*The U2 and U3 goals that stood here are recorded under Completed.*
+*The U2, U3 and U4 goals that stood here are recorded under Completed.*
 
 ## Completed
+
+- **U5 · M5a cash calendar.** `packages/engine/src/cash.ts`, 7 tasks, 17
+  new tests, TDD throughout. 209 tests green; golden suite **unchanged**
+  at 11 written / 11 passing / 1 held — expected, since M5a is
+  deliberately not wired into `computeDecision()`; lint, typecheck and
+  build clean.
+
+  **Not wired into the decision path, on purpose.** `decision.allocation`
+  keeps throwing `NotImplementedError` until M5b lands, so a future M5
+  fixture stays correctly held rather than asserting against a
+  half-built module (AD-29). `projectCashCalendar` and
+  `cashFlowsMissingInputs` are exported standalone for M5b to call.
+
+  **The reserve floor is reported and never applied.** Each day carries
+  `breaches_reserve_floor`; the calendar as a whole carries the first
+  breach. Filtering candidates against it is M5b's job (AD-43) — this
+  module states the fact and stops.
+
+  **A bulk-inclusive candidate cannot be priced yet, and fails loudly
+  rather than guess.** Bulk net is contract price minus the abattoir fee
+  minus transport, and whether transport belongs in that subtraction at
+  all is OQ-16 — the Final Report already books a separate transport
+  line for a gate-sold batch. Booking the gross contract price instead
+  would silently answer OQ-16 in the client's stead, which invariant 5
+  forbids; the BULK branch throws unconditionally until OQ-2's transport
+  half and OQ-16 both land.
+
+  Own module rather than folded into `allocation.ts` (AD-46); the
+  `throughDay` horizon parameter has no default, deliberately (AD-47).
 
 - **U4 — M4 harvest optimiser.** `packages/engine/src/harvest.ts`, 24 new
   tests, TDD throughout. **Fixtures 7, 10 and 11 now assert**; written is
@@ -151,18 +181,22 @@ Next Up.
 1. ~~**U2** — M1 production + M2 costing~~ done
 2. ~~**U3** — M3 feed liability~~ done ← fixtures 5, 9 green
 3. ~~**U4** — M4 harvest optimiser~~ done ← fixtures 7, 10, 11 green
-4. **U5** — M5 allocation optimiser. **`/grill-me` complete 2026-09-10**,
-   both rounds: AD-40 to AD-45 and OQ-18 came out of it. The frontier is
-   closed and the spec is complete —
-   `context/plans/u5-allocation-optimiser.md`. **The enumeration's shape and
-   mechanics are buildable today; bulk-inclusive candidate scores are not**
-   (OQ-2 transport, OQ-16), and two of three modes returning
+4. ~~**U5 · M5a** — cash calendar~~ done ← `packages/engine/src/cash.ts`,
+   209 tests green, golden unchanged at 11/11/1 (AD-46, AD-47)
+5. **U5 · M5b** — allocation enumeration. **`/grill-me` complete
+   2026-09-10**, both rounds: AD-40 to AD-45 and OQ-18 came out of it.
+   The frontier is closed and the spec is complete —
+   `context/plans/u5-allocation-optimiser.md`. **The enumeration's shape
+   and mechanics are buildable today; bulk-inclusive candidate scores are
+   not** (OQ-2 transport, OQ-16), and two of three modes returning
    `missing_input` while Maximum Growth returns a real number is the
-   expected behaviour while they are open — see AD-43. Blocked on **OQ-2's transport half** (the abattoir fee
-   landed, transport did not) **and** OQ-16 (bulk net double-count), and
-   Mode set decided (AD-35): three modes, Maximum Growth reframed as
-   leveraged rollover. Enumeration must respect invariant 16's 14-day
-   floor (AD-31).
+   expected behaviour while they are open — see AD-43. Blocked on
+   **OQ-2's transport half** (the abattoir fee landed, transport did not)
+   **and** OQ-16 (bulk net double-count), and Mode set decided (AD-35):
+   three modes, Maximum Growth reframed as leveraged rollover. Enumeration
+   must respect invariant 16's 14-day floor (AD-31). **M5b's plan is now
+   written against `projectCashCalendar`'s real signature** — `(input,
+   throughDay, openingCents, feed)` — rather than a guessed one.
 
 **Outstanding client questions, after Daniel's 2026-09-10 answers** —
 **OQ-8** and the **transport half of OQ-2** are what remain outstanding,
@@ -315,6 +349,48 @@ EXPECTED VALUE did not change — day 31 before, day 31 after. This is a
 metadata correction, not a regeneration, and it is flagged here the way
 AD-30 flagged the harness encoding: fixtures are the client contract and
 nothing about them moves silently.
+
+**AD-46 · The cash calendar is its own module, not inside `allocation.ts`.**
+Logged 2026-09-10 during M5a. `architecture.md`'s file map designated
+`allocation.ts` as "M5 cash + allocation". M5a deliberately put the cash
+projection in its own `packages/engine/src/cash.ts` instead — a
+divergence from the file map, stated plainly rather than left for a
+future session to notice on its own. The map is corrected in the same
+pass.
+
+Two reasons. It is independently testable and independently valuable —
+`project-overview.md` lists **Cash calendar** as its own deliverable,
+separate from **Decision engine** — so it earns its own file on the same
+footing M1-M4 already stand on. And M5b's enumeration will project a
+calendar roughly **8,401 times per run** (271 candidate sizes x 31
+candidate dates, AD-40/AD-41) — a hot path, with its own performance and
+testing concerns. Keeping it out of `allocation.ts` leaves that file
+about enumeration and ranking, not about both.
+
+**The cost if this is ever revisited:** a reader trusting the file map
+over the actual code would look for cash projection inside
+`allocation.ts` and not find it — which is exactly why the map is
+corrected here rather than left to drift; a map that stops matching the
+code is worse than no map.
+
+**AD-47 · `throughDay` has no default.**
+Logged 2026-09-10 during M5a. `projectCashCalendar()` takes its horizon
+as a required parameter with nothing a caller can omit.
+
+AD-43 makes the 90-day cash calendar a **display** horizon, while each
+M5b allocation candidate is scored over its **own** completion horizon —
+`placement + 41 + terms_days`. A default here would let a caller
+silently inherit the wrong window, which is the exact mismatch AD-36
+names: two quantities compared at mismatched points, read as a real
+difference rather than an artefact of the comparison. Concretely:
+scoring every candidate over a fixed 90-day window from `asOf` would
+give a candidate placed at `floor + 30` thirty fewer days of its own
+cycle inside the window than one placed at the floor, so Build Reserve
+would end up preferring early placement for a window-truncation
+artefact rather than an economic reason.
+
+The parameter's own doc comment in `cash.ts` carries this reasoning, so
+it stays visible at the call site and not only here.
 
 **AD-45 · M5 has two entry points, and a candidate's cash calendar is
 projected exactly once.**

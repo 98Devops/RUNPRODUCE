@@ -33,7 +33,8 @@
 │       │   ├── costing.ts      M2 cost engine
 │       │   ├── feed.ts         M3 feed liability
 │       │   ├── harvest.ts      M4 harvest optimiser
-│       │   ├── allocation.ts   M5 cash + allocation
+│       │   ├── cash.ts         M5a cash calendar (AD-46)
+│       │   ├── allocation.ts   M5b allocation optimiser
 │       │   ├── recommend.ts    M6 plain-language advice
 │       │   ├── scenario.ts     M7 parameter sweep
 │       │   ├── explain.ts      Explained<T> wrapper

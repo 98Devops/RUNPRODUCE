@@ -895,6 +895,39 @@ step determines carries `confidence: 'assumed'`. See AD-41.
 **Does not block U5.** The parameter is the whole mechanism, and a different
 answer changes its default rather than any code. Ask it with the rest.
 
+### OQ-19 · When does the client actually pay overheads? 🟡
+**Status:** Open, assumed default. **Raised:** 2026-09-10, from M5a.
+**Affects:** the shape of the cash calendar's early-cycle trough, and
+therefore which candidates M5b's reserve-floor filter judges affordable.
+
+`computeCosting()` supplies overhead amounts and no dates, because the
+client books them per batch in his Final Report rather than per day. The
+cash calendar needs a date for every outflow, so it charges all four
+lines — vaccine $42, electricity and heating $140, labour $640,
+Other/Transport $400, **$1,222.00** at his 3,000-bird scale — as a lump
+on the **placement** date, and marks the calendar
+`overhead_timing: 'assumed'`.
+
+**The ask:** *when do you actually pay labour and electricity — monthly,
+weekly, or at the end of a batch?*
+
+**Why it matters.** Labour is almost certainly monthly, and a monthly
+schedule would **flatten the early-cycle cash trough materially** rather
+than digging the whole $1,222 on day 1. The reserve floor is what
+M5b's filter tests every candidate's lowest projected balance against,
+so the shape of this assumption changes which candidates are judged
+affordable.
+
+**A timing assumption, not a fabricated amount.** The four figures are
+his own, measured, straight off the Final Report. Measured amounts do
+not make their timing measured — the dates are ours, assumed, and
+`overhead_timing` says so.
+
+**Handling until answered:** all four lines land on the placement date.
+**Does not block M5b** — the alternative, spreading the `PER_BATCH`
+lines with `Money.split`, is a contained change if his answer warrants
+it.
+
 ### OQ-12 · How much own-batch history is "sufficient" to calibrate 🟡
 **Status:** Open, assumed default. **Raised:** 2026-09-10, from OQ-1's answer.
 **Affects:** when the harvest optimiser switches off the fallback ramp.
