@@ -46,7 +46,14 @@ export function cashFlowsMissingInputs(input: EngineInput): MissingInput[] {
   return missing;
 }
 
-/** Gross receipt for an order. Bulk net is NOT applied here — see the caller. */
+/**
+ * GROSS receipt for an order — contract price x quantity, nothing subtracted.
+ *
+ * Correct as-is for GATE, whose cash-in IS the gross amount. NOT correct for
+ * BULK: bulk net is gross minus the abattoir fee minus transport, and this
+ * function does not compute that. The BULK branch at the call site must
+ * never pass this value through as a receipt — see the throw there.
+ */
 function receiptCents(sale: SalesOrder): Cents {
   if (sale.pricing_basis === 'PER_KG') {
     const rate = sale.price_cents_per_kg;
@@ -130,10 +137,31 @@ export function projectCashCalendar(
   }
 
   for (const sale of input.sales) {
-    // A gate sale is cash on the day; a bulk sale is a receivable dated
-    // order_date + terms. Both use the order's OWN terms_days.
+    if (sale.channel === 'BULK') {
+      // Unreachable today: every fixture leaves transport null, so
+      // cashFlowsMissingInputs() throws above before this loop runs, and
+      // this branch has no test of its own — that is expected, not a gap.
+      // It does NOT become safe to delete once the client supplies both
+      // abattoir_fee_cents and transport_cents_per_bird, though: the guard
+      // above checks only whether the VALUES are present, not whether we
+      // know how to combine them. OQ-16 asks whether transport belongs in
+      // bulk net at all, since the Final Report already books a transport
+      // line for a gate-sold batch — a question values alone cannot
+      // answer. So this throws unconditionally for BULK, independent of
+      // the guard, until the bulk-net formula itself is settled; booking
+      // the gross contract price here would silently answer OQ-16 in the
+      // client's stead, which is the wrong-balance invariant 5 forbids.
+      throw new Error(
+        'Cannot book a BULK receipt: bulk net is contract price minus abattoir fee minus ' +
+          'transport, and whether transport belongs here at all is OQ-16 — the Final Report ' +
+          'already books a transport line for a gate-sold batch. Implement the net when OQ-2 ' +
+          'and OQ-16 are both answered; do not book the gross contract price.'
+      );
+    }
+    // A gate sale is cash on the day, priced at the order's own terms_days
+    // (0 for gate, but never assumed — always the order's own value).
     flows.push({
-      kind: sale.channel === 'GATE' ? 'GATE_RECEIPT' : 'BULK_RECEIPT',
+      kind: 'GATE_RECEIPT',
       date: addDays(sale.order_date, sale.terms_days),
       amount_cents: receiptCents(sale),
       description: `${sale.bird_count} birds ${sale.channel}`

@@ -189,6 +189,26 @@ describe('projectCashCalendar — receipts', () => {
     expect(saleDay?.in_cents).toBe(184300n);
   });
 
+  it('truncates a PER_KG gate receipt rather than rounding up — 368, not 369', () => {
+    const engineInput = input('2026-03-10', {
+      sales: [
+        {
+          ...gateOrder,
+          bird_count: 1,
+          pricing_basis: 'PER_KG',
+          price_cents_per_bird: null,
+          price_cents_per_kg: 200n as Cents
+        }
+      ]
+    });
+    const calendar = projectCashCalendar(engineInput, 35, 0n as Cents, feedFor(engineInput));
+    const saleDay = calendar.days.find((d) => d.date === '2026-03-08');
+
+    // 1 bird x 1.843 kg x $2.00/kg = 368.6 cents. Truncated toward zero this
+    // is 368; rounding up (which a receipt must never do) would give 369.
+    expect(saleDay?.in_cents).toBe(368n);
+  });
+
   /**
    * The spec's blocked half. Bulk net is contract price minus the abattoir fee
    * minus transport, and transport is null pending OQ-2 while OQ-16 gates the
