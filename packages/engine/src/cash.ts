@@ -1,5 +1,68 @@
 import { addDays } from './day-number.js';
-import type { CashCalendar, CashDay, CashFlow, Cents, EngineInput, FeedLiability } from './types.js';
+import type {
+  CashCalendar,
+  CashDay,
+  CashFlow,
+  Cents,
+  EngineInput,
+  FeedLiability,
+  MissingInput,
+  SalesOrder
+} from './types.js';
+
+/**
+ * What the calendar cannot compute, and why — checked BEFORE projecting.
+ *
+ * M5b calls this first: a candidate that cannot be scored must return
+ * `missing_input` rather than a number, and discovering that mid-projection
+ * would mean throwing away work for every candidate.
+ */
+export function cashFlowsMissingInputs(input: EngineInput): MissingInput[] {
+  const missing: MissingInput[] = [];
+  if (!input.sales.some((sale) => sale.channel === 'BULK')) return missing;
+
+  const { abattoir_fee_cents, transport_cents_per_bird, delivery_mode } = input.parameters;
+
+  if (delivery_mode === 'ABATTOIR' && abattoir_fee_cents === null) {
+    missing.push({
+      key: 'abattoir_fee',
+      why:
+        'Bulk net needs the abattoir fee per bird (OQ-2). Until it and transport land, ' +
+        'Cover Fast and Build Reserve return missing_input for any bulk-inclusive ' +
+        'candidate while Maximum Growth still returns a real number — its scalar is ' +
+        'placement size, which needs no bulk net. That split is expected, not a bug (AD-43).'
+    });
+  }
+  if (transport_cents_per_bird === null) {
+    missing.push({
+      key: 'transport_cents_per_bird',
+      why:
+        'Bulk net needs transport to the abattoir (OQ-2), and OQ-16 gates it ' +
+        'independently: the Final Report already books an Other/Transport line for a ' +
+        'gate-sold batch, and the brief says do not double-count. An answered OQ-2 does ' +
+        'not release OQ-16.'
+    });
+  }
+  return missing;
+}
+
+/** Gross receipt for an order. Bulk net is NOT applied here — see the caller. */
+function receiptCents(sale: SalesOrder): Cents {
+  if (sale.pricing_basis === 'PER_KG') {
+    const rate = sale.price_cents_per_kg;
+    if (rate === null) {
+      throw new Error(`A PER_KG ${sale.channel} order has no price_cents_per_kg`);
+    }
+    // Integer grams against a per-kg rate, truncating — a receipt must never
+    // round up in our favour.
+    return ((rate * BigInt(sale.avg_live_weight_g) * BigInt(sale.bird_count)) / 1000n) as Cents;
+  }
+  const rate = sale.price_cents_per_bird;
+  if (rate === null) {
+    throw new Error(`A PER_BIRD ${sale.channel} order has no price_cents_per_bird`);
+  }
+  return (rate * BigInt(sale.bird_count)) as Cents;
+}
 
 /**
  * M5a — the cash calendar.
@@ -51,6 +114,29 @@ export function projectCashCalendar(
       date: draw.due_date,
       amount_cents: -draw.total_cents as Cents,
       description: `${draw.bags} bags ${draw.phase} drawn ${draw.collection_date}`
+    });
+  }
+
+  // A calendar missing a bulk receipt is not a calendar with a caveat, it is
+  // a wrong balance — so this is a programming-error guard, not the
+  // invariant-5 path. Callers must check cashFlowsMissingInputs() first and
+  // return missing_input; this only catches one that skipped it.
+  const missing = cashFlowsMissingInputs(input);
+  if (missing.length > 0) {
+    throw new Error(
+      `Cannot project cash: bulk net is unavailable — ${missing.map((m) => m.key).join(', ')}. ` +
+        'Call cashFlowsMissingInputs() first and return missing_input.'
+    );
+  }
+
+  for (const sale of input.sales) {
+    // A gate sale is cash on the day; a bulk sale is a receivable dated
+    // order_date + terms. Both use the order's OWN terms_days.
+    flows.push({
+      kind: sale.channel === 'GATE' ? 'GATE_RECEIPT' : 'BULK_RECEIPT',
+      date: addDays(sale.order_date, sale.terms_days),
+      amount_cents: receiptCents(sale),
+      description: `${sale.bird_count} birds ${sale.channel}`
     });
   }
 

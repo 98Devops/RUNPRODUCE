@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { projectCashCalendar } from '../src/cash.js';
+import { cashFlowsMissingInputs, projectCashCalendar } from '../src/cash.js';
 import { computeFeedLiability } from '../src/feed.js';
 import { projectProduction } from '../src/production.js';
 import type { Cents, EngineInput, Grams, IsoDate, Parameters } from '../src/types.js';
@@ -141,6 +141,76 @@ describe('projectCashCalendar — dated outflows', () => {
 
     expect(calendar.days.some((d) => d.flows.some((f) => f.kind === 'FEED_DRAW_PAYMENT'))).toBe(
       false
+    );
+  });
+});
+
+const bulkOrder = {
+  channel: 'BULK' as const,
+  order_date: '2026-03-08' as IsoDate,
+  bird_count: 1000,
+  avg_live_weight_g: 1843 as Grams,
+  pricing_basis: 'PER_BIRD' as const,
+  price_cents_per_bird: 390n as Cents,
+  price_cents_per_kg: null,
+  terms_days: 30
+};
+
+const gateOrder = {
+  channel: 'GATE' as const,
+  order_date: '2026-03-08' as IsoDate,
+  bird_count: 500,
+  avg_live_weight_g: 1843 as Grams,
+  pricing_basis: 'PER_BIRD' as const,
+  price_cents_per_bird: 425n as Cents,
+  price_cents_per_kg: null,
+  terms_days: 0
+};
+
+describe('projectCashCalendar — receipts', () => {
+  it('books a gate receipt on the order date, same day, for cash', () => {
+    const engineInput = input('2026-03-10', { sales: [gateOrder] });
+    const calendar = projectCashCalendar(engineInput, 35, 0n as Cents, feedFor(engineInput));
+    const saleDay = calendar.days.find((d) => d.date === '2026-03-08');
+
+    // 500 birds x $4.25.
+    expect(saleDay?.in_cents).toBe(212500n);
+    expect(saleDay?.flows.map((f) => f.kind)).toContain('GATE_RECEIPT');
+  });
+
+  it('prices a PER_KG gate order from integer grams', () => {
+    const engineInput = input('2026-03-10', {
+      sales: [{ ...gateOrder, pricing_basis: 'PER_KG', price_cents_per_bird: null, price_cents_per_kg: 200n as Cents }]
+    });
+    const calendar = projectCashCalendar(engineInput, 35, 0n as Cents, feedFor(engineInput));
+    const saleDay = calendar.days.find((d) => d.date === '2026-03-08');
+
+    // 500 birds x 1.843 kg x $2.00/kg, truncated to the cent.
+    expect(saleDay?.in_cents).toBe(184300n);
+  });
+
+  /**
+   * The spec's blocked half. Bulk net is contract price minus the abattoir fee
+   * minus transport, and transport is null pending OQ-2 while OQ-16 gates the
+   * double-count question independently.
+   */
+  it('reports both gaps for a BULK order rather than guessing bulk net', () => {
+    const missing = cashFlowsMissingInputs(input('2026-03-10', { sales: [bulkOrder] }));
+    const keys = missing.map((m) => m.key);
+
+    expect(keys).toContain('transport_cents_per_bird');
+    expect(keys).toContain('abattoir_fee');
+    expect(missing.every((m) => /OQ-2|OQ-16/.test(m.why))).toBe(true);
+  });
+
+  it('reports nothing missing when there is no bulk order', () => {
+    expect(cashFlowsMissingInputs(input('2026-03-10', { sales: [gateOrder] }))).toEqual([]);
+  });
+
+  it('throws rather than returning a calendar missing a bulk receipt', () => {
+    const engineInput = input('2026-03-10', { sales: [bulkOrder] });
+    expect(() => projectCashCalendar(engineInput, 35, 0n as Cents, feedFor(engineInput))).toThrow(
+      /bulk net/
     );
   });
 });
