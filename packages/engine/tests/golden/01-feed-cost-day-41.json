@@ -1,0 +1,32 @@
+{
+  "id": 1,
+  "name": "feed-cost-3000-chicks-day-41",
+  "description": "3,000 chicks @ $1.00, placed 2026-02-06, run to day 41 — feed cost $8,079.81",
+  "input": {
+    "asOf": "2026-03-18",
+    "batch": {
+      "placement_date": "2026-02-06",
+      "chick_count": 3000,
+      "extra_chick_count": 0,
+      "chick_price_cents": "100"
+    },
+    "parameters": {
+      "mortality": { "base_rate_bp_daily": 0, "preharvest_ramp_start_day": 30, "preharvest_ramp_rate_bp_daily": 0 },
+      "slaughter_target_g": 1770,
+      "gate_price_cents_per_bird": "430",
+      "gate_price_cents_per_kg": null,
+      "gate_pricing_basis": "PER_BIRD",
+      "gate_capacity_per_day": 750,
+      "bulk_price_cents_per_bird": "390",
+      "abattoir_fee_cents": null,
+      "transport_cents_per_bird": null,
+      "delivery_mode": "ABATTOIR",
+      "feed_terms_days": 30,
+      "reserve_floor_cents": "0"
+    },
+    "records": [],
+    "draws": [],
+    "sales": []
+  },
+  "expect": { "path": "decision.costing.feed_cost_cents", "value": "807981" }
+}

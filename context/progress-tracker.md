@@ -56,16 +56,55 @@ These encode the client's real spreadsheet. Write all 13 in U1.
 | 12 | 3,000 chicks + 100 extra | flock = 3,100 |
 | 13 | Abattoir fee unset | returns `missing_input`, not a guess |
 
-Fixtures 7, 8 and 11 depend on the **uncalibrated mortality model** —
-see `current-issues.md` OQ-1. They lock in current assumed behaviour so
-regressions are caught; they will need regenerating once real mortality
-data arrives.
+**Status after U1 task 5 (2026-09-10): 9 of 13 written.**
+
+| Written and verified | Not written |
+|---|---|
+| 1, 2, 3, 4, 5, 9, 10, 12, 13 | **6, 7, 8, 11** |
+
+Fixture 10 encodes **day 31**, not the day 30 in the table above — the
+rule `first day weight_g >= 1770` applied literally to the client's own
+curve (1,754 g at day 30, 1,843 g at day 31). Marked `provisional`
+pending OQ-7.
+
+Fixtures 6, 7, 8 and 11 could not be reproduced from the client's curve
+under the specified parameters, so they were not written rather than
+back-fitted. Each has an open question carrying the arithmetic and the
+question to put to the client: **OQ-8** (fixture 6 — 2,675 vs. a
+computed 2,850; reproduces exactly at $0.85 a chick), **OQ-9**
+(fixture 7 — $3,305 vs. $3,714), **OQ-10** (fixture 8 — needs the
+abattoir fee from OQ-2 and is not computable without it), **OQ-11**
+(fixture 11 — the $2.46/kg rate does not follow from $4.30 ÷ 1.754 kg).
+
+Fixtures 7, 8 and 11 additionally depend on the **uncalibrated mortality
+model** — see OQ-1. When they are eventually written they lock in
+assumed behaviour so regressions are caught, and will need regenerating
+once real mortality data arrives.
 
 ## Open Questions
 
 Tracked in `current-issues.md`.
 
 ## Architecture Decisions
+
+**AD-23 · `EngineInput.curve` is optional; absent means the seed.**
+Every golden fixture would otherwise carry a literal copy of 41 curve
+rows. Absent means `SEED_BREED_CURVE` — the client's own data, which is
+what the fixtures are written against. Present means a calibrated curve
+supplied by the caller, which is where U6 calibration will land.
+
+**AD-22 · Fixture 13 books a BULK sale to make the abattoir fee
+genuinely required.**
+The plan gave fixtures 1–5 and fixture 13 identical inputs
+(`abattoir_fee_cents: null`) while expecting `kind: 'ok'` from the first
+five and `kind: 'missing_input'` from the thirteenth. One entry point
+cannot return both for the same input, so the contradiction had to be
+resolved before writing a protected file. Resolution: the fee is
+required **when bulk economics are in play**, so fixture 13 carries a
+1,200-bird `BULK` sales order and fixtures 1–5 carry `sales: []`. This
+also states the rule the engine should implement — `missing_input` is
+raised by what the input asks for, not by any null in the parameter
+block. Revisit if the client's answer to OQ-2 changes the shape.
 
 **AD-21 · The golden fixture suite is a separate CI step, and excusals
 are derived rather than declared.**
@@ -291,8 +330,27 @@ avoids the largest complexity sink in the project.
   `tests/golden-fixtures.test.ts` (replaces `golden.test.ts`), two
   vitest configs, `test:golden` script, five-step workflow. 22 new tests
   green (56 total in the gating step); golden step green with 1 held.
-- **Next: Task 5** — the 13 golden fixtures. Build the 9 unblocked ones
-  first; 7, 8, 10 and 11 are held back pending OQ-1 through OQ-4.
+- **Task 5 — DONE, 9 of 13.** Fixtures **1, 2, 3, 4, 5, 9, 10, 12, 13**
+  written. Every value was verified against `context/breed_curve.json`
+  **before** the file was created — feed cost $8,079.81, total feed
+  13,224 kg, FCR 4408/2875 = 1.5332 → 1.53, cum feed 2,337 g at day 30,
+  444 g × 3,000 ÷ 50,000 = 26.64 bags, all five due dates counted by
+  hand (2026 is not a leap year), flock 3,000 + 100 = 3,100, and
+  fixture 10's day 31 from w30 = 1,754 g / w31 = 1,843 g against the
+  literal rule `first day weight_g >= 1770`.
+  **Fixtures 6, 7, 8 and 11 are NOT written** — their contract values
+  cannot be reproduced from the client's own curve under the specified
+  parameters. See **OQ-8 through OQ-11** in `current-issues.md`; each
+  carries the arithmetic and the question to put to the client. Fixture
+  6 is the near-miss: 2,675 falls out exactly at $0.85 a chick, against
+  the brief's $1.00, and that is an inference rather than a client fact.
+  Two contradictions in the plan were resolved rather than papered over:
+  AD-22 (fixture 13 vs. 1–5) and AD-23 (`curve` optional).
+  All 9 are held in CI on `computeDecision not implemented — U2`, which
+  is the intended state.
+- **Superseded note — Task 5 as originally scoped** — 13 fixtures. The
+  plan assumed 7, 8, 10 and 11 were the four blocked ones; in fact 10
+  verified cleanly and 6 did not.
   **Vocabulary collision to keep straight:** "held back" in the plan
   means *written last, pending a client answer* — those four carry
   concrete expected values ($3,305, −$537, day 31, day 38) and are

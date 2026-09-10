@@ -1,0 +1,41 @@
+{
+  "id": 9,
+  "name": "feed-draw-due-dates",
+  "description": "Feed draw due dates from 2026-02-06 — Mar 8, Mar 22, Mar 29, Apr 5, Apr 12",
+  "input": {
+    "asOf": "2026-03-18",
+    "batch": {
+      "placement_date": "2026-02-06",
+      "chick_count": 3000,
+      "extra_chick_count": 0,
+      "chick_price_cents": "100"
+    },
+    "parameters": {
+      "mortality": { "base_rate_bp_daily": 0, "preharvest_ramp_start_day": 30, "preharvest_ramp_rate_bp_daily": 0 },
+      "slaughter_target_g": 1770,
+      "gate_price_cents_per_bird": "430",
+      "gate_price_cents_per_kg": null,
+      "gate_pricing_basis": "PER_BIRD",
+      "gate_capacity_per_day": 750,
+      "bulk_price_cents_per_bird": "390",
+      "abattoir_fee_cents": null,
+      "transport_cents_per_bird": null,
+      "delivery_mode": "ABATTOIR",
+      "feed_terms_days": 30,
+      "reserve_floor_cents": "0"
+    },
+    "records": [],
+    "draws": [
+      { "collection_date": "2026-02-06", "phase": "STARTER", "bags": 27, "kg": 1350, "price_per_bag_cents": "3250", "terms_days": 30 },
+      { "collection_date": "2026-02-20", "phase": "GROWER", "bags": 40, "kg": 2000, "price_per_bag_cents": "3100", "terms_days": 30 },
+      { "collection_date": "2026-02-27", "phase": "GROWER", "bags": 48, "kg": 2400, "price_per_bag_cents": "3100", "terms_days": 30 },
+      { "collection_date": "2026-03-06", "phase": "FINISHER", "bags": 52, "kg": 2600, "price_per_bag_cents": "3000", "terms_days": 30 },
+      { "collection_date": "2026-03-13", "phase": "FINISHER", "bags": 53, "kg": 2650, "price_per_bag_cents": "3000", "terms_days": 30 }
+    ],
+    "sales": []
+  },
+  "expect": {
+    "path": "decision.feed.due_dates",
+    "value": ["2026-03-08", "2026-03-22", "2026-03-29", "2026-04-05", "2026-04-12"]
+  }
+}

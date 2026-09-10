@@ -112,7 +112,13 @@ export interface EngineInput {
   readonly asOf: IsoDate;
   readonly batch: Batch;
   readonly parameters: Parameters;
-  readonly curve: BreedCurve;
+  /**
+   * Omitted by every golden fixture, which would otherwise each carry a
+   * literal copy of 41 curve rows. Absent means SEED_BREED_CURVE — the
+   * client's own data, which is what the fixtures are written against.
+   * Present means a calibrated curve supplied by the caller.
+   */
+  readonly curve?: BreedCurve;
   readonly records: readonly DailyRecord[];
   readonly draws: readonly FeedDraw[];
   readonly sales: readonly SalesOrder[];

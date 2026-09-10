@@ -85,6 +85,79 @@ from an unverified reading that rounded 1,754 to 1.77 kg.
 
 ---
 
+## Open questions — golden fixture values that could not be verified
+
+Raised 2026-09-10 during U1 task 5. Four of the 13 contract values in
+`progress-tracker.md` **cannot be reproduced from the client's own breed
+curve under the parameters the plan specifies.** They are not written as
+fixtures. Writing them would mean inventing the input that makes the
+number come out — precisely what CLAUDE.md rule 3 forbids, and worse
+than a gap because a fixture is the contract and is protected once
+committed.
+
+Nine fixtures are written and every one of their values was verified
+against `context/breed_curve.json` **before** the file was created:
+1, 2, 3, 4, 5, 9, 10, 12, 13.
+
+### OQ-8 · Fixture 6 — break-even gate birds, 5,000 flock, day 30 🔴
+**Contract value:** 2,675 birds (54%). **Computed:** 2,850.
+
+Core credit = chick cost + feed to day 30.
+`5,000 × $1.00 = $5,000` chicks, plus `5,000 × $1.45067 = $7,253.35`
+feed (starter 383 g × $0.65 + grower 1,466 g × $0.62 + finisher 488 g ×
+$0.60, from the client's own curve), giving **$12,253.35 ÷ $4.30 =
+2,850**. With the assumed mortality model active it falls to 2,800 —
+further from 2,675, not closer.
+
+**2,675 reproduces exactly at a chick price of $0.85 with mortality
+zeroed:** `$4,250 + $7,253.35 = $11,503.35 ÷ $4.30 = 2,675.2`, and
+`2,675 ÷ 5,000 = 53.5%`, which is the contract's "54%". Both figures
+land, so this is very likely the right reading — but **$0.85 is a chick
+price the client has never given us for this scenario**, and the brief
+says $1.00.
+
+**Ask the client:** *"The 5,000-bird break-even figure of 2,675 — was
+that worked out at 85 cents a chick? At the $1.00 in the brief we get
+2,850."*
+
+### OQ-9 · Fixture 7 — hold cost day 30 → 35, 5,000 flock 🟠
+**Contract value:** $3,305. **Computed:** $3,714, or $3,904.
+
+Feed for days 31–35 with the assumed mortality model is $2,506.91;
+birds lost over that window are 280.7, worth $1,206.98 at $4.30. Sum
+$3,713.89. With mortality off, feed is $2,697.00 and the sum is
+$3,903.98. Neither is $3,305, and no intermediate assumption we can
+name produces it — the residual implies about $2.84 per bird lost,
+which matches no price in the brief.
+
+**Ask the client:** *"What goes into the $3,305 cost of holding 5,000
+birds from day 30 to day 35 — feed only, or feed plus the birds that
+die?"* Also blocked on OQ-1: the answer depends on a mortality curve we
+do not have.
+
+### OQ-10 · Fixture 8 — bulk net per day held, 5,000 flock 🔴
+**Contract value:** −$537/day. **Not computable at all.**
+
+`bulk_net_per_bird = contract price − abattoir fee − transport`, and
+both subtrahends are `null` pending OQ-2. The fee does not cancel out
+of a per-day difference. This fixture is blocked on OQ-2 rather than
+disputed — it becomes writable the moment the fee arrives.
+
+### OQ-11 · Fixture 11 — gate window end day 38, and the per-kg rate 🟠
+**Contract value:** day 38, which only holds under `PER_KG` gate
+pricing. The plan derives the rate as $2.46/kg from "$4.30 for a
+1,754 g bird" — but `430 ÷ 1.754 = 245.15` cents, and `430 ÷ 1.770 =
+242.94`. Neither rounds to 246.
+
+The plan's own instruction for this step is to stop and flag rather
+than invent a rate, so that is what has happened. Also compounded by
+OQ-4 (is gate pricing per bird or per kg at all?) and OQ-1.
+
+**Ask the client:** *"What do you actually get per kilo at the gate?"*
+A measured rate settles this and OQ-4 together.
+
+---
+
 ## Open questions — non-blocking but important
 
 ### OQ-3 · The objective function 🟠
@@ -225,6 +298,13 @@ by probe before commit: a fixture asserting `807981` against an
 implemented `computeDecision` returning `999999` exits the step 1, while
 a `NotImplementedError` throw and a placeholder fixture both skip and
 exit 0.
+
+**Evidence:** run
+[34456780592](https://github.com/98Devops/RUNPRODUCE/actions/runs/34456780592)
+on commit `5e7cfc7` — `verify` green in 17s on **Node v20.20.2**. All
+five steps passed: Lint, Typecheck, Unit tests (56), Build, Golden
+fixtures (`written 0/13 · passing 0 · held 1`). First green CI run since
+`fb4a15e`. **Still does not close TD-2** — `held` is 1, not 0.
 
 **Honest caveat as of today:** all 13 fixtures route through the single
 `computeDecision()` entry point, which is still the U1 stub — so the

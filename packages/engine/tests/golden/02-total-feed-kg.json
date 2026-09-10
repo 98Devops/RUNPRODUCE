@@ -1,0 +1,32 @@
+{
+  "id": 2,
+  "name": "total-feed-kg-day-41",
+  "description": "Same batch, total feed — 13,224 kg",
+  "input": {
+    "asOf": "2026-03-18",
+    "batch": {
+      "placement_date": "2026-02-06",
+      "chick_count": 3000,
+      "extra_chick_count": 0,
+      "chick_price_cents": "100"
+    },
+    "parameters": {
+      "mortality": { "base_rate_bp_daily": 0, "preharvest_ramp_start_day": 30, "preharvest_ramp_rate_bp_daily": 0 },
+      "slaughter_target_g": 1770,
+      "gate_price_cents_per_bird": "430",
+      "gate_price_cents_per_kg": null,
+      "gate_pricing_basis": "PER_BIRD",
+      "gate_capacity_per_day": 750,
+      "bulk_price_cents_per_bird": "390",
+      "abattoir_fee_cents": null,
+      "transport_cents_per_bird": null,
+      "delivery_mode": "ABATTOIR",
+      "feed_terms_days": 30,
+      "reserve_floor_cents": "0"
+    },
+    "records": [],
+    "draws": [],
+    "sales": []
+  },
+  "expect": { "path": "decision.production.total_feed_kg", "value": 13224 }
+}
