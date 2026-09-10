@@ -33,9 +33,13 @@ chicks, raises them ~30 days, sells through two channels.
 | **Extra chicks** | Free chicks supplied by the hatchery above the ordered count. **They count toward the flock.** | |
 | **Day number** | Days since placement. Day 1 is placement day. | ~~age in days~~ |
 | **Opening birds** | Birds alive at the start of a day | |
-| **Closing birds** | Opening − mortality − sold | |
+| **Closing birds** | Opening − daily mortality − daily culls − sold. All three removals are **derived** from cumulative columns. | |
 | **Mortality** | Birds that died | ~~deaths, losses~~ (a loss is financial) |
+| **Cumulative mortality** | Total dead since placement, as of a given day. **This is what gets entered.** | ~~today's deaths~~ |
+| **Daily mortality** | One day's deaths. Always **derived** as `cumulative[d] − cumulative[d−1]`, never entered. | ~~mortality count~~ |
 | **Cull** | A bird deliberately removed, not a natural death | |
+| **Cumulative culls** | Total culled since placement, as of a given day. **This is what gets entered**, exactly as mortality is. | ~~today's culls~~ |
+| **Daily culls** | One day's culls. Always **derived** as `cumulative[d] − cumulative[d−1]`, never entered. | ~~cull count~~ |
 | **Livability** | % of placed chicks still alive | ~~survival rate~~ |
 | **Pre-harvest mortality** | The accelerating death rate in the final days before harvest. The core operational risk. | |
 | **Breed curve** | The 41-day table of expected weight and feed intake per bird per day. Seeded from the client's own data. | ~~growth standard~~ |

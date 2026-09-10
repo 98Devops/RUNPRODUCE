@@ -113,7 +113,11 @@ batches         (id, org_id, code, placement_date, chick_count,
                 -- status: PLANNED | ACTIVE | HARVESTING | CLOSED
 
 daily_records   (id, batch_id, record_date, day_number,
-                 mortality_count, cull_count,
+                 mortality_cumulative, cull_cumulative,
+                -- BOTH are running totals AS OF THIS DAY, entered by
+                -- hand. Daily deltas are derived, never stored.
+                -- CHECK: both monotonic per batch, and their SUM is
+                -- bounded by chick_count + extra_chick_count.
                  feed_starter_kg, feed_grower_kg, feed_finisher_kg,
                  avg_weight_g, weight_sample_size,
                  notes, recorded_by, recorded_at)
@@ -220,6 +224,31 @@ The codebase must never violate these.
 12. **Request handlers do no long-lived work.** Nightly snapshots and
     alert evaluation run in Netlify Scheduled Functions, not in request
     handlers.
+
+13. **Bird removals are entered cumulatively and are monotonic.**
+    Both `daily_records.mortality_cumulative` and
+    `daily_records.cull_cumulative` are running totals as of that day,
+    not that day's counts. Therefore, for each column:
+    `cumulative[d] >= cumulative[d-1]`, and **jointly**:
+    `mortality_cumulative[d] + cull_cumulative[d] <= chick_count + extra_chick_count`.
+    The bound is joint rather than per-column because a culled bird is
+    no longer available to die; bounding each separately would admit a
+    flock losing twice its own size. Daily deltas are derived —
+    `delta[d] = cumulative[d] - cumulative[d-1]` — and never stored.
+    This replaces the previous reading of invariant 3, under which birds
+    alive was a running **sum of per-day deltas**: a single missed or
+    double-entered day silently corrupted every later figure with no way
+    to detect it. Under a monotonic cumulative column a bad entry is
+    caught by the invariant on the spot, and a missed day self-heals
+    because the next entry restates the true total.
+
+14. **There is no standard mortality curve.** Per the client, "it
+    varies". The forecast rate is calibrated per batch from that
+    batch's own trailing cumulative entries (EMA, alpha 0.4 — the same
+    pattern as weight-curve calibration). The constants in
+    `MortalityModel` are a **fallback**, used only where insufficient
+    own-batch history exists, and never as the permanent source. See
+    OQ-12 for the sufficiency threshold.
 
 ## Hosting notes (Netlify)
 

@@ -8,38 +8,44 @@ against real data.
 
 ## Open questions — blocking
 
-### OQ-1 · Real mortality by day 🔴 BLOCKS CORRECTNESS
-**Status:** Unanswered. **Blocks:** harvest optimiser, max safe batch size.
+### OQ-1 · Real mortality by day ✅ ANSWERED 2026-09-10
+**Answer (Daniel):** *"It varies."* He wants the system to **track actual
+cumulative mortality entered daily**, not forecast off an assumed
+universal rate.
 
-The client said "about 100 birds a day dying after day 35." That was
-turned into a model:
-```
-base_mortality_rate_daily      = 0.0015   (0.15%/day)
-preharvest_ramp_start_day      = 30
-preharvest_ramp_rate_daily     = 0.0035   (+0.35%/day compounding after day 30)
-```
+**Close-out is a methodology, not a number:** cumulative daily entry;
+forecast calibrated per-batch via EMA against trailing own-batch data;
+the assumed ramp is fallback only, until sufficient own-batch history
+exists.
 
-**These numbers were reverse-engineered to make "100/day" plausible at
-a 10,000–15,000 flock. They are not measured.** The client's
-spreadsheet contains zero recorded mortality — every cell is blank — so
-there is no history to calibrate against.
+The question as originally posed — "what is the real rate?" — had no
+answer to give, because there is no single rate. That reframes the model
+rather than filling in a constant:
 
-This matters because the mortality ramp dominates the harvest optimiser
-after day 32, and it produces both the scaling law and
-`MaxSafeBatchSize`. If the real curve is flatter, larger batches are
-safe and our recommendation is wrong.
+1. **Data entry.** `daily_records.mortality_cumulative` is a running
+   total ("total dead as of today"), not a daily delta. Delta is derived:
+   `delta[d] = cumulative[d] − cumulative[d−1]`. New invariants 13 and 14
+   in `architecture.md`.
+2. **Forecasting.** The harvest optimiser (M4, not yet built) calibrates
+   its rate from this batch's own trailing cumulative entries, using the
+   same EMA pattern as the weight curve (alpha 0.4, actual vs standard).
+3. **Fallback.** The previously-assumed ramp (0.15%/day, +0.35%/day after
+   day 30) survives **only** as the fallback for days where insufficient
+   own-batch history exists to calibrate from. It is never the permanent
+   source, and its output stays `confidence: 'assumed'`. Calibrated
+   output carries `confidence: 'calibrated'`.
 
-**Also unresolved:** is "100/day" an absolute count or a rate? At 5,000
-birds it is 2%/day (catastrophic). At 30,000 it is 0.33%/day (normal).
-The optimiser cannot be trusted without knowing which.
+**Superseded by the answer:** the old sub-question of whether "100/day"
+was an absolute count or a rate. It was neither — it was one observation
+from a batch that varied. Do not reopen it.
 
-**Handling until answered:**
-- Parameters carry `confidence: 'assumed'` and render with the dashed
-  grey badge
-- `MaxSafeBatchSize` is labelled "based on the mortality pattern you
-  described" — never presented as measured fact
-- The ramp is editable in settings
-- Auto-calibrate from `daily_records` once one batch completes
+**Still true and still applies:**
+- Fallback-derived parameters render with the dashed grey badge
+- `MaxSafeBatchSize` is never presented as measured fact while it rests
+  on the fallback
+- The ramp stays editable in settings
+
+**Follow-on:** OQ-12 (how much trailing history counts as "sufficient").
 
 ### OQ-2 · Abattoir fee and transport cost per bird 🔴 BLOCKS BULK RECOMMENDATION
 **Status:** Unanswered. **Blocks:** all allocation output.
@@ -120,20 +126,26 @@ says $1.00.
 that worked out at 85 cents a chick? At the $1.00 in the brief we get
 2,850."*
 
-### OQ-9 · Fixture 7 — hold cost day 30 → 35, 5,000 flock 🟠
-**Contract value:** $3,305. **Computed:** $3,714, or $3,904.
+### OQ-9 · Fixture 7 — hold cost day 30 → 35, 5,000 flock 🟠 REFRAMED
+**Status:** Not a discrepancy to reconcile. **Blocked on:** OQ-1 (answered)
+implementation, then regenerate.
 
-Feed for days 31–35 with the assumed mortality model is $2,506.91;
-birds lost over that window are 280.7, worth $1,206.98 at $4.30. Sum
-$3,713.89. With mortality off, feed is $2,697.00 and the sum is
-$3,903.98. Neither is $3,305, and no intermediate assumption we can
-name produces it — the residual implies about $2.84 per bird lost,
-which matches no price in the brief.
+**The $3,305 is not a client figure.** It came from Daniel's own early
+illustrative estimate and was never meant to be pinned exactly. Treating
+it as a contract value was the error — it turned an illustration into a
+target and sent us hunting for the assumption that reproduces it.
 
-**Ask the client:** *"What goes into the $3,305 cost of holding 5,000
-birds from day 30 to day 35 — feed only, or feed plus the birds that
-die?"* Also blocked on OQ-1: the answer depends on a mortality curve we
-do not have.
+For the record, what the current arithmetic gives: feed for days 31–35
+under the old assumed ramp is $2,506.91, birds lost over that window
+280.7, worth $1,206.98 at $4.30 — sum $3,713.89. With mortality off,
+$2,697.00 feed and $3,903.98 total. The residual against $3,305 implies
+about $2.84 per bird lost, which matches no price in the brief. **That
+hunt is closed. Do not spend further effort reconciling to $3,305.**
+
+**Action instead:** once OQ-1's cumulative/calibrated model is
+implemented (M4) and OQ-4's pricing basis is settled, **regenerate
+fixture 7's expected value FROM the correctly implemented model** and
+write it then. The number the model produces is the contract value.
 
 ### OQ-10 · Fixture 8 — bulk net per day held, 5,000 flock 🔴
 **Contract value:** −$537/day. **Not computable at all.**
@@ -143,18 +155,27 @@ both subtrahends are `null` pending OQ-2. The fee does not cancel out
 of a per-day difference. This fixture is blocked on OQ-2 rather than
 disputed — it becomes writable the moment the fee arrives.
 
-### OQ-11 · Fixture 11 — gate window end day 38, and the per-kg rate 🟠
-**Contract value:** day 38, which only holds under `PER_KG` gate
-pricing. The plan derives the rate as $2.46/kg from "$4.30 for a
-1,754 g bird" — but `430 ÷ 1.754 = 245.15` cents, and `430 ÷ 1.770 =
-242.94`. Neither rounds to 246.
+### OQ-11 · Fixture 11 — gate window end day 38, and the per-kg rate 🟠 REFRAMED
+**Status:** Not a discrepancy to reconcile. **Blocked on:** OQ-4, then
+regenerate.
 
-The plan's own instruction for this step is to stop and flag rather
-than invent a rate, so that is what has happened. Also compounded by
-OQ-4 (is gate pricing per bird or per kg at all?) and OQ-1.
+**The $2.46/kg is not a client figure.** Like $3,305, it came from an
+early illustrative estimate of Daniel's, not from client data. The plan
+derived it as "$4.30 for a 1,754 g bird", but `430 ÷ 1.754 = 245.15`
+cents and `430 ÷ 1.770 = 242.94` — neither rounds to 246, and that is
+because the rate was never an exact derivation in the first place. **Do
+not reconcile the implementation to $2.46.**
 
-**Ask the client:** *"What do you actually get per kilo at the gate?"*
-A measured rate settles this and OQ-4 together.
+Day 38 as a window end only holds under `PER_KG` gate pricing, which is
+exactly what OQ-4 asks.
+
+**Action instead:** once OQ-4 settles the pricing basis (and OQ-1's
+model is implemented), **regenerate fixture 11's expected values FROM
+the model** — both the rate and the window end day — and write the
+fixture then.
+
+**Note:** the AD slot reserved for the fixture-11 pricing basis stays
+reserved and unfilled until this actually lands. Do not repurpose it.
 
 ---
 
@@ -176,6 +197,51 @@ how much reserve is enough before you'd start placing?"*
 / Build Reserve side by side rather than picking one. This is arguably
 better product regardless of the answer.
 
+**Direction if the answer confirms the three goals — logged 2026-09-10,
+NOT yet an AD.** This depends on Daniel's answer and becomes a real AD
+only once OQ-3 confirms these three are the right goals to expose.
+
+Implement AD-4's three strategies as selectable **modes**, not only as a
+comparison view:
+
+- Daniel picks **Cover Fast**, **Maximum Growth** or **Build Reserve**,
+  or leaves it on a default.
+- The mode **persists on the batch** until he changes it.
+- The decision screen leads with **ONE number under the active mode**,
+  rather than three cards every time.
+- The **comparison view stays available underneath** for when he wants
+  all three side by side. Nothing is removed — the default emphasis
+  changes.
+
+Plus a fourth **Auto** mode:
+
+- Auto defaults to **Cover Fast** when the enumeration returns
+  `infeasible` — in that case no real choice exists, so there is nothing
+  to ask him.
+- Otherwise Auto **requires an explicit pick**. It does not guess.
+- **Per AD-19, Auto's reasoning is always shown.** Never a silent
+  default. If Auto chose, the screen says what it chose and why.
+
+**No engine change beyond what M5 already computes.** This is a
+presentation-layer decision about which candidate-table column leads,
+not a new calculation — AD-4 already has M5 producing all three columns.
+
+**Do not build the mode-selector UI yet.** That is U9/U10 work.
+
+**Checked 2026-09-10 — nothing currently planned makes this harder to
+add later:**
+- The U2 plan touches `production.ts`, `costing.ts`, `day-number.ts` and
+  `types.ts` only. `Decision.allocation` stays `unknown` until U5, so no
+  U2 shape constrains how the three columns are later surfaced.
+- M5 producing all three columns per AD-4 is exactly what a mode needs:
+  a mode is a selection over that table, not a different computation.
+  Persisting the choice is a `batches` column, not an engine input.
+- The one thing to preserve: **M5 must keep returning all three
+  candidates even when a mode is active.** If a future step narrows M5
+  to computing only the selected strategy, the comparison view and
+  Auto's reasoning both lose their source. Flag it if that is ever
+  proposed.
+
 ### OQ-4 · Gate sale pricing basis 🟠
 **Status:** Unanswered. **Affects:** gate revenue formula and harvest window.
 
@@ -188,6 +254,37 @@ per-kg pricing, growth pays until mortality overtakes it around day 38.
 **Handling:** `pricing_basis: 'PER_BIRD' | 'PER_KG'` is a required
 field on every sales order. Default to `PER_BIRD` for gate, matching
 the brief, and surface the setting prominently.
+
+### OQ-12 · How much own-batch history is "sufficient" to calibrate 🟡
+**Status:** Open, assumed default. **Raised:** 2026-09-10, from OQ-1's answer.
+**Affects:** when the harvest optimiser switches off the fallback ramp.
+
+OQ-1 settles that the mortality rate is calibrated per batch from that
+batch's own trailing cumulative entries, with the assumed ramp as
+fallback. It does **not** settle the switchover point: how many trailing
+days of entered data count as enough before the calibrated rate
+overrides the fallback.
+
+**That threshold is itself an assumed default.** Start with **3–5
+trailing days** — enough to smooth a single bad entry, short enough to
+respond within a 41-day cycle — and mark it as such. It is not validated
+by anything yet.
+
+**Handling until validated:**
+- The threshold is a named parameter, not a literal buried in M4
+- Below it, output carries `confidence: 'assumed'`; at or above it,
+  `confidence: 'calibrated'`. The badge tells the user which they are
+  looking at.
+- Revisit once real batches have run — this is a question for data, not
+  for the client.
+
+**Sub-question, RESOLVED 2026-09-10 — not escalated to the client.**
+`cull_cumulative` is cumulative too (AD-25). This is Daniel's existing
+OQ-1 answer applied to a structurally identical field, not a new
+question: a cull and a death are both irreversible removals counted by
+hand at the same moment on the same form. Mixed semantics in adjacent
+columns would have been a data-entry trap. The upper bound is **joint**
+across the two columns — see invariant 13.
 
 ### OQ-5 · Who performs daily capture 🟡
 **Status:** Named as "someone on the farm," no individual identified.

@@ -51,8 +51,30 @@ export interface Batch {
 
 export interface DailyRecord {
   readonly day_number: DayNumber;
-  readonly mortality_count: number;
-  readonly cull_count: number;
+  /**
+   * CUMULATIVE total dead as of this day — "total dead so far", not the
+   * day's deaths. Per the client (OQ-1, answered 2026-09-10) this is what
+   * gets entered by hand. The daily delta is DERIVED:
+   *   delta[d] = mortality_cumulative[d] - mortality_cumulative[d-1]
+   * Invariant: monotonically non-decreasing across records. See
+   * cull_cumulative for the joint upper bound. AD-24.
+   */
+  readonly mortality_cumulative: number;
+  /**
+   * CUMULATIVE total culled as of this day — same semantics as
+   * mortality_cumulative, for the same reason (AD-25). A cull is a
+   * deliberate removal, a death is not, but both are irreversible
+   * removals from the flock counted by hand at the same moment on the
+   * same form, so they are entered the same way. Delta is DERIVED:
+   *   delta[d] = cull_cumulative[d] - cull_cumulative[d-1]
+   * Invariants: monotonically non-decreasing, and jointly bounded —
+   *   mortality_cumulative[d] + cull_cumulative[d]
+   *     <= chick_count + extra_chick_count
+   * The bound is JOINT, not per-column: a bird that was culled is no
+   * longer available to die, so bounding each column separately would
+   * admit a flock losing up to twice its own size.
+   */
+  readonly cull_cumulative: number;
   readonly feed_starter_kg: number;
   readonly feed_grower_kg: number;
   readonly feed_finisher_kg: number;
@@ -81,9 +103,14 @@ export interface SalesOrder {
 }
 
 /**
- * Mortality model. UNCALIBRATED — reverse-engineered from one sentence
- * the client said. See current-issues.md OQ-1. Everything downstream
- * carries confidence 'assumed'.
+ * FALLBACK mortality model only. Per OQ-1 (answered 2026-09-10) there is
+ * no standard mortality curve — "it varies". The harvest optimiser (M4)
+ * CALIBRATES a rate from this batch's own trailing cumulative entries via
+ * the same EMA pattern as the weight curve (alpha 0.4, actual vs
+ * standard). These constants are used only for days where insufficient
+ * own-batch history exists to calibrate from — never as the permanent
+ * source. Output from the fallback carries confidence 'assumed'; output
+ * from the calibrated rate carries 'calibrated'.
  */
 export interface MortalityModel {
   readonly base_rate_bp_daily: BasisPoints;

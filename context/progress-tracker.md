@@ -4,35 +4,51 @@ Update this file after every meaningful implementation change.
 
 ## Current Phase
 
-Not started. Context files written, awaiting U1.
+**U2 — M1 production + M2 costing.** Starting 2026-09-10, immediately
+after U1 closed.
 
 ## Current Goal
 
-**U1 — Scaffold.** Monorepo, domain types, seed the breed curve, and
-write the 13 golden fixtures as failing tests.
+Implement `packages/engine/src/production.ts` (M1 flock projection) and
+`src/costing.ts` (M2 cost engine), turning held golden fixtures green.
 
-Expected outcome: `npm run build` passes and `npm test` shows 13
-failing tests with clear expected values. Red tests at the end of U1
-are the correct result — they are the executable spec.
+M1 must be built against **cumulative** mortality and cull columns with
+derived deltas (AD-24, AD-25) — not per-day entry. Fixtures 1–5 and 12
+are the near-term targets: they carry `records: []`, so they exercise
+the curve-and-parameters path without needing entered history. Feed
+consumption is based on **opening** birds (AD-7, invariant 10).
+
+Expected outcome: the previously-held fixtures assert real values,
+`computeDecision()` no longer throws for them, and the golden step's
+held count falls.
 
 ## Completed
 
-- None yet.
+- **U1 — Scaffold.** Monorepo, money value object, breed-curve seed and
+  validation, domain types, `computeDecision()` stub, golden runner, CI
+  split into five named steps. 9 of 13 fixtures written and verified
+  before writing; 4 deliberately withheld pending OQ-8 through OQ-11.
+  56 unit tests green; lint, typecheck, build clean. See the U1 task log
+  under Session Notes.
 
 ## In Progress
 
-- None yet.
+- **U2 / M1 production.** Just started.
 
 ## Next Up
 
-0. **Repo setup** — move `CLAUDE.md` to root, move `skills/` to
-   `.claude/skills/`, install the superpowers plugin. See
-   `context/skills.md`. Nothing works correctly until this is done.
-0b. **Then** run `/grill-me` and send OQ-1 through OQ-4 to the client in
-   writing. He has declined calls and asked for questions in text.
-1. **U1** — scaffold, types, seed data, failing fixtures
-2. **U2** — M1 production + M2 costing
-3. **U3** — M3 feed liability
+1. **U2** — M1 production + M2 costing ← current
+2. **U3** — M3 feed liability
+3. **U4** — M4 harvest optimiser. Blocked on OQ-7; also where AD-24's
+   per-batch EMA calibration and OQ-12's sufficiency threshold land.
+4. **U5** — M5 allocation optimiser. **Run `/grill-me` first** per
+   CLAUDE.md; blocked on OQ-2.
+
+**Outstanding client questions** — OQ-2, OQ-3, OQ-4, OQ-7, OQ-8 are
+compiled into a single message awaiting Daniel. OQ-1 is answered.
+OQ-9 and OQ-11 were reframed and are no longer client questions.
+
+**Outstanding internal decision** — the AD-9 collision needs a renumber.
 
 See `ai-workflow-rules.md` for the full build order.
 
@@ -86,6 +102,32 @@ once real mortality data arrives.
 Tracked in `current-issues.md`.
 
 ## Architecture Decisions
+
+**AD-25 · Culls are entered cumulatively too, under a joint bound.**
+Same treatment as AD-24, for the same reason, on a structurally
+identical field. `cull_count` becomes `cull_cumulative`. A cull and a
+death are both irreversible removals counted by hand at the same moment
+on the same entry form; making one column cumulative and its neighbour a
+daily delta is a data-entry trap that produces plausible wrong numbers.
+This is Daniel's existing OQ-1 answer applied, not a new client
+question. The upper bound is **joint** —
+`mortality_cumulative + cull_cumulative <= chick_count + extra_chick_count`
+— because a culled bird is no longer available to die; bounding each
+column separately would admit a flock losing twice its own size.
+
+**AD-24 · Mortality is entered cumulatively and forecast by per-batch
+calibration; the ramp is a fallback.**
+Daniel's answer to OQ-1 was "it varies", which is not a constant to plug
+in. Entry becomes a running total ("total dead as of today") with the
+daily delta derived, because a running sum of hand-entered deltas is
+silently corrupted forever by one missed or doubled day, whereas a
+restated cumulative total self-heals and violates a monotonicity check
+on the spot. Forecasting calibrates per batch from that batch's own
+trailing entries by EMA (alpha 0.4), reusing the weight-curve pattern.
+The previously-assumed ramp (0.15%/day, +0.35%/day after day 30) is
+demoted to fallback for days lacking sufficient own-batch history, and
+its output stays `confidence: 'assumed'`. Threshold for "sufficient" is
+OQ-12.
 
 **AD-23 · `EngineInput.curve` is optional; absent means the seed.**
 Every golden fixture would otherwise carry a literal copy of 41 curve
@@ -257,8 +299,32 @@ avoids the largest complexity sink in the project.
 
 ## Session Notes
 
-**U1 execution — in progress, task-by-task from
-`docs/superpowers/plans/2026-09-10-u1-scaffold.md`.**
+**U1 — COMPLETE, 2026-09-10.** Executed task-by-task from
+`docs/superpowers/plans/2026-09-10-u1-scaffold.md`.
+
+**Definition of Done:** monorepo scaffolded and linting; engine pure
+(verified by probe); `money.ts` and `breed-curve.ts` green; `types.ts`
+defining the envelope; `computeDecision()` stubbed; golden runner
+globbing fixtures with one dotted assertion each; CI split into five
+named steps with derived excusals. **9 of 13 fixtures written**, every
+value verified against `context/breed_curve.json` before the file was
+created. **Fixtures 6, 7, 8 and 11 deliberately not written** — see
+OQ-8 through OQ-11. That is a completion, not a shortfall: writing them
+would have meant inventing the input that makes the number come out.
+
+**Final state:** 56 unit tests green across 5 files; lint, typecheck and
+build clean; golden step green with 9 held on `computeDecision not
+implemented — U2`, which is the intended red-by-design signal.
+
+**Carried into U2:** AD-24 and AD-25 landed after task 5 and changed
+`DailyRecord`'s shape — M1 must be built against cumulative mortality
+and cull columns with derived deltas, never against per-day entry.
+
+**Still open, not blocking U1's close:** the **AD-9 collision** (Netlify
+hosting vs. partial-harvest-as-slices, both live and both cited
+elsewhere) needs a renumber decision. Flagged, not resolved.
+
+**U1 task log:**
 
 - **Task 1 — DONE** (`3c477ad`). npm-workspaces monorepo scaffolded:
   root `package.json`, `tsconfig.base.json` (strict +
@@ -360,6 +426,52 @@ avoids the largest complexity sink in the project.
   unknowable, not merely assumed. On current information all four take
   values, and `placeholder` may go unused at task 5. Nothing in task 4
   depended on them.
+
+**OQ-1 answered — the mortality model changed shape, 2026-09-10.**
+Daniel: *"It varies."* Not a constant to plug in. Three consequences,
+applied before U2 so M1 is not built on the old assumption:
+
+- `DailyRecord.mortality_count` → **`mortality_cumulative`** (total dead
+  as of that day; delta derived). `architecture.md` schema column renamed
+  to match, and CONTEXT.md gains **Cumulative mortality** / **Daily
+  mortality** as distinct terms.
+- `architecture.md` invariants **13** (monotonic cumulative, bounded by
+  `chick_count + extra_chick_count`) and **14** (no standard curve;
+  calibrate per batch, fallback only) added.
+- `MortalityModel` is now documented as the **fallback**, not the source.
+  M4 calibrates per batch by EMA (alpha 0.4) off own-batch trailing data.
+
+**No fixture was affected, verified rather than assumed:** all nine
+committed fixtures carry `records: []`, so not one of them encodes a
+mortality figure in either semantics. Eight also zero the mortality
+parameters outright; fixture 10 is the only one with a live ramp
+(`15 / 30 / 35` bp) and it asserts a harvest **day** off the weight
+curve, which the change does not touch. Typecheck and lint clean after
+the rename — no other code referenced the old field.
+
+New **OQ-12**: how many trailing days count as "sufficient" before the
+calibrated rate overrides the fallback. Starting default 3–5 days, itself
+assumed. Carries a sub-question on whether `cull_count` should be
+cumulative too.
+
+**AD numbering — audited on disk, 2026-09-10.** The list had drifted in
+conversation. Actual state of this file:
+- **AD-1 … AD-19, AD-21, AD-22, AD-23** are defined here.
+- **AD-9 is used twice** — "Netlify hosting, not Vercel" and "Partial
+  harvest modelled as slices from a single pool". Both are referenced
+  live elsewhere (`ui-build-playbook.md` cites AD-9 for Netlify;
+  `current-issues.md` cites AD-9 for the pool). **Unresolved — needs a
+  renumber decision.**
+- **AD-20 is referenced but never defined** (task 3 note, "AD-20 checked
+  independently"). This is the slot reserved for **fixture-11 pricing
+  basis**. It stays reserved and unfilled until fixture 11 lands. Do not
+  repurpose it.
+- The `kind:'ok'`/`missing_input` contradiction fix **is already AD-22**;
+  `curve`-optional **is already AD-23**. They did not need new numbers.
+- **AD-24** and **AD-25** were then assigned off this list (mortality
+  model; culls cumulative). Next genuinely free number is **AD-26**.
+- **Rule: grep this file before assigning any AD number.** Never infer
+  the next number from a previous chat message.
 
 **Zod vs. the zero-dependency invariant — settled (task 4).** The
 invariant wins. `code-standards.md` now states it as a rule rather than
