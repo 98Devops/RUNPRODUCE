@@ -262,13 +262,22 @@ avoids the largest complexity sink in the project.
 on **Node v20.20.2**. TD-3 closed. TD-2 stays open until the task 5
 fixtures run green on Node 20 in that same CI.
 
-**Latent, not yet biting:** CI runs `npm install`, not `npm ci`, so it
-resolves a fresh dependency tree rather than the one tested locally —
-a weaker guarantee than TD-2 assumes. Also `packages/engine/tsconfig.json`
-sets `rootDir: "."` while `breed-curve.ts` imports
+**CI now runs `npm ci`, not `npm install`** (task 4). It installs the
+committed `package-lock.json` tree exactly rather than re-resolving,
+which is what TD-2 assumes when it compares CI Node 20 against local
+Node 24. Verified locally: `npm ci` clean-installs 198 packages with no
+lockfile drift.
+
+**Latent, not yet biting:** `packages/engine/tsconfig.json` sets
+`rootDir: "."` while `breed-curve.ts` imports
 `../../../context/breed_curve.json` from outside it; harmless while
-both `build` and `typecheck` are `--noEmit`, but it will error the day
-the engine actually emits. Both are candidates for the task 6
+both `build` and `typecheck` are `--noEmit`. **The day the engine
+emits, `tsc` fails with `TS6059: File
+'…/context/breed_curve.json' is not under 'rootDir'
+'…/packages/engine'. 'rootDir' is expected to contain all source
+files.`** It is a config error, not a code error — the fix is to widen
+`rootDir` to the repo root (which relocates `outDir` output), or to copy
+the seed inside `packages/engine/src/`. Candidate for the task 6
 close-out.
 
 Context pack written before U1.

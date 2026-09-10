@@ -18,7 +18,13 @@
 - No `any`. No non-null assertions (`!`) outside tests.
 - Validate all external input with Zod at the system boundary before it
   is trusted. External means: request bodies, URL params, database
-  rows, and JSON seed files.
+  rows, and JSON seed files read at runtime.
+- **The Zod requirement stops at the engine boundary.** The engine's
+  zero-runtime-dependency invariant overrides it: JSON compiled into
+  `packages/engine` (the breed curve seed) is validated at import by
+  hand-rolled checks, not Zod, because such a file is version-controlled
+  source whose failure mode is a bad commit caught in CI, not a hostile
+  payload. Validation is still mandatory — only the library is not.
 - Prefer discriminated unions over optional fields for result types:
   ```ts
   type DecisionResult =
