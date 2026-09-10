@@ -44,6 +44,8 @@ chicks, raises them ~30 days, sells through two channels.
 | **Pre-harvest mortality** | The accelerating death rate in the final days before harvest. The core operational risk. | |
 | **Breed curve** | The 41-day table of expected weight and feed intake per bird per day. Seeded from the client's own data. | ~~growth standard~~ |
 | **Calibration** | Adjusting the breed curve to observed weights | |
+| **Inter-batch gap** | The mandatory 14 days between harvest completion and the next placement, for spraying and disinfection. A hard floor no cash position overrides. Invariant 16. | ~~turnaround, downtime~~ |
+| **Dressing percentage** | Dressed weight as a share of live weight. Daniel's is ~62%, which is where the 1,770 g slaughter target comes from: 1,770 x 0.62 = ~1.1 kg dressed. | ~~yield~~ (ambiguous) |
 
 ---
 
@@ -67,15 +69,17 @@ chicks, raises them ~30 days, sells through two channels.
 | Term | Meaning | Not |
 |---|---|---|
 | **Gate sale** | A live bird sold at the farm for cash, same day. Channel `GATE`. | ~~retail, direct sale, cash sale~~ |
-| **Bulk sale** | A bird sent via the abattoir to the contract buyer. Paid 30 days later. Channel `BULK`. | ~~wholesale, contract sale~~ |
+| **Bulk sale** | A **presale**: a pre-commitment under which the contract buyer takes birds **regardless of finish size**, sent via the abattoir and paid 30 days later. Channel `BULK`. The no-weight-gate part is structural, not a pricing quirk — it is what makes sending less-finished birds to bulk economical. | ~~wholesale, contract sale~~, ~~just the channel that pays late~~ |
 | **Gate capacity** | Birds the local market absorbs per day. 500–1,000. **A rate, not a total.** The binding constraint on batch size. | |
 | **Contract buyer** | The bulk purchaser. Collects from the abattoir. | |
-| **Abattoir** | Third party performing slaughter. **RunProduce bears this cost.** | |
+| **Abattoir** | Third party performing slaughter. **RunProduce bears this cost.** |
+| **Offal transfer** | The abattoir keeping the offals on top of its cash fee. Real economic value given up, recorded on the sales order as `offal_disposition` with `offal_value_cents` NULL — not valued, which is not the same as zero. | ~~waste, by-product~~ |
+| **Big chest** | Daniel's term for a visually good bird, which sells at the flat gate price whatever it weighs. **The system cannot compute it** — it is a visual judgement about conformation, not a weight. Never presented as derived. | |
 | **Bulk net** | Contract price − abattoir fee − transport to abattoir | ~~bulk price~~ |
 | **Receivable** | Money owed by the contract buyer, dated 30 days out | |
 | **Receipt** | An actual payment landing | ~~payment~~ (ambiguous — could be outgoing) |
 | **Pricing basis** | `PER_BIRD` or `PER_KG`. Determines whether growth adds revenue. | |
-| **Slaughter target** | 1,770 g live weight. Reached around day 30. | |
+| **Slaughter target** | 1,770 g live weight — the weight that dresses to ~1.1 kg at Daniel's ~62%. First met on **day 31** on his own curve, not day 30. | ~~harvest weight~~ |
 
 ---
 
@@ -106,6 +110,13 @@ Named, capitalised, and used consistently in code and UI:
 | **Cover Fast** | Fewest days to clear core credit |
 | **Maximum Growth** | Earliest possible next placement |
 | **Build Reserve** | Highest cash retained after obligations |
+
+**Pending, OQ-3:** Daniel's actual pattern is **leveraged rollover** —
+proceeds fund a LARGER next batch, with grower and finisher draws timed
+against sales proceeds so growth compounds. Whether that becomes a
+fourth mode or a reframing of Maximum Growth is an open decision. Use
+his name for it either way; do not call it Maximum Growth until that is
+settled.
 
 ---
 

@@ -2,7 +2,6 @@
   "id": 10,
   "name": "bulk-harvest-day",
   "description": "Bulk harvest day, default params — day 31 (first day weight_g >= 1770)",
-  "provisional": "OQ-7 — the tracker's day 30 came from rounding the curve's 1,754 g to 1.77 kg; the rule is applied literally here",
   "input": {
     "asOf": "2026-03-18",
     "batch": {

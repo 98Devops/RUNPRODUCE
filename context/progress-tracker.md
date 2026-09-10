@@ -70,17 +70,24 @@ waiting on M3 and M4, plus the U1 completeness hold.
 
 1. **U2** — M1 production + M2 costing ← current
 2. **U3** — M3 feed liability
-3. **U4** — M4 harvest optimiser. Blocked on OQ-7; also where AD-24's
-   per-batch EMA calibration and OQ-12's sufficiency threshold land.
+3. **U4** — M4 harvest optimiser. **OQ-7 answered — no longer blocked.**
+   Built against AD-33 (dressing-yield target), AD-34 (bulk as presale)
+   and OQ-4's quality-gated gate pricing. Also where AD-24's per-batch
+   EMA calibration and OQ-12's sufficiency threshold land.
 4. **U5** — M5 allocation optimiser. **Run `/grill-me` first** per
-   CLAUDE.md; blocked on OQ-2 **and** OQ-16 (bulk net double-count).
+   CLAUDE.md. Blocked on **OQ-2's transport half** (the abattoir fee
+   landed, transport did not) **and** OQ-16 (bulk net double-count), and
+   its mode set waits on the OQ-3 open decision — fourth mode or
+   reframed Maximum Growth. Enumeration must respect invariant 16's
+   14-day floor (AD-31).
 
-**Outstanding client questions** — OQ-2, OQ-3, OQ-4, OQ-7, OQ-8 are
-compiled into a single message awaiting Daniel, and **OQ-13, OQ-15 and
-OQ-16 go in the same message**: none of the three blocks anything, all
-three are worth asking while he is answering. OQ-1 and OQ-14 are
-answered. OQ-9 and OQ-11 were reframed and are no longer client
-questions.
+**Outstanding client questions, after Daniel's 2026-09-10 answers** —
+**OQ-8** and the **transport half of OQ-2** are what remain outstanding,
+plus **OQ-13, OQ-15, OQ-16**, none of which block. Answered: OQ-1,
+OQ-14, OQ-3, OQ-4, OQ-7, and OQ-2 in part. OQ-9 and OQ-11 were reframed
+and are not client questions. **OQ-3 raised an internal decision** — is
+leveraged rollover a fourth mode or a reframing of Maximum Growth — put
+to the user and not yet settled.
 
 **Outstanding internal decision** — the AD-9 collision needs a renumber.
 
@@ -101,7 +108,7 @@ These encode the client's real spreadsheet. Write all 13 in U1.
 | 7 | Hold cost day 30 → 35, 5,000 flock | $3,305 |
 | 8 | Bulk net per day held, 5,000 flock, day 30 | −$537 |
 | 9 | Feed draw due dates from 2026-02-06 | Mar 8, Mar 22, Mar 29, Apr 5, Apr 12 |
-| 10 | Bulk harvest day, default params | day 31 — provisional, see OQ-7 |
+| 10 | Bulk harvest day, default params | day 31 — CONFIRMED by OQ-7, no longer provisional |
 | 11 | Gate harvest window end, default params | day 38 |
 | 12 | 3,000 chicks + 100 extra | flock = 3,100 |
 | 13 | Abattoir fee unset | returns `missing_input`, not a guess |
@@ -112,10 +119,11 @@ These encode the client's real spreadsheet. Write all 13 in U1.
 |---|---|
 | 1, 2, 3, 4, 5, 9, 10, 12, 13 | **6, 7, 8, 11** |
 
-Fixture 10 encodes **day 31**, not the day 30 in the table above — the
+Fixture 10 encodes **day 31**, not the day 30 in the original table — the
 rule `first day weight_g >= 1770` applied literally to the client's own
-curve (1,754 g at day 30, 1,843 g at day 31). Marked `provisional`
-pending OQ-7.
+curve (1,754 g at day 30, 1,843 g at day 31). **OQ-7 answered 2026-09-10
+confirms day 31** on dressing-yield grounds, so the `provisional` marker
+was lifted. The expected value never changed. See AD-33.
 
 Fixtures 6, 7, 8 and 11 could not be reproduced from the client's curve
 under the specified parameters, so they were not written rather than
@@ -136,6 +144,61 @@ once real mortality data arrives.
 Tracked in `current-issues.md`.
 
 ## Architecture Decisions
+
+**AD-34 · Bulk is modelled as a presale, and that drives M4.**
+The contract buyer takes birds regardless of finish size. That is a
+structural property of the arrangement, not a pricing quirk, and it is
+the reason under-finished birds go to bulk: a day not spent finishing a
+bulk bird is feed not bought. M4 reasons from it directly rather than
+carrying it as a comment — a bulk bird has no weight gate and needs to
+reach the target only to be PRICED, not to be sellable; a gate bird has
+a real quality gate. Bulk and gate are two different decisions, not one
+optimisation with a different price constant. Rule lives in
+architecture.md under Harvest and channel design notes.
+
+**AD-33 · The slaughter target is dressing-yield arithmetic; fixture 10
+is confirmed, not regenerated.**
+1,770 g live is what dresses to ~1.1 kg at Daniel's ~62% (OQ-7,
+answered). Our earlier "hit the 1.1 kg band and stop" reading — which
+argued for day 30 — is WITHDRAWN, not left on record as an alternative.
+The rule stays *first day weight_g >= slaughter_target_g*, now grounded
+rather than provisional, and still yields day 31. Robust to rounding:
+an exact 1.1 kg dressed target back-solves to 1,774 g live, also first
+met on day 31. slaughter_target_g stays his stated 1,770 rather than
+being re-derived to 1,774, which would invent precision on top of an
+approximate 62%.
+
+**Fixture 10 changed, and the change is declared.** Its 
+marker was lifted because the assumption it named is now answered. The
+EXPECTED VALUE did not change — day 31 before, day 31 after. This is a
+metadata correction, not a regeneration, and it is flagged here the way
+AD-30 flagged the harness encoding: fixtures are the client contract and
+nothing about them moves silently.
+
+**AD-32 · The offal transfer is recorded but not costed.**
+The abattoir keeps the offals on top of its 10c/bird cash fee. Only the
+10 cents flows through the financial model. The transfer is recorded on
+the sales order — ,  — because it
+is real economic value Daniel gives up, and a line with no cash amount
+is exactly the kind of thing that vanishes from a record and cannot be
+recovered later.  is NULL, meaning not valued; zero
+would assert the offals are worthless. Same rule as every other unknown
+(invariant 5). A future abattoir deal that pays for offals fills it in
+and the history stays comparable.
+
+**AD-31 · The 14-day inter-batch gap is a ceiling on optimism.**
+Placement cannot precede harvest completion + 14 days (spraying and
+disinfection). Biosecurity, not finance, so it binds regardless of cash,
+mode or opportunity. M5 never GENERATES a candidate earlier than the
+floor — it is not a penalty term a strategy could out-argue, because a
+mode that could would eventually recommend placing into an uncleaned
+house. Now invariant 16.
+
+A second-order consequence, which OQ-3 turns on: this largely DETERMINES
+the next placement date, so Maximum Growth — whose whole objective was
+"earliest possible next placement" — has little left to optimise. That is
+the main argument for reframing it as leveraged rollover rather than
+adding a fourth mode.
 
 **AD-29 · Unbuilt modules are getters that throw, and the golden runner
 reads the fixture's path inside its try.**

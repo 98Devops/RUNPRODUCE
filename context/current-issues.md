@@ -186,6 +186,12 @@ and chick collection, or does it include taking birds to the abattoir?"*
 cost on its own terms and neither is invented. That interim state is
 safe only while nothing consumes bulk net.
 
+**The gate held its first real test, 2026-09-10.** Daniel answered the
+abattoir fee (10c/bird) the same day. That is exactly the moment this
+note was written to survive — a partial OQ-2 answer arriving and bulk
+looking unblocked. It is not: transport is still unanswered, and OQ-16
+is still open, so two independent things each still block bulk net.
+
 **The gate:** the U5 task computing bulk net revenue does not start until
 OQ-16 is answered, *even if OQ-2 has been*. OQ-2 supplies the abattoir
 fee; OQ-16 says whether charging it alongside `transport_other` bills the
@@ -250,8 +256,33 @@ recalibrated to land near 5% cumulative, and the "is 100/day a count or
 a rate" reading is settled: **neither — it is a cumulative percentage of
 placement.** Do not act on this before U4; log it against OQ-12.
 
-### OQ-2 · Abattoir fee and transport cost per bird 🔴 BLOCKS BULK RECOMMENDATION
-**Status:** Unanswered. **Blocks:** all allocation output.
+### OQ-2 · Abattoir fee and transport cost per bird 🟠 HALF ANSWERED 2026-09-10
+**Answer (Daniel):** the abattoir fee is **10 cents per bird in cash,
+and the abattoir keeps the offals.**
+
+**Transport is still unanswered.** He gave the abattoir fee; he did not
+give the cost of the run to the abattoir. `transport_cents_per_bird`
+stays `null` and the engine keeps returning `missing_input` for it, so
+bulk net is still not computable. Do not read "OQ-2 answered" anywhere
+and assume both halves landed — **the bulk recommendation remains
+blocked**, now on transport alone.
+
+**Only the 10 cents flows through the financial model.** The offals are
+recorded, not costed: `offal_disposition = RETAINED_BY_ABATTOIR` with
+`offal_value_cents = NULL` on the sales order. Null means nobody has
+priced them, which is not the same as zero — zero would assert they are
+worthless, and they are not. This is real economic value Daniel gives up
+and it stays on the record, because a different abattoir deal that pays
+for offals would otherwise be impossible to compare against this one.
+See AD-32.
+
+Fixture 13 is unaffected and still passes: it sets both fields to `null`
+in its own input and asserts the refusal, which stays correct behaviour
+whatever the real-world default becomes.
+
+**Superseded detail below, kept for the reasoning.**
+
+**Status (before the answer):** Unanswered. **Blocks:** all allocation output.
 
 The client confirmed they bear processing cost: they hire a truck to
 the abattoir, pay transport in, and the abattoir performs slaughter.
@@ -273,8 +304,43 @@ Also needed: an edge-case toggle for delivering direct to the buyer
 instead of via the abattoir. Model as `delivery_mode: 'ABATTOIR' |
 'DIRECT'` with its own cost field.
 
-### OQ-7 · Slaughter target vs. the client's own curve 🔴 BLOCKS BULK HARVEST DAY
-**Status:** Unanswered. **Blocks:** exact bulk harvest day, band-crossing logic (U4).
+### OQ-7 · Slaughter target vs. the client's own curve ✅ ANSWERED 2026-09-10
+**Answer (Daniel):** 1,770 g live is the weight that yields **~1.1 kg
+dressed at his actual dressing percentage of ~62%**. `1770 × 0.62 =
+1,097 g`. It is dressing-yield arithmetic — the weight a 1.1 kg dressed
+bird has to start from — not an optimisation against the contract bands.
+
+**The earlier "hit the 1.1 kg band and stop" hypothesis is WITHDRAWN.**
+It was our inference from the brief, not his reasoning, and it argued
+for day 30 on the grounds that 1,754 g yields ~1.088 kg dressed, "still
+inside the band". That argument is now off the record rather than
+sitting beside the answer as an unresolved alternative. Under his actual
+logic 1,754 g yields 1.088 kg dressed, which is **below** 1.1 kg, so day
+30 does not reach the target at all.
+
+**The rule is unchanged and now grounded:** *first day
+`weight_g >= slaughter_target_g`* → **day 31** on his curve. The result
+is robust to the rounding: back-solving an exact 1.1 kg dressed target
+gives 1,774 g live, also first met on day 31. `slaughter_target_g` stays
+1,770 — his stated number — rather than being quietly re-derived to
+1,774, which would be inventing precision on top of an approximate 62%.
+
+**Golden fixture 10 is CONFIRMED, not regenerated.** Its expected value
+was already day 31 and stays day 31; the answer removed the reason it
+was marked `provisional`, so that marker is being lifted. No asserted
+value changed. See AD-33.
+
+**What survives from this question, and belongs to U4:** the bands still
+pay LESS as the bird gets heavier — $3.90 at 1.1 kg dressed, $3.80 at
+1.2 kg, $3.70 at 1.3 kg. The target is a floor to reach, not a direction
+to keep travelling in, and M4 must surface overshoot as the revenue loss
+it is. The correction was to *why* 1,770 g is the number, not to
+*whether* heavier is worse. The live design rule now lives in
+`architecture.md` under "Harvest and channel design notes".
+
+**Superseded detail below, kept for the reasoning.**
+
+**Status (before the answer):** Unanswered. **Blocks:** exact bulk harvest day, band-crossing logic (U4).
 
 Slaughter target is 1,770 g but the client's own curve gives 1,754 g at
 day 30 (16 g short) and 1,843 g at day 31. Rule as written — *first day
@@ -380,8 +446,26 @@ both subtrahends are `null` pending OQ-2. The fee does not cancel out
 of a per-day difference. This fixture is blocked on OQ-2 rather than
 disputed — it becomes writable the moment the fee arrives.
 
-### OQ-11 · Fixture 11 — gate window end day 38, and the per-kg rate 🟠 REFRAMED
-**Status:** Not a discrepancy to reconcile. **Blocked on:** OQ-4, then
+### OQ-11 · Fixture 11 — gate window end day 38, and the per-kg rate 🟠 UNBLOCKED 2026-09-10
+**Status:** Not a discrepancy to reconcile. **Was blocked on OQ-4, which
+is now answered** — so fixture 11 can be generated from the model when
+U4 lands. It is still unwritten, and still must be generated rather than
+back-fitted.
+
+**What OQ-4's answer changes here.** Day 38 as a window end only held
+under `PER_KG` gate pricing. Under the real rule most gate birds price
+**flat at ~$4.25**, and a flat price means growth adds no gate revenue —
+which collapses the gate window toward the slaughter target rather than
+stretching it to day 38. Expect the generated value to be **materially
+earlier than 38**, and treat a regenerated 38 as a signal something is
+wrong rather than a happy confirmation.
+
+The $2.46/kg remains not-a-client-figure. We now have two real rates —
+flat $4.25/bird and $2.00/kg for heavy birds — and 2.46 is neither.
+
+**Superseded detail below, kept for the reasoning.**
+
+**Status (before OQ-4 landed):** Not a discrepancy to reconcile. **Blocked on:** OQ-4, then
 regenerate.
 
 **The $2.46/kg is not a client figure.** Like $3,305, it came from an
@@ -406,8 +490,50 @@ reserved and unfilled until this actually lands. Do not repurpose it.
 
 ## Open questions — non-blocking but important
 
-### OQ-3 · The objective function 🟠
-**Status:** Unanswered. **Affects:** which strategy is recommended by default.
+### OQ-3 · The objective function ✅ ANSWERED 2026-09-10 — "leveraged rollover"
+**Answer (Daniel):** the real pattern has a name, and it is **not** one
+of our three. Proceeds from selling today's batch fund booking a
+**LARGER** next batch, with grower and finisher feed draws deliberately
+timed against sales proceeds, so that growth **compounds** rather than
+just clearing debt or sitting as reserve.
+
+Call it **leveraged rollover**. Use his name for it, not ours.
+
+**What it is not.** It is closer to Maximum Growth than to the other two,
+but it is not the same objective:
+
+| | Optimises | Free variable |
+|---|---|---|
+| Cover Fast | fewest days to clear core credit | sales mix |
+| Maximum Growth | earliest next placement | placement **date** |
+| Build Reserve | highest cash retained | how much is not spent |
+| **Leveraged rollover** | **largest next batch the proceeds can finance** | placement **size**, plus draw **timing** |
+
+Maximum Growth optimises a date; leveraged rollover optimises a size,
+and uses draw timing as a second lever — a draw taken on 30-day terms
+against a sale that lands inside those 30 days is free working capital,
+which is the "leveraged" half of the name.
+
+**AD-31 sharpens this considerably.** The 14-day inter-batch gap is a
+hard floor on the placement date, so "earliest possible next placement"
+is now largely **determined** — harvest completion plus 14 — and Maximum
+Growth's optimisation space has mostly collapsed. The mode as originally
+defined has little left to decide. That is a strong argument that this
+is a **reframing of Maximum Growth**, not a fourth mode beside it.
+
+**OPEN DECISION — put to the user 2026-09-10, not yet settled:** fourth
+named mode, or reframe Maximum Growth to mean leveraged rollover
+specifically? Recommendation on record is **reframe**, on the AD-31
+grounds above. Do not build M5's mode set until this is answered — it
+determines whether the enumeration has three columns or four.
+
+**What is settled regardless:** the reserve floor stays a hard
+constraint with the override path (below), and the mode set is a
+presentation-and-enumeration decision, not a new calculation.
+
+**Superseded detail below, kept for the reasoning.**
+
+**Status (before the answer):** Unanswered. **Affects:** which strategy is recommended by default.
 
 The client stated three goals that conflict: cover chick and feed
 credit fast, place the next batch immediately, and build cash reserves.
@@ -483,8 +609,44 @@ add later:**
   Auto's reasoning both lose their source. Flag it if that is ever
   proposed.
 
-### OQ-4 · Gate sale pricing basis 🟠
-**Status:** Unanswered. **Affects:** gate revenue formula and harvest window.
+### OQ-4 · Gate sale pricing basis ✅ ANSWERED 2026-09-10 — and the answer is "neither"
+**Answer (Daniel):** gate pricing is **quality-gated**, not per-bird and
+not per-kg. A visually good bird — his words, **"big chest"** — sells
+flat at about **$4.20–$4.30** whatever it weighs, under roughly 2 kg. A
+heavier bird is priced **per kg at about $2.00/kg**. The two converge
+near the crossover, which is why both readings looked defensible.
+
+**This reconciles the two client sources instead of picking one.** The
+brief's "$4.30 per bird" is the flat rate for typical birds; the
+spreadsheet's `S43 = 2` ($2.00/kg) is the heavy-bird rate. Both are his,
+both are correct, and they describe **different birds**. The earlier
+framing — "the source files disagree" — was wrong about the disagreement.
+
+**The system cannot compute this and must not pretend to.** "Big chest"
+is a visual judgement about conformation; weight is the only thing we
+have, and weight is not it. So:
+
+- Gate revenue defaults to the **flat ~$4.25 per bird**, carrying
+  `confidence: 'assumed'` until real sales data exists.
+- **Per-kg at ~$2.00/kg is the fallback** for birds recorded above
+  ~2 kg live weight.
+- It is presented as **a documented approximation, never a formula.**
+  The crossover is not even clean: at exactly 2 kg the flat rate is
+  $4.25 against $4.00 per-kg, and they only meet near 2.125 kg. Drawing
+  a sharp threshold would invent precision the input does not have.
+- At the 1,770 g slaughter target the flat rate dominates — $4.25
+  against $3.54 per-kg — so typical harvest-weight birds price flat.
+
+`pricing_basis: 'PER_BIRD' | 'PER_KG'` stays on every sales order: it now
+records **which rule was applied to this sale**, which is exactly what
+makes real sales data able to replace the assumption later.
+
+The live design rule is in `architecture.md` under "Harvest and channel
+design notes".
+
+**Superseded detail below, kept for the reasoning.**
+
+**Status (before the answer):** Unanswered. **Affects:** gate revenue formula and harvest window.
 
 The brief says gate sales are **$4.30 per bird**. Their spreadsheet
 books sales as **kg × price per kg**. These are different formulas with
@@ -779,11 +941,14 @@ recommendation — divergences are the most valuable data available.
 
 | Work | Blocked by |
 |---|---|
-| Bulk allocation recommendation | OQ-2 (abattoir fee) |
-| U5 · bulk net revenue computation | OQ-2 **and** OQ-16 — both required, neither sufficient alone |
+| Bulk allocation recommendation | OQ-2 — **transport half only**; abattoir fee answered 2026-09-10 |
+| U5 · bulk net revenue computation | OQ-2 (transport) **and** OQ-16 — both required, neither sufficient alone |
+| U5 · mode set (3 or 4 columns) | OQ-3 open decision — fourth mode vs. reframed Maximum Growth |
 | Calibrated `MaxSafeBatchSize` | OQ-1 (mortality data) |
-| Default strategy selection | OQ-3 (objective function) |
-| Gate harvest window past day 32 | OQ-1, OQ-4 |
+| Default strategy selection | OQ-3 — answered as leveraged rollover; naming decision open |
+| Gate harvest window past day 32 | OQ-1. ~~OQ-4~~ answered 2026-09-10 |
 
 None of these block U1–U4. Build the engine; these affect output
-accuracy and default selection, not structure.
+accuracy and default selection, not structure. **Invariant 16's 14-day
+inter-batch gap is not in this table on purpose** — it is not blocked on
+anything, it is a settled hard constraint M5 builds against (AD-31).

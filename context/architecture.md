@@ -146,9 +146,24 @@ sales_orders    (id, org_id, batch_id, channel, order_date,
                  price_cents_per_bird, price_cents_per_kg,
                  pricing_basis, gross_cents,
                  abattoir_fee_cents, transport_cents, net_cents,
+                 offal_disposition, offal_value_cents NULL,
                  terms_days, due_date, status)
                 -- channel: GATE | BULK
                 -- pricing_basis: PER_BIRD | PER_KG
+                -- offal_disposition: RETAINED_BY_ABATTOIR
+                --                  | RETAINED_BY_PRODUCER | SOLD
+                --   Under the current deal the abattoir keeps the
+                --   offals on top of its 10c/bird cash fee (OQ-2,
+                --   answered 2026-09-10). Only the 10c flows through
+                --   the financial model, but the transfer is real
+                --   economic value given up and is recorded as a fact
+                --   rather than dropped for having no cash line.
+                -- offal_value_cents: NULL means "not valued", which is
+                --   NOT zero. Zero would assert the offals are worth
+                --   nothing; null says nobody has priced them. Same
+                --   rule as every other unknown here (invariant 5). A
+                --   future deal that pays for offals fills this in and
+                --   the history stays comparable.
 receipts        (id, sales_order_id, receipt_date, amount_cents, method)
 
 expenses        (id, org_id, batch_id NULL, expense_date, category,
@@ -167,6 +182,70 @@ scenarios       (id, org_id, batch_id, name, param_overrides JSONB)
 alerts          (id, org_id, batch_id NULL, rule_key, severity,
                  title, body, triggered_at, acknowledged_at)
 ```
+
+### Harvest and channel design notes
+
+Settled with the client 2026-09-10. These are design rules M4 and M5 are
+built from, not commentary — they live here rather than in a closed open
+question so the rule and its reason stay together.
+
+**The slaughter target is dressing-yield arithmetic, not band
+optimisation.** 1,770 g live is the weight that yields ~1.1 kg dressed
+at Daniel's actual dressing percentage of ~62% (`1770 × 0.62 = 1,097 g`).
+The target is not "reach the top of a band and stop" — that earlier
+reading is **withdrawn**, see OQ-7. The rule stays exactly *first day
+`weight_g >= slaughter_target_g`*, and it is now grounded rather than
+provisional. On the client's own curve that is **day 31** (1,754 g at
+day 30, 1,843 g at day 31), and the result is robust to the rounding:
+back-solving an exact 1.1 kg dressed target gives 1,774 g live, which is
+also first met on day 31.
+
+**Overshoot still costs money, and that part of OQ-7 survives.** The
+bulk contract bands on dressed weight and pays LESS per bird as the bird
+gets heavier — $3.90 at 1.1 kg dressed, $3.80 at 1.2 kg, $3.70 at 1.3 kg.
+So the target is a floor to reach, not a direction to keep travelling in.
+M4 must surface holding past the band as the revenue loss it is. The
+correction in OQ-7 was to *why* 1,770 g is the number, not to *whether*
+heavier is worse.
+
+**Bulk is a presale, and that is why under-finished birds go there.**
+The bulk arrangement is a pre-commitment: the contract buyer takes the
+birds **regardless of finish size**. That is a structural fact about the
+deal, not a pricing quirk, and it is what makes sending less-finished
+birds to bulk economical — every day not spent finishing a bulk bird is
+feed not bought. M4 must reason from this directly:
+
+- A bulk bird has **no weight gate**. It does not need to reach
+  `slaughter_target_g` to be sellable, only to be priced.
+- The question M4 asks about a bulk bird is therefore *"is another day
+  of feed worth what another day of growth adds to this bird's band?"* —
+  and given the bands pay less as weight rises, the answer past the
+  1.1 kg band is usually **no**.
+- A gate bird has a real quality gate (see gate pricing below) and is
+  a different decision. Bulk and gate are not the same optimisation with
+  a different price constant.
+
+**Gate pricing is quality-gated, and the system cannot see quality.**
+Daniel prices a visually good bird — his words, "big chest" — flat at
+about $4.20–$4.30 whatever it weighs under ~2 kg; a heavier bird he
+prices per kg at about $2.00/kg. The two happen to converge near the
+crossover. This is a **documented approximation of a visual judgement**,
+never a formula the engine can claim to compute:
+
+- Default gate revenue is the **flat ~$4.25 per bird**, and it carries
+  `confidence: 'assumed'` until real sales data exists.
+- Per-kg at ~$2.00/kg is the **fallback for birds recorded above
+  ~2 kg** live weight.
+- The engine cannot derive "big chest" from weight, and must never
+  present the flat/per-kg switch as precise. The crossover is not clean
+  either: at exactly 2 kg the flat price is $4.25 while per-kg gives
+  $4.00, and they only meet at about 2.125 kg. Presenting a sharp
+  threshold would be inventing precision the input does not have.
+
+This reconciles the two client sources rather than picking one: the
+brief's "$4.30 per bird" is the flat rate for typical birds, and the
+spreadsheet's observed $2.00/kg is the heavy-bird rate. Both are his,
+and they describe different birds. See OQ-4.
 
 ### Derived views
 ```
@@ -286,6 +365,27 @@ The codebase must never violate these.
     un-blended afterwards. An overhead line declares its basis,
     `PER_BIRD` or `PER_BATCH`, because the brief separates variable
     from fixed costs and says "do not double-count".
+
+16. **The inter-batch gap is a hard floor on placement, and cash never
+    overrides it.** The next placement date is at least **harvest
+    completion + 14 days** — spraying and disinfection of the house.
+    Client-stated, 2026-09-10. This is a biosecurity constraint, not a
+    financial one, so it binds regardless of cash position, regardless
+    of mode, and regardless of how good the opportunity looks.
+
+    M5's enumeration therefore treats it as a **ceiling on optimism**:
+    the earliest placement candidate is `harvest_end + 14`, and no
+    candidate earlier than that is ever generated. It is not a penalty
+    term, not a soft preference, and not something a strategy can trade
+    away — a mode that could out-argue it would eventually recommend
+    placing into an uncleaned house.
+
+    Two consequences worth stating, because both are easy to get wrong:
+    - The gap runs from **harvest completion**, not from first sale. A
+      batch cleared over several days finishes when the last bird goes.
+    - "Maximum Growth" cannot recommend placing sooner than this even
+      when cash allows it. The mode optimises within the floor, never
+      against it. See AD-31.
 
 ## Hosting notes (Netlify)
 
