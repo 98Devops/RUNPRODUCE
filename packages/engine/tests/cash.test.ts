@@ -264,3 +264,36 @@ describe('projectCashCalendar — overheads', () => {
     expect(total).toBe(8400n + 80000n + 64000n + 14000n);
   });
 });
+
+describe('projectCashCalendar — the reserve floor', () => {
+  it('reports a breach and its first date without altering any balance', () => {
+    const engineInput = input('2026-02-06', {
+      parameters: parameters({ reserve_floor_cents: -100000n as Cents })
+    });
+    const calendar = projectCashCalendar(engineInput, 5, 0n as Cents, feedFor(engineInput));
+
+    expect(calendar.breaches_reserve_floor).toBe(true);
+    expect(calendar.first_breach_date).toBe('2026-02-06');
+    // The floor REPORTS; it never clamps. AD-43: filtering is M5b's job.
+    expect(calendar.days[0]?.closing_cents).toBe(-422200n);
+  });
+
+  it('reports no breach when every closing balance clears the floor', () => {
+    const engineInput = input('2026-02-06', {
+      parameters: parameters({ reserve_floor_cents: -1000000n as Cents })
+    });
+    const calendar = projectCashCalendar(engineInput, 5, 0n as Cents, feedFor(engineInput));
+
+    expect(calendar.breaches_reserve_floor).toBe(false);
+    expect(calendar.first_breach_date).toBeNull();
+  });
+
+  it('reports the EARLIEST date a recurring minimum occurs', () => {
+    const engineInput = input('2026-02-06');
+    const calendar = projectCashCalendar(engineInput, 5, 0n as Cents, feedFor(engineInput));
+
+    // Nothing moves after day 1, so days 1-5 all hold the minimum.
+    expect(calendar.minimum_cents).toBe(-422200n);
+    expect(calendar.minimum_date).toBe('2026-02-06');
+  });
+});

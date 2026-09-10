@@ -22,6 +22,7 @@ export {
   dailyMortalityRateBp,
   planHarvest
 } from './harvest.js';
+export { projectCashCalendar, cashFlowsMissingInputs } from './cash.js';
 export {
   SEED_OVERHEADS,
   overheadBreakdown,

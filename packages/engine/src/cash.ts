@@ -79,8 +79,8 @@ function receiptCents(sale: SalesOrder): Cents {
  * `throughDay`. Pure arithmetic on dated flows; it holds no opinion about
  * which candidate or strategy is better.
  *
- * Chick cost and feed draw payments (Task 3) are the first flows to land
- * here. Sales receipts and overheads are Tasks 4-5.
+ * Chick cost, feed draw payments, sales receipts and overheads are the flows
+ * it projects.
  *
  * `throughDay` has NO DEFAULT on purpose. AD-43 makes the 90-day calendar a
  * display horizon while each allocation candidate is scored over its own
