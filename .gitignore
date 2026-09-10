@@ -13,3 +13,5 @@ pyvenv.cfg
 .env.local
 *.log
 .DS_Store
+coverage/
+*.tsbuildinfo
