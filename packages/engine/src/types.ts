@@ -229,8 +229,14 @@ export interface ProductionProjection {
   readonly cumulative_feed_kg_per_bird: number;
   /** Whole-flock cumulative feed through asOf, in kg. Fixture 2 asserts 13224 at day 41. */
   readonly total_feed_kg: number;
-  /** kg feed / kg live weight produced, 2dp. Fixture 3 asserts 1.53 at day 41. */
-  readonly fcr: number;
+  /**
+   * kg feed / kg live weight produced, 2dp. Fixture 3 asserts 1.53 at day 41.
+   *
+   * NULL when no live weight was produced — every bird gone. Feed was still
+   * eaten, so the ratio is undefined rather than zero, and Infinity is a
+   * number that reads as a ratio. A blank beats a confident wrong figure.
+   */
+  readonly fcr: number | null;
   readonly live_weight_kg: number;
 }
 

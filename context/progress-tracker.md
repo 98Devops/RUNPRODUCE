@@ -37,8 +37,23 @@ held count falls.
 
 ## In Progress
 
-- **U2 / M1 production.** Task 1 (day number) and task 2 (types, plus
-  AD-26 overheads) done. Task 3 — M1 projection — is next.
+- **U2 / M1 production.** Task 1 (day number), task 2 (types + AD-26
+  overheads) and **task 3 (M1 projection)** done. Task 4 — M2 costing —
+  is next, and is what wires `computeDecision()` and turns fixtures 1-4
+  and 12 green.
+
+  Task 3 landed `packages/engine/src/production.ts`: `projectProduction()`
+  returning `ProductionProjection`, 20 tests, TDD throughout. Removals are
+  read from the cumulative columns with deltas derived (AD-24, AD-25,
+  invariant 13, joint bound enforced); feed is charged per day to OPENING
+  birds (AD-7, invariant 10); records after `asOf` are ignored (invariant
+  7); days with no record carry the last known cumulative forward rather
+  than forecasting, because forecasting is M4's job and inventing a
+  number is what invariant 5 forbids. Verified against the client's own
+  numbers: 13,224 kg at day 41, 2.337 kg/bird at day 30, FCR 1.53 (not
+  his 0.77 — KB-4), flock 3,100 with extras (KB-1).
+
+  AD-27 was logged along the way — see Architecture Decisions.
 
 ## Next Up
 
@@ -110,6 +125,15 @@ once real mortality data arrives.
 Tracked in `current-issues.md`.
 
 ## Architecture Decisions
+
+**AD-27 · `fcr` is `number | null`; a wiped-out flock has no ratio.**
+A flock with nothing left alive ate feed and produced no live weight, so
+FCR is undefined. The first implementation returned `Infinity`, which is
+worse than it looks: it renders in a UI as a ratio and reads as a real
+figure. `null` is the rule-3 answer — a blank is always better than a
+confident wrong number — and the UI shows a dash. Found by a test
+written for that case rather than in production. Every other consumer of
+`fcr` must now handle null, which is the point.
 
 **AD-26 · Overheads are measured parameters; core credit stays chicks +
 feed.**

@@ -5,6 +5,8 @@ export * from './types.js';
 export { NotImplementedError, isNotImplemented } from './errors.js';
 export { Money } from './money.js';
 export { SEED_BREED_CURVE, pointForDay, cumulativeFeedG, feedGByPhase } from './breed-curve.js';
+export { dayNumberFor } from './day-number.js';
+export { projectProduction } from './production.js';
 export {
   SEED_OVERHEADS,
   overheadBreakdown,
