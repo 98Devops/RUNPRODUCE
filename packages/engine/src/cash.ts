@@ -1,4 +1,5 @@
 import { addDays } from './day-number.js';
+import { SEED_OVERHEADS, overheadBreakdown } from './overheads.js';
 import type {
   CashCalendar,
   CashDay,
@@ -110,6 +111,28 @@ export function projectCashCalendar(
     amount_cents: -(chick_price_cents * BigInt(flock)) as Cents,
     description: `${flock} chicks at ${chick_price_cents} cents`
   });
+
+  /**
+   * Overhead TIMING is assumed, and this is the only assumption in the module.
+   *
+   * `computeCosting` gives amounts and no dates — the client books overheads
+   * per batch, not per day. Charging them all at placement is the simplest
+   * defensible choice and it is almost certainly wrong in shape: labour is
+   * likely monthly, which would flatten the early-cycle trough materially.
+   * OQ-19 asks him. Until then the calendar says `overhead_timing: 'assumed'`
+   * so nobody reads the minimum balance as measured. The AMOUNTS are his,
+   * measured, straight out of `overheadBreakdown` — only the date they land
+   * on is this module's guess.
+   */
+  const overheads = input.parameters.overheads ?? SEED_OVERHEADS;
+  for (const line of overheadBreakdown(overheads, flock)) {
+    flows.push({
+      kind: 'OVERHEAD',
+      date: placement_date,
+      amount_cents: -line.cents as Cents,
+      description: `${line.label} (${line.basis}, timing assumed — OQ-19)`
+    });
+  }
 
   // A draw is paid on its DUE date, not its collection date. The due date is
   // M3's own — already derived as collection_date + the draw's own terms

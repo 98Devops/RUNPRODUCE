@@ -87,9 +87,9 @@ describe('projectCashCalendar — dated outflows', () => {
     const calendar = projectCashCalendar(engineInput, 5, 0n as Cents, feedFor(engineInput));
     const day1 = calendar.days[0];
 
-    // 3,000 birds x $1.00.
-    expect(day1?.out_cents).toBe(300000n);
-    expect(day1?.closing_cents).toBe(-300000n);
+    // 3,000 birds x $1.00 chicks + $1,222.00 of overheads, both on placement.
+    expect(day1?.out_cents).toBe(422200n);
+    expect(day1?.closing_cents).toBe(-422200n);
     expect(day1?.flows.map((f) => f.kind)).toContain('CHICK_COST');
   });
 
@@ -121,7 +121,7 @@ describe('projectCashCalendar — dated outflows', () => {
     // projection — and M5b ranks strategies by exactly this minimum, so it
     // needs a test proving the minimum can resolve mid-series, not just day 1.
     expect(calendar.minimum_date).toBe('2026-03-08');
-    expect(calendar.minimum_cents).toBe(-332500n);
+    expect(calendar.minimum_cents).toBe(-454700n);
   });
 
   it('ignores a draw whose due date falls past the horizon', () => {
@@ -232,5 +232,35 @@ describe('projectCashCalendar — receipts', () => {
     expect(() => projectCashCalendar(engineInput, 35, 0n as Cents, feedFor(engineInput))).toThrow(
       /bulk net/
     );
+  });
+});
+
+describe('projectCashCalendar — overheads', () => {
+  it('charges every overhead line on the placement date, flagged assumed', () => {
+    const engineInput = input('2026-02-06');
+    const calendar = projectCashCalendar(engineInput, 5, 0n as Cents, feedFor(engineInput));
+    const day1 = calendar.days[0];
+
+    // $3,000 chicks + $1,222 of overheads at his 3,000-bird scale.
+    expect(day1?.out_cents).toBe(300000n + 122200n);
+    expect(day1?.flows.filter((f) => f.kind === 'OVERHEAD')).toHaveLength(4);
+    expect(calendar.overhead_timing).toBe('assumed');
+  });
+
+  it('scales PER_BIRD overhead lines with the flock and leaves PER_BATCH alone', () => {
+    const engineInput = input('2026-02-06', {
+      batch: {
+        placement_date: PLACEMENT,
+        chick_count: 6000,
+        extra_chick_count: 0,
+        chick_price_cents: 100n as Cents
+      }
+    });
+    const calendar = projectCashCalendar(engineInput, 5, 0n as Cents, feedFor(engineInput));
+    const overheads = calendar.days[0]?.flows.filter((f) => f.kind === 'OVERHEAD') ?? [];
+    const total = overheads.reduce((sum, f) => sum - f.amount_cents, 0n);
+
+    // Vaccine $42 and transport $400 double; labour $640 and electricity $140 do not.
+    expect(total).toBe(8400n + 80000n + 64000n + 14000n);
   });
 });
