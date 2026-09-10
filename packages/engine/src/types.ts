@@ -102,6 +102,51 @@ export interface SalesOrder {
   readonly terms_days: number;
 }
 
+export type OverheadKey = 'vaccine' | 'electricity_heating' | 'labour' | 'transport_other';
+
+/**
+ * How an overhead line scales. The client's own brief draws this distinction
+ * and tells us to respect it: VARIABLE costs (DOC, feed, medication,
+ * processing, transport, packaging) move with bird count; FIXED/OVERHEAD costs
+ * (labour, electricity, infrastructure, rent, administration) do not. The
+ * brief also says "Do not double-count costs", which is why a line's basis is
+ * declared rather than inferred.
+ */
+export type OverheadBasis = 'PER_BIRD' | 'PER_BATCH';
+
+/**
+ * One production overhead, as booked in the client's own Final Report.
+ *
+ * The amount is the MEASURED figure for a batch of `measured_at_flock_size`
+ * birds, kept literally as he recorded it rather than pre-divided into a
+ * per-bird rate — $42 of vaccine over 3,000 birds is 1.4 cents a bird, which
+ * is not expressible in integer cents. A PER_BIRD line is scaled to the actual
+ * flock at the point of use; a PER_BATCH line is charged as it stands.
+ */
+export interface OverheadLine {
+  readonly key: OverheadKey;
+  readonly label: string;
+  readonly basis: OverheadBasis;
+  readonly amount_cents: Cents;
+  /** The flock `amount_cents` was measured against. Unused for PER_BATCH. */
+  readonly measured_at_flock_size: number;
+  readonly confidence: Confidence;
+  readonly source: string;
+}
+
+export interface OverheadModel {
+  readonly lines: readonly OverheadLine[];
+}
+
+/** One overhead line charged against an actual flock. */
+export interface OverheadCharge {
+  readonly key: OverheadKey;
+  readonly label: string;
+  readonly basis: OverheadBasis;
+  readonly cents: Cents;
+  readonly confidence: Confidence;
+}
+
 /**
  * FALLBACK mortality model only. Per OQ-1 (answered 2026-09-10) there is
  * no standard mortality curve — "it varies". The harvest optimiser (M4)
@@ -133,6 +178,15 @@ export interface Parameters {
   readonly delivery_mode: DeliveryMode;
   readonly feed_terms_days: number;
   readonly reserve_floor_cents: Cents;
+  /**
+   * Omitted means SEED_OVERHEADS — the client's own Final Report figures. Same
+   * convention EngineInput.curve follows (AD-23), for the same reason: no
+   * fixture should have to carry a literal copy of client data it does not
+   * assert on. Absent is his measured data; an empty `lines` array is a
+   * deliberate "charge no overheads". The two are not the same, and null is
+   * never used to mean either.
+   */
+  readonly overheads?: OverheadModel;
 }
 
 export interface EngineInput {
@@ -163,16 +217,53 @@ export interface MissingInput {
   readonly why: string;
 }
 
+export interface ProductionProjection {
+  /** chick_count + extra_chick_count. Invariant 9 — nothing is hardcoded off this. */
+  readonly flock_size: number;
+  readonly day_number: number;
+  /** Birds alive at the start of asOf's day. */
+  readonly opening_birds: number;
+  /** opening_birds minus that day's derived mortality and culls. */
+  readonly closing_birds: number;
+  /** Per-bird cumulative feed through asOf, in kg. Fixture 4 asserts 2.337 at day 30. */
+  readonly cumulative_feed_kg_per_bird: number;
+  /** Whole-flock cumulative feed through asOf, in kg. Fixture 2 asserts 13224 at day 41. */
+  readonly total_feed_kg: number;
+  /** kg feed / kg live weight produced, 2dp. Fixture 3 asserts 1.53 at day 41. */
+  readonly fcr: number;
+  readonly live_weight_kg: number;
+}
+
+export interface CostingResult {
+  readonly chick_cost_cents: Cents;
+  /** Phase-priced feed cost. Fixture 1 asserts 807981 at day 41, 3000 birds. */
+  readonly feed_cost_cents: Cents;
+  /**
+   * Chick cost + feed cost, and deliberately nothing else. CONTEXT.md defines
+   * core credit as exactly that, and it is what the brief calls the "DOC +
+   * feed break-even". Overheads are real money but they are not core credit —
+   * they land in full_production_cost_cents so both break-evens can be shown
+   * separately, which the brief requires outright.
+   */
+  readonly core_credit_cents: Cents;
+  /** Production overheads charged against this flock. See SEED_OVERHEADS. */
+  readonly overhead_cost_cents: Cents;
+  /** Per line, so the UI can show what the overhead is made of and how sure we are. */
+  readonly overhead_lines: readonly OverheadCharge[];
+  /** core_credit_cents + overhead_cost_cents. The brief's "full production" figure. */
+  readonly full_production_cost_cents: Cents;
+}
+
 export interface Lever {
   readonly key: string;
   readonly description: string;
   readonly cash_impact_cents: Cents;
 }
 
-/** Filled in progressively across U2-U5. U1 defines the envelope only. */
+/** Filled in progressively across U2-U5. U2 lands production and costing. */
 export interface Decision {
-  readonly production: unknown;
-  readonly costing: unknown;
+  readonly production: ProductionProjection;
+  readonly costing: CostingResult;
   readonly feed: unknown;
   readonly harvest: unknown;
   readonly allocation: unknown;

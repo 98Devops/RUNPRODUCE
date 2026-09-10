@@ -5,6 +5,13 @@ export * from './types.js';
 export { NotImplementedError, isNotImplemented } from './errors.js';
 export { Money } from './money.js';
 export { SEED_BREED_CURVE, pointForDay, cumulativeFeedG, feedGByPhase } from './breed-curve.js';
+export {
+  SEED_OVERHEADS,
+  overheadBreakdown,
+  overheadCostCents,
+  overheadLineCents,
+  validateOverheadModel
+} from './overheads.js';
 
 /**
  * The only public entry point to the engine.
