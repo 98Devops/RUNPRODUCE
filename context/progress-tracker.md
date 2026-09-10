@@ -47,7 +47,7 @@ held count falls.
 3. **U4** — M4 harvest optimiser. Blocked on OQ-7; also where AD-24's
    per-batch EMA calibration and OQ-12's sufficiency threshold land.
 4. **U5** — M5 allocation optimiser. **Run `/grill-me` first** per
-   CLAUDE.md; blocked on OQ-2.
+   CLAUDE.md; blocked on OQ-2 **and** OQ-16 (bulk net double-count).
 
 **Outstanding client questions** — OQ-2, OQ-3, OQ-4, OQ-7, OQ-8 are
 compiled into a single message awaiting Daniel, and **OQ-13, OQ-15 and

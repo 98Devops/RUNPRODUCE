@@ -167,8 +167,11 @@ scenario is modelled the overhead lines are editable — the brief says
 "Make this editable" — and anything the user changes stops being
 `measured`.
 
-### OQ-16 · Is the $400 "Other/Transport" the abattoir run? 🟠 NEW
-**Status:** Open, blocks nothing. **Affects:** whether bulk economics
+### OQ-16 · Is the $400 "Other/Transport" the abattoir run? 🔴 BLOCKS BULK NET
+**Status:** Open, and a **hard precondition on the U5 task that computes
+bulk net revenue** — listed in the blocked-work table below, not only in
+a code comment, so that answering OQ-2 cannot silently unblock bulk
+allocation while this is still open. **Affects:** whether bulk economics
 double-counts transport.
 
 `overhead_lines.transport_other` is the Final Report's $400 on a batch
@@ -180,9 +183,13 @@ double-count costs", and these two could be the same truck.
 and chick collection, or does it include taking birds to the abattoir?"*
 
 **Handling until answered:** both are charged, because each is a real
-cost on its own terms and neither is invented — but the risk is
-documented in `overheads.ts` and must be resolved before the bulk
-recommendation ships, which is blocked on OQ-2 regardless.
+cost on its own terms and neither is invented. That interim state is
+safe only while nothing consumes bulk net.
+
+**The gate:** the U5 task computing bulk net revenue does not start until
+OQ-16 is answered, *even if OQ-2 has been*. OQ-2 supplies the abattoir
+fee; OQ-16 says whether charging it alongside `transport_other` bills the
+same truck twice. An answered OQ-2 is **not** sufficient to proceed.
 
 ---
 
@@ -773,6 +780,7 @@ recommendation — divergences are the most valuable data available.
 | Work | Blocked by |
 |---|---|
 | Bulk allocation recommendation | OQ-2 (abattoir fee) |
+| U5 · bulk net revenue computation | OQ-2 **and** OQ-16 — both required, neither sufficient alone |
 | Calibrated `MaxSafeBatchSize` | OQ-1 (mortality data) |
 | Default strategy selection | OQ-3 (objective function) |
 | Gate harvest window past day 32 | OQ-1, OQ-4 |

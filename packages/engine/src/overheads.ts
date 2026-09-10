@@ -28,7 +28,10 @@ import type {
  *      batch sold at the gate. It is NOT the run to the abattoir — that is
  *      `Parameters.transport_cents_per_bird`, which stays null until OQ-2 is
  *      answered. The brief says "Do not double-count costs", so the two must
- *      never both be charged for the same bird's journey. See OQ-16.
+ *      never both be charged for the same bird's journey. OQ-16 is a hard
+ *      precondition on the U5 bulk-net task and is listed as such in
+ *      current-issues.md's blocked-work table — an answered OQ-2 does not
+ *      release it. This comment records the risk; the table is the gate.
  *   2. The PER_BATCH lines were measured at 3,000 birds. Whether labour and
  *      electricity are genuinely flat at 30,000 birds is a client question,
  *      not something to model a scaling law for. See OQ-15.
