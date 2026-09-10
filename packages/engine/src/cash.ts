@@ -1,5 +1,5 @@
 import { addDays } from './day-number.js';
-import type { CashCalendar, CashDay, Cents, EngineInput } from './types.js';
+import type { CashCalendar, CashDay, CashFlow, Cents, EngineInput, FeedLiability } from './types.js';
 
 /**
  * M5a — the cash calendar.
@@ -8,10 +8,8 @@ import type { CashCalendar, CashDay, Cents, EngineInput } from './types.js';
  * `throughDay`. Pure arithmetic on dated flows; it holds no opinion about
  * which candidate or strategy is better.
  *
- * This is the spine only: it produces the right number of dated days with
- * balances carrying forward, and nothing else. It deliberately carries no
- * flows — chick cost, feed draw payments, sales receipts and overheads are
- * Tasks 3-5, and every `in_cents` / `out_cents` here is zero until they land.
+ * Chick cost and feed draw payments (Task 3) are the first flows to land
+ * here. Sales receipts and overheads are Tasks 4-5.
  *
  * `throughDay` has NO DEFAULT on purpose. AD-43 makes the 90-day calendar a
  * display horizon while each allocation candidate is scored over its own
@@ -21,32 +19,83 @@ import type { CashCalendar, CashDay, Cents, EngineInput } from './types.js';
 export function projectCashCalendar(
   input: EngineInput,
   throughDay: number,
-  openingCents: Cents
+  openingCents: Cents,
+  feed: FeedLiability
 ): CashCalendar {
   if (throughDay < 1) {
     throw new Error(`through_day ${throughDay} is before placement day 1`);
   }
 
-  const { placement_date } = input.batch;
+  const { placement_date, chick_count, extra_chick_count, chick_price_cents } = input.batch;
   const floor = input.parameters.reserve_floor_cents;
+
+  const flows: CashFlow[] = [];
+
+  // Invariant 9: extras count toward the flock, so they are paid for at the
+  // same price as the rest — nothing scales off chick_count alone.
+  const flock = chick_count + extra_chick_count;
+  flows.push({
+    kind: 'CHICK_COST',
+    date: placement_date,
+    amount_cents: -(chick_price_cents * BigInt(flock)) as Cents,
+    description: `${flock} chicks at ${chick_price_cents} cents`
+  });
+
+  // A draw is paid on its DUE date, not its collection date. The due date is
+  // M3's own — already derived as collection_date + the draw's own terms
+  // (which beat parameters.feed_terms_days) — so it is used as-is rather than
+  // recomputed here.
+  for (const draw of feed.draws) {
+    flows.push({
+      kind: 'FEED_DRAW_PAYMENT',
+      date: draw.due_date,
+      amount_cents: -draw.total_cents as Cents,
+      description: `${draw.bags} bags ${draw.phase} drawn ${draw.collection_date}`
+    });
+  }
+
+  return buildDays(input, throughDay, openingCents, flows, floor);
+}
+
+/** Lays dated flows onto the day series. A flow outside the horizon is dropped. */
+function buildDays(
+  input: EngineInput,
+  throughDay: number,
+  openingCents: Cents,
+  flows: readonly CashFlow[],
+  floor: Cents
+): CashCalendar {
+  const byDate = new Map<string, CashFlow[]>();
+  for (const flow of flows) {
+    const existing = byDate.get(flow.date);
+    if (existing === undefined) byDate.set(flow.date, [flow]);
+    else existing.push(flow);
+  }
 
   const days: CashDay[] = [];
   let opening = openingCents;
 
   for (let day = 1; day <= throughDay; day += 1) {
-    const date = addDays(placement_date, day - 1);
-    const in_cents = 0n as Cents;
-    const out_cents = 0n as Cents;
+    const date = addDays(input.batch.placement_date, day - 1);
+    const dayFlows = byDate.get(date) ?? [];
+
+    let in_cents = 0n;
+    let out_cents = 0n;
+    for (const flow of dayFlows) {
+      if (flow.amount_cents >= 0n) in_cents += flow.amount_cents;
+      else out_cents += -flow.amount_cents;
+    }
+
     const closing = (opening + in_cents - out_cents) as Cents;
 
     days.push({
       day_number: day,
       date,
       opening_cents: opening,
-      in_cents,
-      out_cents,
+      in_cents: in_cents as Cents,
+      out_cents: out_cents as Cents,
       closing_cents: closing,
-      flows: [],
+      flows: dayFlows,
       breaches_reserve_floor: closing < floor
     });
 

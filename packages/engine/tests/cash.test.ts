@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { projectCashCalendar } from '../src/cash.js';
+import { computeFeedLiability } from '../src/feed.js';
+import { projectProduction } from '../src/production.js';
 import type { Cents, EngineInput, Grams, IsoDate, Parameters } from '../src/types.js';
 
 const PLACEMENT = '2026-02-06' as IsoDate;
@@ -43,9 +45,14 @@ function input(asOf: string, overrides: Partial<EngineInput> = {}): EngineInput 
   };
 }
 
+function feedFor(engineInput: EngineInput) {
+  return computeFeedLiability(engineInput, projectProduction(engineInput));
+}
+
 describe('projectCashCalendar — the spine', () => {
   it('covers day 1 through through_day, dated from placement', () => {
-    const calendar = projectCashCalendar(input('2026-02-06'), 5, 0n as Cents);
+    const engineInput = input('2026-02-06');
+    const calendar = projectCashCalendar(engineInput, 5, 0n as Cents, feedFor(engineInput));
 
     expect(calendar.days).toHaveLength(5);
     expect(calendar.days[0]?.day_number).toBe(1);
@@ -56,7 +63,8 @@ describe('projectCashCalendar — the spine', () => {
   });
 
   it("carries each day's closing into the next day's opening", () => {
-    const calendar = projectCashCalendar(input('2026-02-06'), 5, 50000n as Cents);
+    const engineInput = input('2026-02-06');
+    const calendar = projectCashCalendar(engineInput, 5, 50000n as Cents, feedFor(engineInput));
 
     expect(calendar.opening_cents).toBe(50000n);
     for (let i = 1; i < calendar.days.length; i += 1) {
@@ -66,8 +74,73 @@ describe('projectCashCalendar — the spine', () => {
   });
 
   it('rejects a horizon before placement day 1', () => {
-    expect(() => projectCashCalendar(input('2026-02-06'), 0, 0n as Cents)).toThrow(
-      /through_day 0 is before placement day 1/
+    const engineInput = input('2026-02-06');
+    expect(() =>
+      projectCashCalendar(engineInput, 0, 0n as Cents, feedFor(engineInput))
+    ).toThrow(/through_day 0 is before placement day 1/);
+  });
+});
+
+describe('projectCashCalendar — dated outflows', () => {
+  it('charges chick cost on the placement date', () => {
+    const engineInput = input('2026-02-06');
+    const calendar = projectCashCalendar(engineInput, 5, 0n as Cents, feedFor(engineInput));
+    const day1 = calendar.days[0];
+
+    // 3,000 birds x $1.00.
+    expect(day1?.out_cents).toBe(300000n);
+    expect(day1?.closing_cents).toBe(-300000n);
+    expect(day1?.flows.map((f) => f.kind)).toContain('CHICK_COST');
+  });
+
+  it('charges a feed draw on its DUE date, not its collection date', () => {
+    const engineInput = input('2026-03-10', {
+      draws: [
+        {
+          collection_date: '2026-02-06' as IsoDate,
+          phase: 'STARTER',
+          bags: 10,
+          kg: 500,
+          price_per_bag_cents: 3250n as Cents,
+          terms_days: 30
+        }
+      ]
+    });
+    const calendar = projectCashCalendar(engineInput, 40, 0n as Cents, feedFor(engineInput));
+
+    // Collected day 1, 30-day terms, so it lands 2026-03-08 — day 31.
+    const dueDay = calendar.days.find((d) => d.date === '2026-03-08');
+    expect(dueDay?.out_cents).toBe(32500n);
+    expect(dueDay?.flows.map((f) => f.kind)).toContain('FEED_DRAW_PAYMENT');
+
+    const collectionDay = calendar.days[0];
+    expect(collectionDay?.flows.map((f) => f.kind)).not.toContain('FEED_DRAW_PAYMENT');
+
+    // The chick cost lands day 1 and the draw payment lands day 31; nothing
+    // else moves after that, so day 31 is the low point for the rest of the
+    // projection — and M5b ranks strategies by exactly this minimum, so it
+    // needs a test proving the minimum can resolve mid-series, not just day 1.
+    expect(calendar.minimum_date).toBe('2026-03-08');
+    expect(calendar.minimum_cents).toBe(-332500n);
+  });
+
+  it('ignores a draw whose due date falls past the horizon', () => {
+    const engineInput = input('2026-03-10', {
+      draws: [
+        {
+          collection_date: '2026-02-06' as IsoDate,
+          phase: 'STARTER',
+          bags: 10,
+          kg: 500,
+          price_per_bag_cents: 3250n as Cents,
+          terms_days: 30
+        }
+      ]
+    });
+    const calendar = projectCashCalendar(engineInput, 10, 0n as Cents, feedFor(engineInput));
+
+    expect(calendar.days.some((d) => d.flows.some((f) => f.kind === 'FEED_DRAW_PAYMENT'))).toBe(
+      false
     );
   });
 });
