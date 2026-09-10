@@ -4,8 +4,8 @@ Update this file after every meaningful implementation change.
 
 ## Current Phase
 
-**U2 — M1 production + M2 costing.** Starting 2026-09-10, immediately
-after U1 closed.
+**U3 — M3 feed liability.** Started 2026-09-10, after U2 closed.
+**Outcome: done.** Fixtures 5 and 9 assert; held is down from 4 to 2.
 
 ## Current Goal
 
@@ -28,6 +28,43 @@ golden step's held count fell from 10 to 4 — the remaining three are
 waiting on M3 and M4, plus the U1 completeness hold.
 
 ## Completed
+
+- **U3 — M3 feed liability.** `packages/engine/src/feed.ts`, 25 new
+  tests, TDD throughout. **Fixtures 5 and 9 now assert**; held fell
+  4 → 2 (the remaining two are U1 completeness and fixture 10/M4). 167
+  tests green; lint, typecheck and build clean.
+
+  M3 is two halves sharing only the 50 kg bag: **liability** (entered
+  draws → what is owed and when) and **planning** (breed curve → what
+  still needs drawing). `addDays` and `daysBetween` were added to
+  `day-number.ts` as Hinnant's `civil_from_days`, the inverse of the
+  existing function and kept beside it, since the engine bans `Date`.
+
+  **Read from the client's Feed Account formulas, not from our notes.**
+  His cadence is placement, +14, then +7 each time, each draw sized as
+  the cumulative-feed delta over the days it covers ÷ 50. Chained off
+  the PREVIOUS collection date (`A4 = A3+7`), so a draw taken late
+  shifts the rest of the schedule rather than the schedule staying
+  pinned to placement. Our planned draws reproduce his own 36.36 /
+  57.36 / 73.80 bags — which is an **extraction check, not independent
+  corroboration** (AD-36): his Feed Account and our seed both derive
+  from the Record sheet.
+
+  **What M3 deliberately does NOT return.** No `paid` / `outstanding` —
+  `feed_payments` is not in `EngineInput` until U6, and defaulting paid
+  to zero would assert every draw is unpaid. A conservative-looking
+  default is still a fabricated fact; invariant 5's test is whether
+  anyone supplied the input, not whether the guess errs safely. No
+  `headroom` — needs the facility limit, which is not in `Parameters`.
+  Both deferred, neither faked.
+
+  **Planned quantities are an upper bound, not a forecast.** The flock
+  is held flat at `flock_size` because U3 has no mortality model —
+  forecasting removals is M4's job — so the schedule carries
+  `planned_confidence: 'assumed'`.
+
+  AD-37 and KB-11 logged. Spec and plan:
+  `context/plans/u3-feed-liability.md`.
 
 - **U1 — Scaffold.** Monorepo, money value object, breed-curve seed and
   validation, domain types, `computeDecision()` stub, golden runner, CI
@@ -68,8 +105,8 @@ waiting on M3 and M4, plus the U1 completeness hold.
 
 ## Next Up
 
-1. **U2** — M1 production + M2 costing ← current
-2. **U3** — M3 feed liability
+1. ~~**U2** — M1 production + M2 costing~~ done
+2. ~~**U3** — M3 feed liability~~ done ← fixtures 5, 9 green
 3. **U4** — M4 harvest optimiser. **OQ-7 answered — no longer blocked.**
    Built against AD-33 (dressing-yield target), AD-34 (bulk as presale)
    and OQ-4's quality-gated gate pricing. Also where AD-24's per-batch
@@ -105,7 +142,7 @@ These encode the client's real spreadsheet. Write all 13 in U1.
 | 2 | Same batch, total feed | 13,224 kg |
 | 3 | Same batch, FCR at day 41 | 1.53 |
 | 4 | Cumulative feed at day 30 | 2.337 kg/bird |
-| 5 | Starter draw bags (cum feed day 14 ÷ 50) | 26.64 bags |
+| 5 | First draw bags (cum feed day 14 ÷ 50) | 26.64 bags — path renamed, AD-37 |
 | 6 | Break-even gate birds, 5,000 flock, day 30 | 2,675 (54%) |
 | 7 | Hold cost day 30 → 35, 5,000 flock | $3,305 |
 | 8 | Bulk net per day held, 5,000 flock, day 30 | −$537 |
@@ -218,6 +255,21 @@ EXPECTED VALUE did not change — day 31 before, day 31 after. This is a
 metadata correction, not a regeneration, and it is flagged here the way
 AD-30 flagged the harness encoding: fixtures are the client contract and
 nothing about them moves silently.
+
+**AD-37 · Fixture 5's assert PATH changed; its value did not.**
+`decision.feed.starter_bags_to_day_14` became
+`decision.feed.first_draw_bags_to_day_14`. Expected value stays
+**26.64**. Declared here because golden fixtures are protected files and
+nothing about them moves silently — the same declaration AD-33 made when
+it lifted fixture 10's `provisional` marker.
+
+The reason is KB-11: the first draw covers days 1–14, spanning STARTER
+(1–13) and one GROWER day, so "starter" names a phase the figure does
+not represent. The starter-phase total is 22.98 bags, a genuinely
+different number. The assert path is **our** addressing scheme, not
+client data, so renaming it costs nothing and stops a future session
+reading `types.ts` alone from re-inheriting the client's own naming
+confusion.
 
 **AD-36 · A second presentation of a figure is not a second source.**
 Logged 2026-09-10 after the same mistake was found twice in one day.

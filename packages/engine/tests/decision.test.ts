@@ -90,10 +90,17 @@ describe('computeDecision', () => {
     expect(result.kind).toBe('ok');
   });
 
-  it('still holds the modules U3-U5 have not built', () => {
+  it('returns feed liability now that U3 has built it', () => {
     const result = computeDecision(input());
     if (result.kind !== 'ok') throw new Error('expected ok');
-    for (const key of ['feed', 'harvest', 'allocation'] as const) {
+    expect(result.decision.feed.first_draw_bags_to_day_14).toBe(26.64);
+    expect(result.decision.feed.due_dates).toEqual([]);
+  });
+
+  it('still holds the modules U4-U5 have not built', () => {
+    const result = computeDecision(input());
+    if (result.kind !== 'ok') throw new Error('expected ok');
+    for (const key of ['harvest', 'allocation'] as const) {
       let thrown: unknown;
       try {
         void result.decision[key];

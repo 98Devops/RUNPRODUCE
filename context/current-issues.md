@@ -1018,6 +1018,22 @@ No forward projection, so the pre-harvest spike cannot be anticipated.
 **Our behaviour:** forecast mortality forward. Blocked on OQ-1 for
 accuracy.
 
+### KB-11 · "Starter" draw is not the starter phase 🟡
+The Feed Account's first draw (`Feed!C2 = Record!M16/50` = 26.64 bags)
+is labelled as the starter draw but covers **days 1–14**. STARTER is
+days 1–13; day 14 is GROWER. So the label names a phase while the
+formula spans two, and the starter-phase total is a different number
+entirely — 383 g/bird x 3,000 / 50 = **22.98 bags**.
+
+**Our behaviour:** reproduce his 26.64, because the draw cadence is his
+and the fixture is the contract, but **do not carry his label**. The
+field is `first_draw_bags_to_day_14` and the golden fixture's assert
+path was changed to match (AD-37). A KB entry explains history; a field
+name is what stops the confusion propagating into code that never reads
+this file.
+
+**Not a divergence** — the quantity is unchanged. Only the name is.
+
 ### KB-10 · Livability formula is fragile 🟡
 `(Record!D3 − Record!I93) ÷ Record!D3` depends on row 93 being the
 totals row. Breaks if rows are inserted.

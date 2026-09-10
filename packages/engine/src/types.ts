@@ -298,6 +298,94 @@ export interface CostingResult {
   readonly full_production_cost_cents: Cents;
 }
 
+/**
+ * One entered feed draw, with its obligation derived.
+ *
+ * Money comes from `bags x price_per_bag_cents` and never from `kg` — that is
+ * the client's own arithmetic, and bags are what the supplier invoices. Where
+ * the two disagree, `kg_discrepancy` REPORTS it; nothing silently reconciles
+ * them. A number that quietly repairs its own inputs cannot be audited.
+ *
+ * There is deliberately no `paid` or `outstanding` here. `feed_payments` is
+ * not in `EngineInput` yet (U6), and defaulting paid to zero would assert
+ * every draw is unpaid — a fabricated fact wearing a conservative face.
+ * Invariant 5 forbids it just as it forbids an optimistic guess.
+ */
+export interface DrawLiability {
+  readonly collection_date: IsoDate;
+  /** Always derived: collection_date + terms_days. Never entered. */
+  readonly due_date: IsoDate;
+  readonly phase: Phase;
+  readonly bags: number;
+  readonly kg: number;
+  /** bags x price_per_bag_cents. */
+  readonly total_cents: Cents;
+  /** The DRAW's own terms, which beat `parameters.feed_terms_days`. */
+  readonly terms_days: number;
+  /**
+   * due_date - asOf, in days. Negative once overdue.
+   *
+   * NOT "cashflow days", which CONTEXT.md defines as market date - due date
+   * and which needs M4's market date. This is `v_feed_liability`'s "days
+   * until due" and nothing more.
+   */
+  readonly days_until_due: number;
+  /** True when kg != bags x 50. Reported, never corrected. */
+  readonly kg_discrepancy: boolean;
+}
+
+/**
+ * A draw the client has not taken yet, sized from the breed curve.
+ *
+ * Quantities are an UPPER BOUND, not a forecast: U3 has no mortality model, so
+ * the flock is held flat at `flock_size`. Forecasting removals is M4's job
+ * (AD-24), and inventing them here is what invariant 5 forbids. Hence
+ * `confidence: 'assumed'` on the schedule as a whole.
+ */
+export interface PlannedDraw {
+  /** 1-based position in the schedule. */
+  readonly sequence: number;
+  /**
+   * Chained off the PREVIOUS draw's collection date, not off placement:
+   * placement, +14, then +7 each time. That is the client's own cadence
+   * (`Feed!A3 = A2+14`, `A4 = A3+7`, `A5 = A4+7` — each references the row
+   * above). A draw taken late therefore shifts the rest of the schedule with
+   * it, rather than the schedule staying pinned to fixed offsets from day 1.
+   */
+  readonly collection_date: IsoDate;
+  readonly due_date: IsoDate;
+  readonly covers_first_day: number;
+  readonly covers_last_day: number;
+  readonly bags: number;
+  readonly kg: number;
+}
+
+/**
+ * M3 — feed liability, in two halves that share bag arithmetic and nothing
+ * else: what is owed on draws already taken, and what still needs drawing.
+ */
+export interface FeedLiability {
+  readonly draws: readonly DrawLiability[];
+  /** Fixture 9: Mar 8, Mar 22, Mar 29, Apr 5, Apr 12 from a 2026-02-06 placement. */
+  readonly due_dates: readonly IsoDate[];
+  readonly total_drawn_kg: number;
+  readonly total_drawn_cents: Cents;
+  /**
+   * Fixture 5: 26.64 bags for 3,000 birds — the client's own `Feed!C2 =
+   * Record!M16/50`.
+   *
+   * NOT named "starter". The first draw covers days 1-14, and STARTER is days
+   * 1-13, so it spans one GROWER day. The starter-phase total is a different
+   * number (22.98 bags). His sheet calls this the starter draw; we do not,
+   * because a field name is what stops the confusion propagating. See KB-11
+   * for the history and AD-37 for the fixture-path change.
+   */
+  readonly first_draw_bags_to_day_14: number;
+  readonly planned_draws: readonly PlannedDraw[];
+  /** 'assumed' while the schedule rests on a flat flock. See PlannedDraw. */
+  readonly planned_confidence: Confidence;
+}
+
 export interface Lever {
   readonly key: string;
   readonly description: string;
@@ -308,7 +396,7 @@ export interface Lever {
 export interface Decision {
   readonly production: ProductionProjection;
   readonly costing: CostingResult;
-  readonly feed: unknown;
+  readonly feed: FeedLiability;
   readonly harvest: unknown;
   readonly allocation: unknown;
 }

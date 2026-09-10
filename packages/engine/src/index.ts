@@ -2,14 +2,16 @@ import type { DecisionResult, EngineInput, MissingInput } from './types.js';
 import { NotImplementedError } from './errors.js';
 import { projectProduction } from './production.js';
 import { computeCosting } from './costing.js';
+import { computeFeedLiability } from './feed.js';
 
 export * from './types.js';
 export { NotImplementedError, isNotImplemented } from './errors.js';
 export { Money } from './money.js';
 export { SEED_BREED_CURVE, pointForDay, cumulativeFeedG, feedGByPhase } from './breed-curve.js';
-export { dayNumberFor } from './day-number.js';
+export { dayNumberFor, addDays, daysBetween } from './day-number.js';
 export { projectProduction } from './production.js';
 export { computeCosting } from './costing.js';
+export { computeFeedLiability } from './feed.js';
 export {
   SEED_OVERHEADS,
   overheadBreakdown,
@@ -40,15 +42,14 @@ export function computeDecision(input: EngineInput): DecisionResult {
 
   const production = projectProduction(input);
   const costing = computeCosting(input, production);
+  const feed = computeFeedLiability(input, production);
 
   return {
     kind: 'ok',
     decision: {
       production,
       costing,
-      get feed(): never {
-        throw new NotImplementedError('feed liability (M3)', 'U3');
-      },
+      feed,
       get harvest(): never {
         throw new NotImplementedError('harvest optimiser (M4)', 'U4');
       },
