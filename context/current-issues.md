@@ -6,6 +6,103 @@ against real data.
 
 ---
 
+## Client source documents — read 2026-09-10
+
+Two client artifacts were read in full:
+
+- `~/Downloads/RUNproduce Broiler Management .xlsx` — the **working
+  spreadsheet** they actually used. Four sheets: Initialization, Record
+  (90 day-rows), Final Report, Feed Account. This is the 3,000-bird
+  batch our fixtures are drawn from.
+- `~/Downloads/_RUNPRODUCE 30,000-BROILER HYBRID CASHFLOW & HARVEST
+  DASHBOARD.md` — the **30,000-bird brief**. Content is duplicated
+  verbatim from ~line 1418; read the first copy.
+
+**Everything below is PROVISIONAL — inferred from client files, not
+stated by Daniel.** Replace with his actual answer when it arrives; do
+not treat any of it as settled.
+
+### What the spreadsheet CONFIRMS (fixtures corroborated)
+
+Record sheet row 43 (day 41) and Final Report agree with our fixtures
+exactly, from an independent source:
+
+| Value | Spreadsheet | Our fixture |
+|---|---|---|
+| Cum feed/bird, day 41 | `L43 = 4408` g | fixture 3 input |
+| Total feed, day 41 | `M43 = 13224` kg | fixture 2 |
+| Feed cost, day 41 | `O43 = Final!C4 = 8079.81` | fixture 1 (807981c) |
+| Weight day 30 / 31 | `1754` / `1843` g | fixture 10, OQ-7 |
+| Cum feed/bird day 30 | `L32 = 2337` g | fixture 4 |
+| Starter bags | `Feed!C2 = M16/50 = 26.64` | fixture 5 |
+| Chick price | `Init!B7 = 1` ($1.00) | fixtures 1–5, 12 |
+| Feed $/kg | `0.65 / 0.62 / 0.60` | breed_curve.json |
+
+Fixtures 1, 2, 3, 4, 5, 10 and 12 are now corroborated against the
+client's own working file, not just against `breed_curve.json`.
+
+### New known bugs in the spreadsheet (confirmed by reading formulas)
+
+- **KB-6 · Feed is charged to CLOSING birds.** `H = J*K/1000` where
+  `J` is Closing Birds. Invariant 10 and AD-7 already say do not copy
+  this; now confirmed in the formula rather than inferred.
+- **KB-7 · FCR double-counts sold weight on the sale day.**
+  `P43 = M43/((J43*G43/1000)+SUM(R$3:R43))` — on day 41 all 3,000 birds
+  are sold, so `R43 = 8625` kg is added to a denominator that already
+  counts those same birds as live, giving `0.7666` instead of
+  `1.5332`. Our fixture 3 asserts `1.53`, the correct value. Correct.
+- **KB-8 · The workbook prices feed two different ways.** Record uses
+  `0.65 / 0.62 / 0.60` per kg (= $32.50 / $31.00 / $30.00 per 50 kg).
+  Feed Account and the 30,000 brief both use **$31.60 / $29.60 / $28.60
+  per 50 kg** (= $0.632 / $0.592 / $0.572 per kg). Our fixtures follow
+  the Record sheet, which is what reproduces $8,079.81. **Which price
+  set is current is a live question** — see OQ-13.
+
+### Cost categories we do not model at all
+
+Final Report books, for the 3,000-bird batch: Chicks $3,000, Feed
+$8,079.81, **Vaccine $42, Electricity & Heating $140, Labour $640,
+Other/Transport $400**. Total $12,301.81 against our core credit
+(chicks + feed) of $11,079.81 — a **$1,222 gap, ~11%**. The 30,000
+brief also calls for "production overheads such as labour, electricity,
+transport/handling". See OQ-14.
+
+---
+
+### OQ-13 · Which feed price set is current? 🟠 NEW, from KB-8
+**Status:** Open. **Affects:** every money figure downstream.
+
+The client's own workbook contains two contradictory feed price sets
+(KB-8). Our fixtures use the Record sheet's, which is the one that
+reproduces the Final Report's $8,079.81. The 30,000 brief and the Feed
+Account sheet use the cheaper set.
+
+**Ask the client:** *"Two feed prices appear in your file — $32.50 a
+starter bag on the daily sheet and $31.60 on the feed account. Which is
+current?"*
+
+**Handling until answered:** keep the Record sheet's `0.65/0.62/0.60`,
+because it is the set that reconciles to the Final Report. Do not
+switch on the brief alone.
+
+### OQ-14 · Do overheads belong in core credit? 🟠 NEW
+**Status:** Open. **Affects:** break-even, and therefore every strategy.
+
+Vaccine, electricity/heating, labour and transport total $1,222 on a
+3,000-bird batch (~$0.41/bird, ~11% of cost). Our `core_credit_cents`
+is chicks + feed only. If break-even must cover overheads too, every
+break-even figure we produce is ~11% low.
+
+**Ask the client:** *"When you work out how many birds must be sold to
+cover the batch, do you include labour, electricity and vaccine, or
+just chicks and feed?"*
+
+**Handling until answered:** `core_credit_cents` stays chicks + feed,
+matching AD-4's definition in CONTEXT.md, and overheads are **not
+invented**. Flag the omission in any break-even the UI shows.
+
+---
+
 ## Open questions — blocking
 
 ### OQ-1 · Real mortality by day ✅ ANSWERED 2026-09-10
@@ -47,6 +144,22 @@ from a batch that varied. Do not reopen it.
 
 **Follow-on:** OQ-12 (how much trailing history counts as "sufficient").
 
+**Independently corroborated 2026-09-10 by the 30,000 brief**, which
+predates his answer and says the same thing: *"Use a planning mortality
+assumption of approximately 5%... **But mortality must be an INPUT, not
+a fixed assumption**"*, with 1%–6% selectable. His "it varies" is not a
+new position; it was in the brief all along and we modelled a fixed ramp
+anyway.
+
+**PROVISIONAL, and it matters: our fallback ramp is roughly double the
+client's own planning figure.** The brief's 5% is **cumulative over the
+cycle** (30,000 x 95% = 28,500 saleable), not per day. Our fallback
+(0.15%/day, +0.35%/day after day 30) compounds to **~9.5% over 41
+days**. Until real data calibrates it, the fallback should be
+recalibrated to land near 5% cumulative, and the "is 100/day a count or
+a rate" reading is settled: **neither — it is a cumulative percentage of
+placement.** Do not act on this before U4; log it against OQ-12.
+
 ### OQ-2 · Abattoir fee and transport cost per bird 🔴 BLOCKS BULK RECOMMENDATION
 **Status:** Unanswered. **Blocks:** all allocation output.
 
@@ -86,6 +199,20 @@ from an unverified reading that rounded 1,754 to 1.77 kg.
 **Handling until answered:**
 - The rule stays exactly `first day weight_g >= 1770`. Not weakened to
   "approximate", not changed to "nearest day".
+- **PROVISIONAL, and it may invert the rule.** The brief explains where
+  1,770 g comes from: *"~1.77 kg live -> ~1.1 kg dressed"* (a 62%
+  dressing yield), and the bulk contract is banded on **dressed** weight
+  and pays **LESS as the bird gets heavier**: $3.90 at 1.1 kg dressed,
+  $3.80 at 1.2 kg, $3.70 at 1.3 kg. The brief says outright: *"heavier
+  birds may generate LESS revenue per bird. The model must highlight
+  this."*
+  So the target is not "reach 1,770 g and beyond" — it is **hit the
+  1.1 kg dressed band and stop**. Day 30's 1,754 g yields ~1.088 kg
+  dressed, still inside that band. That is an argument for day 30 over
+  day 31 that has nothing to do with rounding 1,754 up.
+  **This is a U4 concern, not a U2 one. Do not change fixture 10 now** —
+  it is marked provisional and its day-31 value follows the rule as
+  currently written. Raise it with the client before U4.
 - Golden fixture 10 encodes **day 31**, provisionally.
 - Harvest-day outputs carry `confidence: 'assumed'` until answered.
 
@@ -125,6 +252,14 @@ says $1.00.
 **Ask the client:** *"The 5,000-bird break-even figure of 2,675 — was
 that worked out at 85 cents a chick? At the $1.00 in the brief we get
 2,850."*
+
+**PROVISIONAL — the $0.85 hypothesis got weaker, not stronger.** The
+spreadsheet states $1.00 twice: `Initialization!B7 = 1` and Final
+Report `C3 = Init!B5*Init!B7 = $3,000` for 3,000 chicks. Neither file
+contains an $0.85 chick anywhere. The files cover a 3,000-bird batch and
+fixture 6 is the 5,000-bird scenario, so this is not decisive — but the
+one-sentence close stays as written and should not be softened toward
+$0.85.
 
 ### OQ-9 · Fixture 7 — hold cost day 30 → 35, 5,000 flock 🟠 REFRAMED
 **Status:** Not a discrepancy to reconcile. **Blocked on:** OQ-1 (answered)
@@ -197,6 +332,22 @@ how much reserve is enough before you'd start placing?"*
 / Build Reserve side by side rather than picking one. This is arguably
 better product regardless of the answer.
 
+**PROVISIONAL — the brief supplies the constraint but not the
+objective.** The 30,000 brief states a **minimum cash reserve** as a
+hard floor with selectable values **$5,000 / $10,000 / $15,000 /
+$20,000**, and: *"The dashboard should never recommend a cash/bulk
+allocation that causes projected cash to fall below the minimum reserve
+unless the user explicitly overrides it."* That validates
+`reserve_floor_cents` and the override path.
+
+On the objective itself the brief leans one way without settling it:
+*"Use cash sales to finance the cycle. Use the bulk buyer to absorb
+volume"*, and *"We do NOT want to sell everything live if the market
+cannot absorb it."* That is **Cover Fast as the working default**, with
+gate capacity as the binding constraint — which is also the sensible
+Auto fallback. Still not an answer to "would you place or hold $10,000",
+which is the part only Daniel can give.
+
 **Direction if the answer confirms the three goals — logged 2026-09-10,
 NOT yet an AD.** This depends on Daniel's answer and becomes a real AD
 only once OQ-3 confirms these three are the right goals to expose.
@@ -254,6 +405,23 @@ per-kg pricing, growth pays until mortality overtakes it around day 38.
 **Handling:** `pricing_basis: 'PER_BIRD' | 'PER_KG'` is a required
 field on every sales order. Default to `PER_BIRD` for gate, matching
 the brief, and surface the setting prominently.
+
+**PROVISIONAL — the source files disagree with each other, so this
+question is sharpened rather than closed:**
+- The **30,000 brief is per bird**, consistently: "$4.30 per bird", the
+  Live-vs-Bulk table's "Price $4.30", and the worked example "At
+  $4.30/bird, sell approximately 1,047 birds for cash."
+- The **spreadsheet is per kg**: Record `S43 = 2` ($2.00/kg),
+  `R43 = 8625` kg, `T43 = S43*R43 = $17,250`. A per-bird alternative
+  sits beside it at `U93 = J43*5` = $15,000 ($5.00/bird).
+
+Both are the client's. Keeping `PER_BIRD` as the default is still
+right — the brief is the more recent and more deliberate artifact — but
+**$2.00/kg is now a real observed gate rate** where before we had none.
+
+Note what this does to OQ-11: $4.30/bird at the 1,770 g target implies
+**$2.43/kg**, which is where the plan's unsourced "$2.46/kg" came from.
+The spreadsheet's actual $2.00/kg is a materially different number.
 
 ### OQ-12 · How much own-batch history is "sufficient" to calibrate 🟡
 **Status:** Open, assumed default. **Raised:** 2026-09-10, from OQ-1's answer.
