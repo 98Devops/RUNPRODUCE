@@ -253,8 +253,46 @@ avoids the largest complexity sink in the project.
   forbids it. Hand-rolled validation serves the intent. If a third
   place needs seed validation, revisit — the rule or the invariant
   should give, not the code silently.
-- **Next: Task 4** — `computeDecision()` stub and the golden fixture
-  runner.
+- **Task 4 — DONE** (`fb4a15e`). `packages/engine/src/index.ts` +
+  `tests/golden/_shared.ts` + `tests/golden.test.ts` +
+  `tests/golden-runner.test.ts`. `computeDecision()` throws
+  `computeDecision not implemented — U2`. The runner globs
+  `golden/*.json` and asserts **one dotted path per fixture**, so a
+  fixture pins a single field without the `Decision` shape being
+  settled. 7 new tests green (34 total); the one intended red is `loads
+  all 13 fixtures` — `expected [] to have a length of 13`. Lint,
+  typecheck and build clean.
+  `resolvePath` is tested in its own right: a **missing leaf resolves
+  to `undefined`**, but **traversing into a non-object throws**. Without
+  that split, a fixture whose path disagreed with the engine's shape
+  would assert against `undefined` and pass silently the moment U2
+  landed — a green test proving nothing.
+  **Two gaps the plan did not anticipate, both fixed:** `@types/node`
+  was absent so the `fs`-based loader would not typecheck (added as an
+  engine *devDependency* and to `tsconfig` `types` — types only, the
+  zero-runtime-dependency invariant is intact); and ESLint's
+  `no-unused-vars` does not honour the leading underscore that `tsc`'s
+  `noUnusedParameters` does, so the stub's `_input` failed lint. The two
+  conventions are now aligned repo-wide in `eslint.config.js`.
+- **Next: Task 5** — the 13 golden fixtures. Fixtures 7, 8, 10 and 11
+  stay held pending OQ-1 through OQ-4; nothing in task 4 depended on
+  them.
+
+**Zod vs. the zero-dependency invariant — settled (task 4).** The
+invariant wins. `code-standards.md` now states it as a rule rather than
+leaving it as an implicit precedent from `breed-curve.ts`: Zod stops at
+the app/API boundary, and JSON compiled into the engine is validated at
+import by hand. Validation stays mandatory; only the library is not.
+
+**⚠️ CI is red from here until U2, by design.** `npm test` is a CI step
+and the golden fixtures are meant to fail — so every run from `fb4a15e`
+until `computeDecision()` is implemented reports failure. That is the
+executable spec working as intended, but it means **CI red no longer
+signals a regression during this window**, and TD-2's close-out
+condition ("observed green on Node 20 with the real fixtures") cannot be
+met while the fixtures are red. Decide at task 5 whether to keep it red
+and read run logs by hand, or split the CI test step so the golden
+suite reports separately from the unit suites.
 
 **CI is live as of task 2.** Remote
 `https://github.com/98Devops/RUNPRODUCE.git`; first green run
