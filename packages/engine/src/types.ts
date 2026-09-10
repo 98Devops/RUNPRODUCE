@@ -516,6 +516,76 @@ export interface HarvestPlan {
   readonly hold_cost_to_day: Readonly<Record<string, HoldCost>>;
 }
 
+/**
+ * What a dated movement of money is, so the calendar can explain a balance
+ * rather than just assert one. Every flow names its source.
+ */
+export type CashFlowKind =
+  | 'CHICK_COST'
+  | 'FEED_DRAW_PAYMENT'
+  | 'OVERHEAD'
+  | 'GATE_RECEIPT'
+  | 'BULK_RECEIPT';
+
+export interface CashFlow {
+  readonly kind: CashFlowKind;
+  readonly date: IsoDate;
+  /** Positive for money in, negative for money out. Never an absolute value. */
+  readonly amount_cents: Cents;
+  readonly description: string;
+}
+
+/**
+ * One day of the cash projection.
+ *
+ * `closing_cents` of day N is `opening_cents` of day N+1, always — the
+ * calendar is a running balance, not a set of independent daily figures.
+ */
+export interface CashDay {
+  readonly day_number: number;
+  readonly date: IsoDate;
+  readonly opening_cents: Cents;
+  readonly in_cents: Cents;
+  readonly out_cents: Cents;
+  readonly closing_cents: Cents;
+  /** Every flow landing on this day, so a balance can be expanded. */
+  readonly flows: readonly CashFlow[];
+  /** True when `closing_cents` is below `parameters.reserve_floor_cents`. */
+  readonly breaches_reserve_floor: boolean;
+}
+
+/**
+ * The cash calendar: day-by-day opening / in / out / closing.
+ *
+ * The reserve floor is REPORTED here and never applied — AD-43 settles that
+ * the floor filters candidates rather than scoring them, and filtering is the
+ * allocation optimiser's job, not this module's.
+ *
+ * `through_day` is whatever the caller asked for. There is deliberately no
+ * default: AD-43 makes the 90-day calendar a DISPLAY horizon, while each
+ * allocation candidate is scored over its own completion horizon
+ * (`placement + 41 + terms_days`). A default here would let a caller silently
+ * inherit the wrong one, which is the window-mismatch error AD-36 names.
+ */
+export interface CashCalendar {
+  readonly days: readonly CashDay[];
+  readonly through_day: number;
+  readonly opening_cents: Cents;
+  readonly closing_cents: Cents;
+  /** The lowest closing balance across the projection. */
+  readonly minimum_cents: Cents;
+  /** The date `minimum_cents` occurs. The earliest such date if it recurs. */
+  readonly minimum_date: IsoDate;
+  readonly breaches_reserve_floor: boolean;
+  /** The first date the floor is breached, or null if it never is. */
+  readonly first_breach_date: IsoDate | null;
+  /**
+   * 'assumed' while overhead timing rests on charging at placement (OQ-19).
+   * Never 'measured' — no overhead payment date has been observed.
+   */
+  readonly overhead_timing: Confidence;
+}
+
 export interface Lever {
   readonly key: string;
   readonly description: string;
