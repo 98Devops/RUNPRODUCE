@@ -139,6 +139,23 @@ entitled to assume rather than a coding choice.
   other — a different throw would turn a held fixture red for a reason that is
   not about the fixture.
 
+**Reachability is now asserted, not assumed (OQ-27, closed).**
+`tests/engine-surface.test.ts` reads `src/` and fails if any module exports a
+value `index.ts` does not re-export — verified to fail on an injected unexported
+function rather than only written after the fix. The follow-up audit answered
+"was M5b a one-off?" instead of guessing: every engine module checked, exactly
+one other unreachable export (`costing.costOfFeed`, deliberate, now
+allowlisted with its reason). The lesson is written up in `code-standards.md`
+under Testing — a suite that reaches the code by a different route than the
+consumer cannot see what is wrong with the route it does not take.
+
+**U9 is bound on Cover Fast's null state before the screen exists.**
+`ui-context.md` now carries a required rendering rule for absent values
+generally, and for Cover Fast specifically: "not enough information yet", or
+name OQ-26 — never a blank, dash, zero or empty card. An empty Cover Fast panel
+reads as "there is no way to cover my costs": a financial verdict arrived at by
+accident, from a mode that never ran.
+
 **OQ-26 — Cover Fast structurally cannot answer.** Found by running M5b's own
 output rather than reading it: `pickWinner('COVER_FAST', ...)` returns null for
 every realistic input, including one where the running batch sells 2,900 birds

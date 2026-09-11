@@ -160,6 +160,45 @@ this small.
 - Engine branch coverage target: 95%. Elsewhere: whatever the flows
   naturally cover.
 
+### Passing tests do not prove a module is reachable
+
+**Every test in this repo imports a module directly** — `../src/feed.js`,
+`../src/allocation.js`. That proves the logic inside the module. It proves
+**nothing** about whether a consumer of `@runproduce/engine` can reach it.
+
+This is not hypothetical. **M5b shipped eight tasks, nine exported functions and
+35 passing tests with `allocation.ts` re-exported from nowhere.**
+`computeAllocation` was correct, tested, documented — and invisible from the
+package's only entry point. Every test passed the whole time, because every test
+bypassed the entry point.
+
+**So "tests pass" answers a narrower question than it appears to.** It says the
+code does what it claims *when you can call it*. Reachability is a separate
+property and needs its own assertion.
+
+**`tests/engine-surface.test.ts` now enforces it for the whole engine.** It
+reads `src/` and fails if any module exports a value `index.ts` does not
+re-export. It is written against the source rather than a hand-maintained list,
+so a new exported function is covered the moment it is written — there is no
+list to remember to update.
+
+**A deliberately-internal export goes on that file's `INTERNAL_CROSS_MODULE`
+allowlist with its reason**, never silently omitted. An allowlist entry is a real
+decision — it says consumers must not call this — and a second test fails if an
+allowlisted name stops existing, so the list cannot rot into precedent.
+
+**The audit that followed, for the record:** every other engine module was
+checked, and exactly one other export was unreachable — `costing.costOfFeed`,
+which is deliberate (`cash.ts` reuses it so feed rounds identically in both) and
+is now allowlisted. So the M5b gap was very nearly a one-off — but "nearly" was
+worth confirming rather than assuming, and the check is cheaper to keep than to
+repeat by hand.
+
+**The general lesson, beyond exports:** when a test suite and a consumer reach
+the code by different routes, the suite cannot see anything that is wrong with
+the route it does not take. Ask what the consumer's path is, and assert on that
+path at least once.
+
 ## File organization
 
 - `packages/engine/src/` — one file per calculation stage

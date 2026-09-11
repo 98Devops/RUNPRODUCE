@@ -214,6 +214,52 @@ popover shows:
 This pattern is the single most important UI element in the product. It
 is what converts a number the owner distrusts into one he acts on.
 
+## Rendering an absent value — REQUIRED, not a style preference
+
+The engine deliberately returns `null` and `missing_input` rather than
+inventing numbers (invariant 5). That discipline is **thrown away at the glass**
+if the UI renders an absence as something a farm owner reads as a finding.
+
+**The rule.** An absent value renders as a short phrase saying *why it is
+absent*. Never a blank cell, never `—`, never `N/A`, never `$0`, never a
+zeroed bar or an empty chart slot.
+
+| Engine returns | Renders as | Never |
+|---|---|---|
+| `missing_input` | "Needs your abattoir transport cost" — name the input he can supply | a blank, `—`, or a disabled-looking control with no explanation |
+| a `null` scalar | "Not enough information yet" plus what is missing | `0`, `—`, or omitting the row |
+| `fcr: null` (AD-27) | "No live weight to measure against" | `0.00`, `∞` |
+| `breaches_reserve_floor: null` | "Reserve floor not checked" | a green tick, or nothing |
+
+**The distinction that matters:** *"we could not work this out"* and *"we worked
+it out and the answer is nothing"* are different statements, and the second one
+is alarming. Collapsing the first into the second manufactures bad news.
+
+### Cover Fast specifically — U9 MUST handle this
+
+`decision.allocation.cover_fast` is `null` for every input today, and this is
+**structural, not a data gap** — see **OQ-26**. A candidate batch carries no
+forecast sales, so receipts never clear core credit and the scalar cannot fire
+until M6 models the channel split.
+
+**U9 must render that null as "not enough information yet — we cannot project
+this batch's own sales", or name OQ-26 directly.** It must NOT render it as a
+blank, a dash, a zero, or an empty recommendation card.
+
+**Why this is written down before the screen exists:** a farm owner reading an
+empty Cover Fast panel concludes *"there is no way to cover my costs"* — the
+single most alarming thing this product could tell him, arrived at by accident,
+from a mode that never ran. He would be reading a modelling limitation as a
+financial verdict, and he would have no way to tell the difference. This is the
+exact failure the explainability pattern exists to prevent, and it is cheaper to
+require now than to rediscover as a UX bug after U9 ships.
+
+**Applies to all three modes**, not only Cover Fast: any mode returning
+`missing_input` (Cover Fast and Build Reserve, for any bulk-inclusive candidate,
+pending OQ-2 and OQ-16) renders the refusal text the engine supplies. That text
+already explains the asymmetry — that Maximum Growth answering while the others
+refuse is expected — so surface it rather than writing a new one.
+
 ## Number formatting rules
 
 - Money: `$11,504` — no cents in summary views, cents in ledgers

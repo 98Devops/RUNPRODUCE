@@ -1201,6 +1201,32 @@ throws `NotImplementedError` ("still holds the module U5 has not built"), and
 that test would fail on the ceiling throw while the getter is no more usable
 than before. Task 9 lands with Task 8, not before it.
 
+### OQ-27 · A whole module was unreachable and every test passed ✅ CLOSED 2026-09-11
+**Status:** Closed by a permanent test the same day it was found.
+**Raised:** 2026-09-11, finishing M5b. **This was ours, not Daniel's.**
+
+**What happened.** `allocation.ts` — nine exported functions, eight tasks, 35
+passing tests — was never re-exported from `index.ts`. `computeAllocation` was
+correct and invisible from the package's only entry point. Nothing failed,
+because every test imports `../src/allocation.js` directly.
+
+**The generalisable part:** a test suite that reaches the code by a different
+route than the consumer cannot see anything wrong with the route it does not
+take. "Tests pass" means the logic is right *when you can call it*.
+
+**Closed by `tests/engine-surface.test.ts`**, which reads `src/` and fails if
+any module exports a value `index.ts` does not re-export — written against the
+source, so there is no list to remember to update. Verified to fail on an
+injected unexported function, not merely written after the fix. Deliberately
+internal exports go on an `INTERNAL_CROSS_MODULE` allowlist with their reason,
+and a second test fails if an allowlisted name stops existing.
+
+**The audit answered "was this a one-off?" rather than assuming.** Every engine
+module was checked. Exactly one other export was unreachable —
+`costing.costOfFeed`, deliberate (`cash.ts` reuses it so feed rounds
+identically in both), now allowlisted. So: nearly a one-off, and worth
+confirming. Written up in `code-standards.md` under Testing.
+
 ### OQ-26 · Cover Fast structurally cannot answer 🔴 INTERNAL
 **Status:** Open, **pinned by a test rather than left to be discovered**.
 **Raised:** 2026-09-11, from reviewing M5b's own output after Task 8.
@@ -1238,6 +1264,14 @@ birds it would sell, when, through which channel. That is a real modelling
 decision (it needs the gate/bulk split M6 exists to make), not a patch to the
 scalar. Until then Cover Fast should be presented as unavailable rather than as
 having no answer.
+
+**U9 is already bound on this, so it cannot be rediscovered as a UX bug.**
+`ui-context.md` now carries a required rendering rule: Cover Fast's null must
+render as "not enough information yet — we cannot project this batch's own
+sales", or name OQ-26 directly, and never as a blank, a dash, a zero or an empty
+card. An empty Cover Fast panel reads to a farm owner as *"there is no way to
+cover my costs"* — a financial verdict, arrived at by accident, from a mode that
+never ran.
 
 **Do NOT close it by lowering the bar.** Scoring against something cheaper to
 compute — days to first receipt, or the running batch's receipts alone — would
