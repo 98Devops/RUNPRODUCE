@@ -4,6 +4,7 @@ import {
   enumerateCandidates,
   handoffAtPlacement,
   pickWinner,
+  placeNothing,
   projectCandidate,
   scoreCandidate
 } from '../src/allocation.js';
@@ -330,5 +331,36 @@ describe('pickWinner', () => {
     const never = at('2026-04-03', 300, 0n);
     const clears = { ...at('2026-04-10', 100, 0n), cover_fast_days: 55 };
     expect(pickWinner('COVER_FAST', [never, clears])?.winner.candidate.chick_count).toBe(100);
+  });
+});
+
+describe('placeNothing', () => {
+  it('avoids the PER_BATCH overhead and no more', () => {
+    const handoff = handoffAtPlacement(
+      baseInput(),
+      feedFor(baseInput()),
+      0n as Cents,
+      '2026-04-03' as IsoDate
+    );
+    const nothing = placeNothing(baseInput(), handoff);
+
+    // AD-26 / AD-41: labour $640 + electricity $140 = $780 is what NOT placing
+    // avoids. PER_BIRD lines scale to zero birds on their own and are not
+    // "avoided" — counting them here would double the saving.
+    expect(nothing.overhead_avoided_cents).toBe(78_000n);
+  });
+
+  it('is not a zero-bird batch flowing through the standard fields', () => {
+    const handoff = handoffAtPlacement(
+      baseInput(),
+      feedFor(baseInput()),
+      0n as Cents,
+      '2026-04-03' as IsoDate
+    );
+    const nothing = placeNothing(baseInput(), handoff);
+
+    // It carries the overhead arithmetic that justifies it, and no candidate.
+    expect('candidate' in nothing).toBe(false);
+    expect('maximum_growth_birds' in nothing).toBe(false);
   });
 });

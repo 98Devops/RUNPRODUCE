@@ -3,6 +3,7 @@ import { projectCashCalendar } from './cash.js';
 import { addDays } from './day-number.js';
 import { computeCosting } from './costing.js';
 import { computeFeedLiability } from './feed.js';
+import { SEED_OVERHEADS, overheadBreakdown } from './overheads.js';
 import { projectProduction } from './production.js';
 import type {
   AllocationMode,
@@ -14,6 +15,7 @@ import type {
   FeedLiability,
   IsoDate,
   ModeWinner,
+  PlaceNothing,
   RunningBatchHandoff,
   ScoredCandidate
 } from './types.js';
@@ -232,4 +234,27 @@ export function pickWinner(
   const tied_candidates = ranked.filter((s) => better(s, winner) === 0).length;
 
   return { mode, winner, tied_candidates, candidates_considered: scored.length };
+}
+
+/**
+ * The outcome where the best candidate is to place no next batch at all.
+ *
+ * A real answer with its own overhead justification (AD-41), never a zero-bird
+ * batch through the standard fields: that would put $0 of revenue and the full
+ * PER_BATCH overhead into a projection as though a batch existed.
+ */
+export function placeNothing(input: EngineInput, handoff: RunningBatchHandoff): PlaceNothing {
+  const overheads = input.parameters.overheads ?? SEED_OVERHEADS;
+  // Only PER_BATCH lines are avoided by not placing. PER_BIRD lines scale to
+  // zero on their own, so counting them as "avoided" would double the saving.
+  const perBatch = overheadBreakdown(overheads, 0).filter((line) => line.basis === 'PER_BATCH');
+  const overhead_avoided_cents = perBatch.reduce((sum, line) => sum + line.cents, 0n) as Cents;
+
+  const carriedSum = handoff.carried_flows.reduce((sum, f) => sum + f.amount_cents, 0n);
+
+  return {
+    overhead_avoided_cents,
+    overhead_still_incurred_cents: 0n as Cents,
+    closing_cents: (handoff.opening_cents + carriedSum) as Cents
+  };
 }

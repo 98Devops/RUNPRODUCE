@@ -267,6 +267,21 @@ export interface ModeWinner {
   readonly candidates_considered: number;
 }
 
+/**
+ * Placing no next batch, as its own outcome with its own arithmetic — never a
+ * zero-bird batch through the standard fields (AD-41).
+ *
+ * KNOWN LIMITATION: `closing_cents` is the running batch's handoff summed, not
+ * a projection, so it cannot report a reserve-floor breach of its own. If that
+ * matters it needs a real projection with zero flows.
+ */
+export interface PlaceNothing {
+  /** PER_BATCH overhead only. PER_BIRD lines scale to zero unaided. */
+  readonly overhead_avoided_cents: Cents;
+  readonly overhead_still_incurred_cents: Cents;
+  readonly closing_cents: Cents;
+}
+
 export interface Candidate {
   readonly placement_date: IsoDate;
   readonly chick_count: number;
