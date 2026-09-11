@@ -996,42 +996,35 @@ git commit -m "feat(engine): place_nothing as its own outcome, with its overhead
 
 ## Task 8: `computeAllocation` — and the two-blocked-one-working refusal
 
-> **DO NOT START THIS TASK. Blocked on OQ-23.** The enumeration ceiling below
-> was wrong in the plan's first draft, and wrong in a way worth understanding
-> before rewriting it: it derived the ceiling from **gate capacity**, which
-> caps how fast a batch converts to same-day cash, not how large a batch can
-> be. The client's own brief settles it — *"Use the bulk buyer to absorb
-> volume"* — and CONTEXT.md's **Max safe batch size** is a gate-derived
-> **output**, not the enumeration's bound. The two share a formula and are not
-> the same quantity. `maxChickCount` needs a real source, and
-> `gate_capacity_per_day` is the only capacity field `Parameters` has.
+> **UNBLOCKED 2026-09-11. OQ-23 is answered.** The ceiling is **operator-
+> entered**, not derived: the client's own requirements call says the placement
+> field should take *"any figure technically"*, with **5,000** realistic today
+> and **30,000** the brief's planning target. So `requirePlacementCeiling`
+> reads a real `Parameters.max_placement_birds`, and still **throws when it is
+> absent** — a default there would invent the number that decides how much of
+> the decision space the engine will even look at.
 >
-> **Tasks 1-7 are unaffected** — none of them reads the ceiling. They are
-> **built and green** (2026-09-11).
+> The same source confirms the conflation that raised OQ-23: *"they can 7k
+> birds on the gate but for them to push aggressively to 15k they will be risk
+> of pre harvest loss."* Gate absorption and placement size, named as different
+> quantities in one sentence by the client. The ceiling is **not** gate-derived.
 >
-> **Task 9 is NOT unaffected.** This line said "Tasks 1-7 and 9" and was wrong;
-> Task 9's own **Interfaces** block (`Consumes: computeAllocation (Task 8)`)
-> is the accurate statement. Task 9 wires `decision.allocation` to
-> `computeAllocation`, so it cannot be written until Task 8 exists. It is
-> blocked on OQ-23 transitively and lands with Task 8.
->
-> **`requirePlacementCeiling` in the code below is a deliberate hole, not a
-> function you can go and write.** Its contract, for when OQ-23 lands:
->
-> ```ts
-> // Reads Parameters.max_placement_birds — a field that does NOT exist yet,
-> // because nobody has told us what caps a placement. When OQ-23 is answered
-> // it is added to Parameters alongside placement_step_birds, carries its own
-> // confidence ('measured' if Daniel states a house or supply limit,
-> // 'assumed' otherwise), and this helper returns it.
-> //
-> // Until then it must THROW rather than default. A default here would invent
-> // the single number that decides how much of the decision space the engine
-> // is even willing to look at — the largest possible instance of the mistake
-> // invariant 5 names. The brief's 30,000 is a document heading, not a stated
-> // constraint, and reading a ceiling off a title is exactly the AD-36 error.
-> function requirePlacementCeiling(parameters: Parameters): number;
-> ```
+> **Bulk scoring remains blocked, and this task must not paper over it.**
+> Verified in code 2026-09-11 rather than assumed: a bulk-inclusive input
+> returns `abattoir_fee`, `transport_cents_per_bird` and `bulk_price`; with
+> BOTH OQ-2 values supplied it still returns `bulk_price`, because OQ-16 gates
+> the formula independently. A gate-only input returns no refusals. The
+> two-blocked-one-working asymmetry below is therefore live and testable now.
+
+**`requirePlacementCeiling` contract, now buildable:**
+
+```ts
+// Reads Parameters.max_placement_birds. Throws when absent — never defaults.
+// OQ-23 settled the SOURCE (the operator types it) but not a value the engine
+// may assume: 5,000 is today's realistic scale and 30,000 the brief's target,
+// and picking either would be the AD-36 error at the largest possible scale.
+function requirePlacementCeiling(parameters: Parameters): number;
+```
 
 **Files:**
 - Modify: `packages/engine/src/allocation.ts`, `packages/engine/src/types.ts`

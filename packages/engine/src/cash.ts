@@ -43,9 +43,9 @@ export function cashFlowsMissingInputs(input: EngineInput): MissingInput[] {
       key: 'transport_cents_per_bird',
       why:
         'Bulk net needs transport to the abattoir (OQ-2), and OQ-16 gates it ' +
-        'independently: the Final Report already books an Other/Transport line for a ' +
-        'gate-sold batch, and the brief says do not double-count. An answered OQ-2 does ' +
-        'not release OQ-16.'
+        'independently: the Final Report already books a $400 Other/Transport line on a ' +
+        'batch that was itself sold entirely in bulk, so it may already BE this run, and ' +
+        'the brief says do not double-count. An answered OQ-2 does not release OQ-16.'
     });
   }
   // OQ-16 is a question about the FORMULA — whether transport belongs in bulk
@@ -60,10 +60,10 @@ export function cashFlowsMissingInputs(input: EngineInput): MissingInput[] {
     key: 'bulk_price',
     why:
       'OQ-16 asks whether transport belongs in bulk net at all, given the Final Report ' +
-      'already books an Other/Transport line for a gate-sold batch — a question about the ' +
-      'bulk-net FORMULA, not its inputs. Supplying abattoir_fee_cents and ' +
-      'transport_cents_per_bird does not release it: no BULK candidate is scoreable until ' +
-      'OQ-16 is answered.'
+      'already books a $400 Other/Transport line on a batch that was itself sold entirely ' +
+      'in bulk (13.3c/bird across 3,000) — a question about the bulk-net FORMULA, not its ' +
+      'inputs. Supplying abattoir_fee_cents and transport_cents_per_bird does not release ' +
+      'it: no BULK candidate is scoreable until OQ-16 is answered.'
   });
   return missing;
 }
@@ -299,17 +299,19 @@ export function projectCashCalendar(
       // abattoir_fee_cents and transport_cents_per_bird, though: the guard
       // above checks only whether the VALUES are present, not whether we
       // know how to combine them. OQ-16 asks whether transport belongs in
-      // bulk net at all, since the Final Report already books a transport
-      // line for a gate-sold batch — a question values alone cannot
-      // answer. So this throws unconditionally for BULK, independent of
+      // bulk net at all, since the Final Report books a $400 transport line
+      // on a batch that was itself sold ENTIRELY IN BULK (Record!row 43:
+      // 8,625 kg at $2.00/kg on day 41), so that line may already be this
+      // very run — a question values alone cannot answer. So this throws unconditionally for BULK, independent of
       // the guard, until the bulk-net formula itself is settled; booking
       // the gross contract price here would silently answer OQ-16 in the
       // client's stead, which is the wrong-balance invariant 5 forbids.
       throw new Error(
         'Cannot book a BULK receipt: bulk net is contract price minus abattoir fee minus ' +
           'transport, and whether transport belongs here at all is OQ-16 — the Final Report ' +
-          'already books a transport line for a gate-sold batch. Implement the net when OQ-2 ' +
-          'and OQ-16 are both answered; do not book the gross contract price.'
+          'already books a $400 transport line on a batch that was itself sold entirely in ' +
+          'bulk, so it may already BE this run. Implement the net when OQ-2 and OQ-16 are ' +
+          'both answered; do not book the gross contract price.'
       );
     }
     // A gate sale is cash on the day, priced at the order's own terms_days

@@ -317,10 +317,32 @@ a code comment, so that answering OQ-2 cannot silently unblock bulk
 allocation while this is still open. **Affects:** whether bulk economics
 double-counts transport.
 
-`overhead_lines.transport_other` is the Final Report's $400 on a batch
-sold at the gate. `Parameters.transport_cents_per_bird` is the run to
-the abattoir, still null pending OQ-2. The brief says "Do not
-double-count costs", and these two could be the same truck.
+`overhead_lines.transport_other` is the Final Report's $400.
+`Parameters.transport_cents_per_bird` is the run to the abattoir, still null
+pending OQ-2. The brief says "Do not double-count costs", and these two could
+be the same truck.
+
+**PREMISE CORRECTED 2026-09-11 — and it moves the odds toward a
+double-count, not away.** This entry previously said the $400 sat on "a batch
+sold at the gate". **It did not.** Read from the client workbook
+(`RUNproduce Broiler Management .xlsx`):
+
+- `Final Report`!C8 — "Other Expenses/Transport" = **400**, a hardcoded
+  constant with no formula, alongside vaccine 42, electricity 140, labour 640.
+- `Record`!row 43 is the **only** sale in the entire workbook: day 41, all
+  3,000 birds, avg **2,875 g**, **8,625 kg at $2.00/kg = $17,250**. One
+  transaction, whole flock, per-kg. Income runs 0 to 17,250 on that row and
+  never moves again.
+
+One lot, per-kg, below the gate's per-kg equivalent (~$2.43/kg at $4.30 for
+a 1.77 kg bird) — that is a **contract/bulk** sale, not gate trade. So the
+$400 sat on a batch sold **100% in bulk**, which makes it MORE likely to
+already be the abattoir run, not less. $400 / 3,000 = **13.3c per bird**, a
+plausible transport figure in its own right.
+
+**This raises the stakes on the question rather than answering it.** If the
+$400 is the abattoir run and we also charge `transport_cents_per_bird`, we
+bill the same truck twice on every bulk batch.
 
 **Ask the client:** *"Is the $400 transport on your final report the feed
 and chick collection, or does it include taking birds to the abattoir?"*
@@ -1076,8 +1098,40 @@ step determines carries `confidence: 'assumed'`. See AD-41.
 **Does not block U5.** The parameter is the whole mechanism, and a different
 answer changes its default rather than any code. Ask it with the rest.
 
-### OQ-23 · What actually caps a placement? 🔴 BLOCKS M5b TASK 8
-**Status:** Open. **Raised:** 2026-09-11, from writing M5b's plan against the
+### OQ-23 · What actually caps a placement? ✅ ANSWERED 2026-09-11
+**Answer (client, from the original requirements call):** **nothing in the
+engine caps it — the operator types it in.**
+
+> *"They are not placing 30k birds per cycle but the system should be adjust
+> and be flexible for 30K so for that field they should put **any figure
+> technically** but most realistic starting example would be **5K**, so the
+> field should be dynamic and flexible for any per cycle figure in the system
+> adjusts"*
+
+**So:** `max_placement_birds` is a required `Parameters` field with **no
+derived default and no hardcoded cap**. **5,000** is the realistic current
+scale; **30,000** is the aspirational target the brief plans against
+("Target placement: 30,000 DOCs", with ~5% planning mortality). Neither is a
+ceiling the engine may assume — absent the field, `requirePlacementCeiling`
+throws, exactly as the M5b plan specified.
+
+**The same source independently confirms the conflation this question was
+raised to name.** From the same call: *"they can **7k birds on the gate** but
+for them to push aggressively to 15k they will be risk of pre harvest loss."*
+Gate absorption (7k) and placement size (15k, 30k) are stated as different
+quantities by the client himself, in one sentence. The gate-derived ceiling
+was wrong for exactly the reason argued below.
+
+**Consequence: M5b Task 8 is unblocked on the ceiling.** It remains blocked
+for **bulk scoring** on OQ-2 transport and OQ-16 — verified in code on
+2026-09-11, not assumed: a bulk-inclusive input returns `abattoir_fee`,
+`transport_cents_per_bird` and `bulk_price`; supplying both OQ-2 values still
+leaves `bulk_price`, because OQ-16 gates the formula independently. A
+gate-only input returns no refusals and is scoreable today.
+
+**Superseded framing below, kept for the reasoning.**
+
+**Status (before the answer):** Open. **Raised:** 2026-09-11, from writing M5b's plan against the
 real `projectCashCalendar` signature. **Affects:** the upper bound of the
 allocation enumeration — i.e. the largest batch the optimiser is allowed to
 consider at all.
@@ -1146,6 +1200,41 @@ yet — but `decision.test.ts` **does** assert that reading `allocation`
 throws `NotImplementedError` ("still holds the module U5 has not built"), and
 that test would fail on the ceiling throw while the getter is no more usable
 than before. Task 9 lands with Task 8, not before it.
+
+### OQ-24 · The workbook carries TWO feed prices 🟡 NOT YET ASKED
+**Status:** Open, **deliberately not sent to Daniel yet** (2026-09-11) — it
+blocks nothing currently in progress, and two more urgent questions (OQ-2
+transport, OQ-16) are in front of him. Ask it when those land, or sooner if
+feed costing comes under review. **Raised:** 2026-09-11, from reading
+`RUNproduce Broiler Management .xlsx` while checking OQ-16.
+**Affects:** every feed liability figure the engine produces.
+
+**The discrepancy.** The client's own workbook prices feed two different ways:
+
+| Source | Price | Per kg |
+|---|---|---|
+| `Feed Account`!D — "Est. Cost" per bag | **$29.60** | $0.592 |
+| `Record`!F — cost of feed per kg | $0.65 starter, $0.60-0.62 grower/finisher | **$0.65** = **$32.50**/bag |
+
+**The engine follows `Record`** — `SEED_BREED_CURVE`'s phase prices are the
+per-kg figures, and fixture 1's $8,079.81 comes straight from `Record`!N. So
+if the supplier actually invoices **$29.60**, every feed liability we report is
+**overstated by roughly 9%**, in the pessimistic direction.
+
+**Why it is not obviously a defect.** The column is headed **"Est. Cost"** —
+an estimate, possibly stale, possibly a different (older or bulk-discounted)
+supplier price. `Record`!F is what he actually costs consumption at. Both
+readings are plausible and we cannot pick between them from the file.
+
+**The ask:** *"Your feed account sheet has bags at $29.60 but your daily record
+costs feed at $0.65/kg, which works out to $32.50 a bag — which one does the
+supplier actually invoice you?"*
+
+**Handling until answered:** unchanged. The engine keeps using `Record`'s
+per-kg prices, which are the client's own measured figures and the ones every
+golden fixture was built from. **Nothing is switched to $29.60 on a guess** —
+that would move every feed number in the system on an inference from a column
+header. Related: [[OQ-21]], which is the other thing `Feed Account` raises.
 
 ### OQ-22 · `bulk_price_cents_per_bird` is declared and never read 🟡 INTERNAL
 **Status:** Open, documented in place, **behaviour deliberately unchanged**.
@@ -1561,7 +1650,8 @@ recommendation — divergences are the most valuable data available.
 | U5 · bulk net revenue computation | OQ-2 (transport) **and** OQ-16 — both required, neither sufficient alone |
 | U5 · any **bulk-inclusive** candidate score | OQ-2 (transport) **and** OQ-16. The enumeration's SHAPE is buildable today and is spec'd; a candidate routing birds to bulk returns `missing_input` naming both gaps, never a gate-only figure dressed as complete |
 | Calibrated `MaxSafeBatchSize` | OQ-1 (mortality data) |
-| M5b · Task 8, the enumeration ceiling | OQ-23 — what actually caps a placement. Tasks 1-7 do not read it and are **built**; **Task 9 is blocked too**, transitively — it wires `decision.allocation` to `computeAllocation`, which is Task 8 |
+| ~~M5b · Task 8, the enumeration ceiling~~ | **UNBLOCKED 2026-09-11.** ~~OQ-23~~ answered: the ceiling is an operator-entered `max_placement_birds`, no derived cap. Tasks 1-7 built; Tasks 8 and 9 now proceed, with **bulk scoring still refused** on OQ-2/OQ-16 |
+| M5b · scoring any **bulk-inclusive** candidate | OQ-2 transport **and** OQ-16. Verified in code 2026-09-11: supplying both OQ-2 values still leaves `bulk_price`, because OQ-16 gates the formula independently. Gate-only candidates score today |
 | U3 · pricing a **part-bag** draw | OQ-21 — the client question half only. **The crash half landed 2026-09-11**: a part-bag draw now returns a typed `feed_draw_bags` refusal instead of a `RangeError` |
 | Default strategy selection | ~~OQ-3~~ answered; mode set decided (AD-35) |
 | ~~Gate harvest window past day 32~~ | **Moot.** Built in U4: under the settled flat gate price the window ends at day 31, so there is no "past day 32" to unblock. It reopens only if per-kg gate pricing becomes the default — see OQ-11 |
