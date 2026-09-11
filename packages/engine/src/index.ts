@@ -95,7 +95,7 @@ export function computeDecision(input: EngineInput): DecisionResult {
  * rather than substituting a plausible number — a blank the client can fill is
  * always better than a confident wrong figure he cannot audit.
  */
-function missingInputsFor(input: EngineInput): MissingInput[] {
+export function missingInputsFor(input: EngineInput): MissingInput[] {
   const missing: MissingInput[] = [];
 
   /**

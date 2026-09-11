@@ -1,9 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { enumerateCandidates, handoffAtPlacement } from '../src/allocation.js';
+import {
+  candidateInput,
+  enumerateCandidates,
+  handoffAtPlacement,
+  projectCandidate
+} from '../src/allocation.js';
 import { projectCashCalendar } from '../src/cash.js';
 import { computeFeedLiability } from '../src/feed.js';
+import { missingInputsFor } from '../src/index.js';
 import { projectProduction } from '../src/production.js';
-import type { Cents, EngineInput, Grams, IsoDate, Parameters } from '../src/types.js';
+import type { Candidate, Cents, EngineInput, Grams, IsoDate, Parameters } from '../src/types.js';
 
 const PLACEMENT = '2026-02-06' as IsoDate;
 
@@ -146,5 +152,74 @@ describe('handoffAtPlacement', () => {
     // up to what it did undivided. This is the test that catches a flow landing
     // on both sides of the split.
     expect(handoff.opening_cents + carriedSum).toBe(full.closing_cents);
+  });
+});
+
+describe('candidateInput', () => {
+  it('describes the candidate batch, not the running one', () => {
+    const c: Candidate = { placement_date: '2026-04-03' as IsoDate, chick_count: 2500 };
+    const synthetic = candidateInput(baseInput(), c);
+
+    expect(synthetic.batch.placement_date).toBe('2026-04-03');
+    expect(synthetic.batch.chick_count).toBe(2500);
+    // A candidate has no history: records, draws and sales are the running
+    // batch's and must not be inherited, or its mortality would be replayed.
+    expect(synthetic.records).toEqual([]);
+    expect(synthetic.draws).toEqual([]);
+    expect(synthetic.sales).toEqual([]);
+  });
+
+  it('carries a gate price, so the decision does not refuse on gate_price', () => {
+    const c: Candidate = { placement_date: '2026-04-03' as IsoDate, chick_count: 2500 };
+    // The M4 review fix wave made missingInputsFor emit 'gate_price' when the
+    // active basis has a null price. A synthetic input that dropped parameters
+    // would refuse to compute for a reason that has nothing to do with M5b.
+    expect(missingInputsFor(candidateInput(baseInput(), c)).map((m) => m.key)).not.toContain(
+      'gate_price'
+    );
+  });
+
+  it('sets asOf to the placement date, so no lookahead is claimed', () => {
+    const c: Candidate = { placement_date: '2026-04-03' as IsoDate, chick_count: 2500 };
+    expect(candidateInput(baseInput(), c).asOf).toBe('2026-04-03');
+  });
+});
+
+describe('projectCandidate', () => {
+  it("scores over the candidate's own completion horizon, not a fixed window", () => {
+    const c: Candidate = { placement_date: '2026-04-03' as IsoDate, chick_count: 2500 };
+    const handoff = handoffAtPlacement(
+      baseInput(),
+      feedFor(baseInput()),
+      0n as Cents,
+      c.placement_date
+    );
+
+    // AD-43: placement + 41 + terms_days. 41 + 30 = 71.
+    expect(projectCandidate(baseInput(), c, handoff).through_day).toBe(71);
+  });
+
+  it('gives a later candidate the same number of its own days as an earlier one', () => {
+    const early: Candidate = { placement_date: '2026-04-03' as IsoDate, chick_count: 2500 };
+    const late: Candidate = { placement_date: '2026-05-03' as IsoDate, chick_count: 2500 };
+    const h1 = handoffAtPlacement(
+      baseInput(),
+      feedFor(baseInput()),
+      0n as Cents,
+      early.placement_date
+    );
+    const h2 = handoffAtPlacement(
+      baseInput(),
+      feedFor(baseInput()),
+      0n as Cents,
+      late.placement_date
+    );
+
+    // The AD-36 error this guards: a fixed 90-day window from asOf would give
+    // the later candidate 30 fewer of its OWN days, and Build Reserve would
+    // prefer early placement for a window-truncation artefact.
+    expect(projectCandidate(baseInput(), late, h2).days.length).toBe(
+      projectCandidate(baseInput(), early, h1).days.length
+    );
   });
 });

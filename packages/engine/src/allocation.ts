@@ -1,8 +1,11 @@
 import { SEED_BREED_CURVE } from './breed-curve.js';
 import { projectCashCalendar } from './cash.js';
 import { addDays } from './day-number.js';
+import { computeFeedLiability } from './feed.js';
+import { projectProduction } from './production.js';
 import type {
   Candidate,
+  CashCalendar,
   CashFlow,
   Cents,
   EngineInput,
@@ -88,4 +91,54 @@ export function handoffAtPlacement(
   }
 
   return { opening_cents, carried_flows };
+}
+
+/**
+ * A candidate rendered as an `EngineInput`, because that is the only thing
+ * `projectCashCalendar` consumes — there is no candidate type it accepts.
+ *
+ * Records, draws and sales are emptied deliberately. They belong to the
+ * RUNNING batch; inheriting them would replay its mortality and re-book its
+ * feed against a batch that has not been placed. The running batch reaches the
+ * projection through `handoff.carried_flows` instead, which is where its
+ * obligations actually belong.
+ *
+ * `asOf` is the placement date: a candidate has no history to be `asOf` after,
+ * and invariant 7 forbids reading past it anyway.
+ */
+export function candidateInput(input: EngineInput, candidate: Candidate): EngineInput {
+  return {
+    asOf: candidate.placement_date,
+    batch: {
+      placement_date: candidate.placement_date,
+      chick_count: candidate.chick_count,
+      // A candidate is what we would ORDER. Extra chicks are the hatchery's
+      // gift and are not orderable, so a candidate never assumes any (KB-1 is
+      // about counting the ones that arrive, not forecasting them).
+      extra_chick_count: 0,
+      chick_price_cents: input.batch.chick_price_cents
+    },
+    parameters: input.parameters,
+    ...(input.curve === undefined ? {} : { curve: input.curve }),
+    records: [],
+    draws: [],
+    sales: []
+  };
+}
+
+export function projectCandidate(
+  input: EngineInput,
+  candidate: Candidate,
+  handoff: RunningBatchHandoff
+): CashCalendar {
+  const synthetic = candidateInput(input, candidate);
+  const curve = synthetic.curve ?? SEED_BREED_CURVE;
+  const lastCurveDay = curve.points[curve.points.length - 1]!.day_number;
+
+  // AD-43's own-completion horizon, passed explicitly because AD-47 gave
+  // throughDay no default precisely so this choice cannot be inherited wrong.
+  const throughDay = lastCurveDay + synthetic.parameters.feed_terms_days;
+
+  const feed = computeFeedLiability(synthetic, projectProduction(synthetic));
+  return projectCashCalendar(synthetic, throughDay, handoff.opening_cents, feed, handoff.carried_flows);
 }
