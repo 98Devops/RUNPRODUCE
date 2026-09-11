@@ -1201,6 +1201,60 @@ throws `NotImplementedError` ("still holds the module U5 has not built"), and
 that test would fail on the ceiling throw while the getter is no more usable
 than before. Task 9 lands with Task 8, not before it.
 
+### OQ-25 · The engine has no cash balance, and M5b needs one 🔴 BLOCKS M5b TASK 9
+**Status:** Open. **Raised:** 2026-09-11, from executing M5b Task 9.
+**Affects:** whether `decision.allocation` can be wired at all.
+**This is ours, not Daniel's** — it is a decision about what the engine is
+entitled to assume, not a question he can answer.
+
+**The defect in the plan.** Task 9's getter passes
+`input.parameters.reserve_floor_cents` as `computeAllocation`'s `openingCents`.
+Those are **different quantities**:
+
+| Quantity | What it is |
+|---|---|
+| `openingCents` | The cash the business actually HAS on the placement date. Every candidate's projection starts here. |
+| `reserve_floor_cents` | The minimum it must KEEP. A constraint the running balance is tested against. |
+
+Feeding the floor in as the balance starts every projection from a number that
+was never a balance, and it does so *silently* — the arithmetic all works, the
+types all match, and every figure downstream is wrong by the size of the floor.
+
+**And there is nothing correct to pass instead.** Verified 2026-09-11:
+`EngineInput` and `Parameters` carry **no** cash balance field
+(`opening_cash`, `cash_balance`, `opening_balance` — none exist). The data is
+in the architecture as `cash_accounts.opening_balance_cents`, but that is
+**U6**, which is not built and which the build order says not to reorder.
+
+**`0n` is not the safe default it looks like.** It asserts the client has no
+money. That is a fabricated fact, and it is not even conservative in a useful
+direction: it makes every candidate look unaffordable against a positive
+reserve floor, so the optimiser would return "nothing is affordable" for
+structural reasons rather than financial ones — a confident wrong answer
+dressed as prudence.
+
+**Three options, none chosen:**
+
+1. **Add `opening_cash_cents` to `Parameters` as a required-on-use field**,
+   and have `decision.allocation` return a typed refusal naming it when absent.
+   Consistent with how `gate_price` and `max_placement_birds` already behave.
+   Costs: `AllocationResult` needs a whole-result refusal shape, which it does
+   not have — today only individual modes can refuse.
+2. **Leave the getter throwing `NotImplementedError` until U6 supplies a
+   balance.** Zero new surface, honest, and keeps the golden-fixture hold
+   mechanism working (`classifyFixture` holds only on that exact type). Costs:
+   M5b ships without its public entry point, and `computeAllocation` stays
+   reachable only by direct call.
+3. **Make `openingCents` an explicit argument to `computeDecision`.** Pushes
+   the decision to the caller, where the balance actually lives. Costs: changes
+   the engine's only public signature, which every fixture and consumer uses.
+
+**Recommendation: option 2 until U6.** It is the only one that adds no new
+guess and no new API surface, and it preserves the CI property that a fixture
+targeting `decision.allocation` stays *held* rather than failing. Options 1 and
+3 are both reasonable once there is a real balance to carry; picking between
+them before U6 exists is deciding in the dark.
+
 ### OQ-24 · The workbook carries TWO feed prices 🟡 NOT YET ASKED
 **Status:** Open, **deliberately not sent to Daniel yet** (2026-09-11) — it
 blocks nothing currently in progress, and two more urgent questions (OQ-2
@@ -1651,6 +1705,7 @@ recommendation — divergences are the most valuable data available.
 | U5 · any **bulk-inclusive** candidate score | OQ-2 (transport) **and** OQ-16. The enumeration's SHAPE is buildable today and is spec'd; a candidate routing birds to bulk returns `missing_input` naming both gaps, never a gate-only figure dressed as complete |
 | Calibrated `MaxSafeBatchSize` | OQ-1 (mortality data) |
 | ~~M5b · Task 8, the enumeration ceiling~~ | **UNBLOCKED 2026-09-11.** ~~OQ-23~~ answered: the ceiling is an operator-entered `max_placement_birds`, no derived cap. Tasks 1-7 built; Tasks 8 and 9 now proceed, with **bulk scoring still refused** on OQ-2/OQ-16 |
+| M5b · Task 9, wiring `decision.allocation` | **OQ-25** — the engine holds no cash balance to pass as `openingCents`, and the plan passed `reserve_floor_cents`, a different quantity. Recommendation: leave the getter throwing until U6 |
 | M5b · scoring any **bulk-inclusive** candidate | OQ-2 transport **and** OQ-16. Verified in code 2026-09-11: supplying both OQ-2 values still leaves `bulk_price`, because OQ-16 gates the formula independently. Gate-only candidates score today |
 | U3 · pricing a **part-bag** draw | OQ-21 — the client question half only. **The crash half landed 2026-09-11**: a part-bag draw now returns a typed `feed_draw_bags` refusal instead of a `RangeError` |
 | Default strategy selection | ~~OQ-3~~ answered; mode set decided (AD-35) |

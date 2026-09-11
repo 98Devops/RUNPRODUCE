@@ -34,8 +34,20 @@ widening scope:**
    Task 4 can check a synthetic candidate against the same refusal gate
    `computeDecision` uses. A pure predicate; no behaviour change.
 
-**Task 9 was NOT built, and the plan was wrong to say it could be.** See
-Current Goal.
+**Task 8 landed 2026-09-11** once OQ-23 answered the ceiling — see the OQ-23
+entry for the client quotes. It departs from the plan's sketch in one
+load-bearing way: the sketch projected every candidate BEFORE checking the
+refusal, but every projection path runs through `projectCashCalendar`, which
+refuses a bulk-inclusive input outright — so it threw on its own bulk test
+case instead of returning the refusal. The blocked path now builds no
+calendars, which forced `ScoredCandidate.calendar` /
+`.build_reserve_cents` / `.breaches_reserve_floor` and
+`PlaceNothing.closing_cents` to be nullable rather than carry fabricated
+values. A null `breaches_reserve_floor` means UNCHECKED, and
+`ModeWinner.reserve_floor_checked` says so out loud.
+
+**Task 9 is still NOT built.** Its blocker changed rather than lifted — see
+Current Goal and OQ-25.
 
 ## Interleaved: OQ-21 crash fix (2026-09-11)
 
@@ -81,6 +93,38 @@ unchanged at 11 written / 11 passing / 1 held, lint/typecheck/build
 clean. Report: `.superpowers/sdd/u5-cash-calendar-plan/final-fix-report.md`.
 
 ## Current Goal
+
+**U5 — M5b Task 9. Blocked on a new question: the engine has no cash balance.**
+
+**Tasks 1-8 are built.** Task 8 landed 2026-09-11 once OQ-23 answered the
+ceiling. 273 unit tests passing, golden unchanged at 11 / 11 / 1 held, lint /
+typecheck / build clean.
+
+**Task 9 cannot be built as the plan writes it.** Its getter is:
+
+```ts
+computeAllocation(input, feed, this.harvest, input.parameters.reserve_floor_cents)
+```
+
+The fourth argument is `openingCents` — **the cash the business actually has**
+on the candidate's placement date. The plan passes `reserve_floor_cents`, which
+is **the minimum it must keep**. Those are different quantities: the floor is a
+constraint the balance is tested against, and feeding one in as the other makes
+every candidate's projection start from a number that was never a balance.
+
+**And there is nothing correct to pass instead.** `EngineInput` carries no cash
+balance — verified 2026-09-11: no `opening_cash`, `cash_balance` or
+`opening_balance` field on `EngineInput` or `Parameters`. The data exists in the
+architecture (`cash_accounts.opening_balance_cents`) but that is **U6**, not
+built. Passing `0n` is no better than passing the floor: it asserts the client
+has no money, which is a fabricated fact in the flattering-or-not direction
+invariant 5 forbids either way.
+
+**This is OQ-25 and it is ours, not Daniel's** — see `current-issues.md`. Three
+options, none picked yet, because it is a decision about what the engine is
+entitled to assume rather than a coding choice.
+
+## Previous Goal
 
 **U5 — M5b Tasks 8 and 9. Both blocked on OQ-23.**
 
