@@ -895,6 +895,47 @@ step determines carries `confidence: 'assumed'`. See AD-41.
 **Does not block U5.** The parameter is the whole mechanism, and a different
 answer changes its default rather than any code. Ask it with the rest.
 
+### OQ-20 · A planned draw and a real one are matched by exact date 🟡 INTERNAL
+**Status:** Open, known limitation, shipped deliberately. **Raised:** 2026-09-11,
+from M5a's final code review. **Affects:** whether a cash calendar can
+double-count one feed bill. **This is ours, not Daniel's** — no client answer
+changes it.
+
+**The defect.** `cash.ts` books `feed.planned_draws` so the calendar carries
+upcoming feed obligations (without them it flattered the minimum balance by
+thousands). To avoid booking a draw twice, it skips a planned draw whose
+`collection_date` matches a real entered draw's. That match is **exact**, so a
+real collection taken even one day off the idealised schedule fails to match and
+**both** are booked.
+
+**It is worse than one bill.** `feed.ts` chains each planned collection date off
+the **previous planned** date, not off the real one. So a single off-schedule
+collection desynchronises every planned entry after it, not just its own.
+
+**Why it shipped anyway.**
+- The error is in the **conservative** direction — the projection reads too
+  pessimistic, never too flattering. That is the direction this engine is
+  required to err in.
+- It is **visible in the calendar itself**: the duplicated span shows both a
+  `FEED_DRAW_PAYMENT` and a `PLANNED_FEED_DRAW_PAYMENT` in the same window, so it
+  is auditable rather than silent.
+- Closing it properly needs **`feed.ts`** to carry a link between planned and
+  actual draws, which was outside M5a's scope.
+
+**The fix when it is taken.** Either filter `planned_draws` against actual
+collections at the source in `feed.ts`, or give `PlannedDraw` enough metadata for
+a consumer to dedup robustly — a `matches_draws_through` cutoff, or a sequence
+link to the `DrawLiability` it was superseded by. Re-chaining the planned
+schedule off the last **real** collection date would fix the desynchronisation
+half at the same time.
+
+**Rejected, and why it matters that it was rejected.** The review suggested
+matching within a ±3-day window. Declined: picking a tolerance is a judgement
+with its own failure mode — too wide and it matches the wrong planned draw to
+the wrong real one, which is a silent wrong number rather than a visible double
+count. Inventing that threshold with nothing to calibrate it against is what
+invariant 5 forbids. A visible over-count beats an invisible mis-match.
+
 ### OQ-19 · When does the client actually pay overheads? 🟡
 **Status:** Open, assumed default. **Raised:** 2026-09-10, from M5a.
 **Affects:** the shape of the cash calendar's early-cycle trough, and
