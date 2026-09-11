@@ -996,6 +996,37 @@ git commit -m "feat(engine): place_nothing as its own outcome, with its overhead
 
 ## Task 8: `computeAllocation` — and the two-blocked-one-working refusal
 
+> **DO NOT START THIS TASK. Blocked on OQ-23.** The enumeration ceiling below
+> was wrong in the plan's first draft, and wrong in a way worth understanding
+> before rewriting it: it derived the ceiling from **gate capacity**, which
+> caps how fast a batch converts to same-day cash, not how large a batch can
+> be. The client's own brief settles it — *"Use the bulk buyer to absorb
+> volume"* — and CONTEXT.md's **Max safe batch size** is a gate-derived
+> **output**, not the enumeration's bound. The two share a formula and are not
+> the same quantity. `maxChickCount` needs a real source, and
+> `gate_capacity_per_day` is the only capacity field `Parameters` has.
+>
+> **Tasks 1-7 and 9 are unaffected** — none of them reads the ceiling. Build
+> those; leave this one until OQ-23 is answered.
+>
+> **`requirePlacementCeiling` in the code below is a deliberate hole, not a
+> function you can go and write.** Its contract, for when OQ-23 lands:
+>
+> ```ts
+> // Reads Parameters.max_placement_birds — a field that does NOT exist yet,
+> // because nobody has told us what caps a placement. When OQ-23 is answered
+> // it is added to Parameters alongside placement_step_birds, carries its own
+> // confidence ('measured' if Daniel states a house or supply limit,
+> // 'assumed' otherwise), and this helper returns it.
+> //
+> // Until then it must THROW rather than default. A default here would invent
+> // the single number that decides how much of the decision space the engine
+> // is even willing to look at — the largest possible instance of the mistake
+> // invariant 5 names. The brief's 30,000 is a document heading, not a stated
+> // constraint, and reading a ceiling off a title is exactly the AD-36 error.
+> function requirePlacementCeiling(parameters: Parameters): number;
+> ```
+
 **Files:**
 - Modify: `packages/engine/src/allocation.ts`, `packages/engine/src/types.ts`
 - Test: `packages/engine/tests/allocation.test.ts`
@@ -1080,10 +1111,19 @@ export function computeAllocation(
   // day is the day the last bird goes.
   const harvestCompletionDate = addDays(input.batch.placement_date, harvest.gate_window.last_day - 1);
 
-  // Max size is what gate capacity can clear across the harvest window — the
-  // binding constraint on batch size per CONTEXT.md. Not a hardcoded cap.
-  const windowDays = harvest.gate_window.last_day - harvest.gate_window.first_day + 1;
-  const maxChickCount = input.parameters.gate_capacity_per_day * windowDays;
+  // BLOCKED ON OQ-23 — do not implement this line as written.
+  //
+  // The ceiling is NOT gate-derived. Gate capacity caps how fast a batch
+  // converts to same-day cash; bulk absorbs the rest, which is the brief's own
+  // instruction. CONTEXT.md's "max safe batch size" IS gate-derived, but it is
+  // an OUTPUT — the largest batch clearable at the gate — not the largest batch
+  // the optimiser may consider. Using the output as the bound is the conflation
+  // OQ-23 exists to close.
+  //
+  // What caps a placement is house space, hatchery supply or cash, and none of
+  // those is an input we hold. When OQ-23 lands it becomes a named parameter
+  // carrying its own confidence, the way placement_step_birds does.
+  const maxChickCount = requirePlacementCeiling(input.parameters);
 
   const candidates = enumerateCandidates(input, harvestCompletionDate, maxChickCount);
   const blocked = cashFlowsMissingInputs(input);
@@ -1232,13 +1272,34 @@ asymmetry → Task 8.
    refactor step rather than a premature optimisation, but it is 31 projections
    versus up to 8,401 and worth taking.
 
-2. **`maxChickCount` from gate capacity × window days** is this plan's
-   inference, not a spec decision. CONTEXT.md calls gate capacity "the binding
-   constraint on batch size", and a flat gate window under flat pricing makes
-   the window one day wide — so under today's settled $4.25 this caps a
-   candidate at `gate_capacity_per_day`. **Raise this with the user before
-   Task 8**: if it is wrong, the enumeration's upper bound is wrong, and the
-   spec's "271 sizes" figure suggests a far larger cap was imagined.
+2. **`maxChickCount` was wrong, and it is now OQ-23.** RESOLVED as a
+   question, 2026-09-11; Task 8 is blocked until it is answered.
+
+   The first draft derived the ceiling as gate capacity × harvest-window days.
+   That is a **conflation of two quantities that share a formula**, not merely
+   a number set too low:
+
+   - **Max safe batch size** — gate-derived, and correctly so. An **output**:
+     CONTEXT.md defines it as "largest placement that gate capacity can clear",
+     and project-overview.md goal 4 asks for it.
+   - **The enumeration ceiling** — must **not** be gate-derived. A
+     bulk-inclusive batch exceeds gate absorption by design, on the brief's own
+     instruction: *"Use cash sales to finance the cycle. Use the bulk buyer to
+     absorb volume."*
+
+   **The 30,000 range is a real client scale, checked rather than assumed:**
+   the second client artifact is the 30,000-broiler brief itself; OQ-15 records
+   that that brief costs itself at ~59c/bird at that scale; and
+   project-overview.md goal 5 states 3,000-30,000 as a product requirement.
+   So the range is not what needs revising down — the ceiling's **source** is
+   what needs replacing.
+
+   **And correcting it makes M5b look more blocked, not less.** The
+   gate-derived cap kept every candidate gate-only, and gate-only candidates
+   are scoreable today. At the real range most candidates are bulk-inclusive,
+   so Cover Fast and Build Reserve return `missing_input` for them until OQ-2's
+   transport half and OQ-16 land. The wrong cap was **masking** how thin M5b's
+   scoreable region actually is.
 
 3. **`place_nothing`'s `closing_cents` ignores the running batch's reserve floor
    breaches**, because it has no calendar of its own. If that matters, it needs
@@ -1253,10 +1314,18 @@ thereafter. `cover_fast_days` is `number | null` everywhere.
 
 ## Before any of this starts
 
-**M5b remains blocked for its bulk half.** Tasks 1–7 and 9 are buildable today.
-Task 8's bulk-refusal path is buildable today *because* it is a refusal — but
-nothing in this plan produces a bulk-inclusive **number**, and nothing should
-until **OQ-2's transport half** and **OQ-16** both land.
+**M5b remains blocked for its bulk half, and Task 8 is blocked twice over.**
+Tasks 1–7 and 9 are buildable today. Task 8 is not: it needs **OQ-23** for its
+enumeration ceiling, and nothing in this plan produces a bulk-inclusive
+**number** until **OQ-2's transport half** and **OQ-16** both land.
+
+**Read those two blocks together rather than separately.** Once OQ-23 lifts the
+ceiling to the client's real range, the majority of the candidate space becomes
+bulk-inclusive — which is exactly the space OQ-2 and OQ-16 make unscoreable. So
+answering OQ-23 alone does not make Task 8 useful; it makes the size of the
+blocked region visible. That is worth knowing before anyone reads a demo where
+two of three modes refuse across most of the grid and treats it as a
+regression. It is not one.
 
 **OQ-22 must be closed by this unit.** `bulk_price_cents_per_bird` is declared
 in `Parameters` and read nowhere, while M4 prices bulk off the contract bands.

@@ -6,6 +6,93 @@ against real data.
 
 ---
 
+## Severity — read this before skimming the rest
+
+Most entries below are **open questions**: things the client has not told us,
+where the engine correctly declines to guess. They are marked 🔴 / 🟠 / 🟡 by
+how much they block.
+
+**A small number of entries are a different kind of thing entirely: defects we
+wrote, shipped, and caught — code that produced a confident wrong number, or
+no number at all.** Those are marked **🔴🔴 CRITICAL** and collected here, at
+the top, because they are qualitatively worse than an unanswered question and a
+future session skimming this file should see that without reading a full
+description to work it out.
+
+An unanswered question makes the engine say "I don't know", which is the
+behaviour invariant 5 asks for. A critical defect makes it say something
+false — or crash — while looking authoritative. The bar for this marker is:
+**would a user have acted on a wrong number, or seen nothing at all?**
+
+| | Meaning |
+|---|---|
+| 🔴🔴 **CRITICAL** | Our code produced a confident wrong number, or crashed. Fixed or urgent. |
+| 🔴 | Blocks a unit, or is urgent |
+| 🟠 | Important, does not block |
+| 🟡 | Minor, or internal |
+| ✅ | Answered / closed |
+
+### CD-1 · A null gate price was priced at $0.00 🔴🔴 CRITICAL — FIXED 2026-09-11
+**Found:** M4's pre-merge code review. **Fixed:** `66bc1da`. **Lived in main
+for:** never — caught on the branch, before the merge.
+
+`planHarvest`'s `gateValueCents` returned `0n` when the gate price was null.
+Zero is a number the client never gave us, and it is the single most dangerous
+one available here: **it makes holding a bird look free.** Fixture 7's hold
+cost drops from $3,200.71 to $2,669.46, with 125 forecast-dead birds valued at
+nothing. A user reading that would hold birds the engine should have told them
+to sell.
+
+**Why this one is the reference case for the marker.** `'gate_price'` had been
+a declared `MissingInputKey` since U1 — the refusal slot existed, was named
+correctly, and was **emitted nowhere**. And it could not have fired even if it
+had been written, because `missingInputsFor` returned early for any batch with
+no BULK sale, which is every gate-only batch. Three layers of invariant-5
+machinery were in place and none of them ran.
+
+**Fixed by:** emitting `gate_price` before the bulk early-return, for whichever
+basis is active, plus a programming-error guard in `planHarvest` matching the
+one `projectCashCalendar` already carries.
+
+### CD-2 · Calibration deleted the pre-harvest ramp and called itself 'calibrated' 🔴🔴 CRITICAL — FIXED 2026-09-11
+**Found:** M4's pre-merge code review. **Fixed:** `66bc1da`, AD-48. **Lived in
+main for:** never — caught on the branch.
+
+Once enough records existed, `rateBpFor` returned **one flat calibrated number
+for every day**, which silently removed the pre-harvest mortality ramp — the
+accelerating death rate CONTEXT.md names as *the core operational risk*. Clean
+pre-ramp records forecast a fraction of the fallback's loss to day 41, across
+precisely the days the harvest decision turns on.
+
+**Why it is critical rather than merely wrong.** It was **labelled
+`'calibrated'`**. The output told the reader it had been improved by the
+client's own data at the exact moment it had been degraded by it, and the
+degradation grew as more real data arrived. A wrong number wearing a confidence
+label that says "this one is better than our assumption" is worse than the
+assumption it replaced.
+
+**Fixed by:** calibrating the BASE rate only and keeping the uplift, excluding
+ramp days from the base calibration, and adding a mandatory
+`preharvest_uplift_source` so `mortality_source: 'calibrated'` can no longer be
+read as covering both.
+
+### The third member of this class is still open
+**OQ-21**, the fractional-bag crash, belongs here by severity — it produces no
+number at all, taking `computeDecision` down with a `RangeError` on Daniel's
+own 26.64 figure. It is filed under blocking open questions below because half
+of its fix needs an answer from him, but **read it with this section's bar in
+mind, not the bar of the questions around it.**
+
+**What both CD entries have in common, and what it cost to find them.** Neither
+was found by tests, review of reported values, or the golden fixtures — all of
+which were green. Both were found by an **independent code review of code that
+had only ever had approval on its outputs**. That is the same gap that let
+M5a's `feed.planned_draws` double-count survive to its final pass. The lesson
+is recorded here rather than in a commit message because it is the reason this
+section exists.
+
+---
+
 ## Client source documents — read 2026-09-10
 
 Two client artifacts were read in full:
@@ -973,6 +1060,61 @@ step determines carries `confidence: 'assumed'`. See AD-41.
 **Does not block U5.** The parameter is the whole mechanism, and a different
 answer changes its default rather than any code. Ask it with the rest.
 
+### OQ-23 · What actually caps a placement? 🔴 BLOCKS M5b TASK 8
+**Status:** Open. **Raised:** 2026-09-11, from writing M5b's plan against the
+real `projectCashCalendar` signature. **Affects:** the upper bound of the
+allocation enumeration — i.e. the largest batch the optimiser is allowed to
+consider at all.
+
+**The plan had this wrong, and the error was a conflation rather than a
+number.** It derived the enumeration's ceiling as
+`gate_capacity_per_day × harvest-window days`. Under the settled flat $4.25
+gate price the window is **one day wide** (U4), so that caps a candidate at
+~750 birds — against a spec that imagined sizes into the tens of thousands.
+
+**Gate capacity does not cap batch size, and the client's own brief says so.**
+It caps how fast a batch converts to same-day cash:
+
+> *"Use cash sales to finance the cycle. Use the bulk buyer to absorb volume."*
+> *"We do NOT want to sell everything live if the market cannot absorb it."*
+
+Bulk takes what the gate cannot. So there are **two different quantities that
+share a formula**, and the plan used one as the other:
+
+| Quantity | Gate-derived? | What it is |
+|---|---|---|
+| **Max safe batch size** | **Yes** | An **output**. CONTEXT.md: "largest placement that gate capacity can clear before pre-harvest mortality eats the gain". project-overview.md goal 4 asks for it. Correct as it stands. |
+| **Enumeration ceiling** | **No** | The largest batch the optimiser may *consider*. A bulk-inclusive batch exceeds gate absorption **by design**. |
+
+**The 30,000 range is real, not framing we inherited.** Checked against the
+client artifacts rather than assumed: the second client document is the
+**30,000-broiler brief** itself; **OQ-15** records that that brief carries its
+own per-bird overhead assumption at that scale (~59c/bird against our measured
+41c) — a document that has costed itself at a scale is planning at it, not
+gesturing at it; and project-overview.md goal 5 states it as a product
+requirement: *"Work at any batch size. 3,000 to 30,000. Nothing hardcoded."*
+
+**The ask:** *"What actually limits how many chicks you can place at once —
+house space, the hatchery's supply, or the cash to pay for them? And what is
+that number today?"*
+
+**Why we cannot derive it.** `gate_capacity_per_day` is the **only** capacity
+field in `Parameters`. House and brooding capacity, hatchery supply, and any
+placement ceiling of his own are simply not inputs we hold. Picking 30,000
+because the brief's title says 30,000 would be inventing a constraint out of a
+document heading.
+
+**The consequence that matters more than the number.** The wrong ceiling was
+**masking how blocked M5b actually is.** A gate-derived cap kept every
+candidate gate-only, and gate-only candidates are scoreable today. Lift it to
+the real range and most candidates become **bulk-inclusive**, which means Cover
+Fast and Build Reserve return `missing_input` for them until **OQ-2's transport
+half** and **OQ-16** land. M5b's scoreable region is a thin gate-only sliver,
+and the old cap made the engine look more capable than it is.
+
+**Handling until answered:** M5b Task 8 does not start. Tasks 1–7 and 9 are
+unaffected — none of them reads the ceiling.
+
 ### OQ-22 · `bulk_price_cents_per_bird` is declared and never read 🟡 INTERNAL
 **Status:** Open, documented in place, **behaviour deliberately unchanged**.
 **Raised:** 2026-09-11, from M4's pre-merge code review. **Affects:** whether a
@@ -1387,6 +1529,7 @@ recommendation — divergences are the most valuable data available.
 | U5 · bulk net revenue computation | OQ-2 (transport) **and** OQ-16 — both required, neither sufficient alone |
 | U5 · any **bulk-inclusive** candidate score | OQ-2 (transport) **and** OQ-16. The enumeration's SHAPE is buildable today and is spec'd; a candidate routing birds to bulk returns `missing_input` naming both gaps, never a gate-only figure dressed as complete |
 | Calibrated `MaxSafeBatchSize` | OQ-1 (mortality data) |
+| M5b · Task 8, the enumeration ceiling | OQ-23 — what actually caps a placement. Tasks 1-7 and 9 do not read it and are unaffected |
 | U3 · pricing a **part-bag** draw | OQ-21 — the client question half only. Refusing to crash on one is **not** blocked and should land first |
 | Default strategy selection | ~~OQ-3~~ answered; mode set decided (AD-35) |
 | ~~Gate harvest window past day 32~~ | **Moot.** Built in U4: under the settled flat gate price the window ends at day 31, so there is no "past day 32" to unblock. It reopens only if per-kg gate pricing becomes the default — see OQ-11 |
