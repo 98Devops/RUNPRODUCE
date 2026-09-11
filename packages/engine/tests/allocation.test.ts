@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { enumerateCandidates } from '../src/allocation.js';
+import { enumerateCandidates, handoffAtPlacement } from '../src/allocation.js';
+import { projectCashCalendar } from '../src/cash.js';
+import { computeFeedLiability } from '../src/feed.js';
+import { projectProduction } from '../src/production.js';
 import type { Cents, EngineInput, Grams, IsoDate, Parameters } from '../src/types.js';
 
 const PLACEMENT = '2026-02-06' as IsoDate;
@@ -42,6 +45,10 @@ function baseInput(paramOverrides: Partial<Parameters> = {}): EngineInput {
   };
 }
 
+function feedFor(engineInput: EngineInput) {
+  return computeFeedLiability(engineInput, projectProduction(engineInput));
+}
+
 describe('enumerateCandidates', () => {
   it('never generates a date earlier than harvest completion + 14', () => {
     const candidates = enumerateCandidates(baseInput(), '2026-03-20' as IsoDate, 300);
@@ -82,5 +89,62 @@ describe('enumerateCandidates', () => {
     expect([...new Set(candidates.map((c) => c.chick_count))].sort((a, b) => a - b)).toEqual([
       150, 300
     ]);
+  });
+});
+
+/**
+ * The running batch's own completion horizon: last curve day + feed terms.
+ * `handoffAtPlacement` derives this internally; the tests that split a
+ * projection against it must use the SAME horizon, or they compare a split to
+ * a projection it never came from and pass on the coincidence that the tail
+ * days carry no flows.
+ */
+const RUNNING_HORIZON = 41 + 30;
+
+describe('handoffAtPlacement', () => {
+  it('collapses everything before the placement date into the opening balance', () => {
+    const running = baseInput();
+    const handoff = handoffAtPlacement(
+      running,
+      feedFor(running),
+      0n as Cents,
+      '2026-04-03' as IsoDate
+    );
+    const full = projectCashCalendar(running, RUNNING_HORIZON, 0n as Cents, feedFor(running));
+    const dayBefore = full.days.find((d) => d.date === '2026-04-02');
+
+    expect(handoff.opening_cents).toBe(dayBefore?.closing_cents);
+  });
+
+  it('hands over the flows dated on or after the placement date, and only those', () => {
+    const running = baseInput();
+    const handoff = handoffAtPlacement(
+      running,
+      feedFor(running),
+      0n as Cents,
+      '2026-04-03' as IsoDate
+    );
+
+    expect(handoff.carried_flows.length).toBeGreaterThan(0);
+    for (const flow of handoff.carried_flows) {
+      expect(flow.date >= '2026-04-03').toBe(true);
+    }
+  });
+
+  it('double-counts nothing: opening plus carried equals the full projection', () => {
+    const running = baseInput();
+    const full = projectCashCalendar(running, RUNNING_HORIZON, 0n as Cents, feedFor(running));
+    const handoff = handoffAtPlacement(
+      running,
+      feedFor(running),
+      0n as Cents,
+      '2026-04-03' as IsoDate
+    );
+
+    const carriedSum = handoff.carried_flows.reduce((sum, f) => sum + f.amount_cents, 0n);
+    // Everything the running batch does, split across the handoff, still adds
+    // up to what it did undivided. This is the test that catches a flow landing
+    // on both sides of the split.
+    expect(handoff.opening_cents + carriedSum).toBe(full.closing_cents);
   });
 });

@@ -226,6 +226,16 @@ export interface Parameters {
   readonly placement_step_birds?: number;
 }
 
+/**
+ * The running batch's cash position split at a candidate's placement date:
+ * everything settled BEFORE it collapsed into an opening balance, everything on
+ * or after it still dated.
+ */
+export interface RunningBatchHandoff {
+  readonly opening_cents: Cents;
+  readonly carried_flows: readonly CashFlow[];
+}
+
 export interface Candidate {
   readonly placement_date: IsoDate;
   readonly chick_count: number;

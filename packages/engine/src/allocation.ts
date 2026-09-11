@@ -1,5 +1,15 @@
+import { SEED_BREED_CURVE } from './breed-curve.js';
+import { projectCashCalendar } from './cash.js';
 import { addDays } from './day-number.js';
-import type { Candidate, EngineInput, IsoDate } from './types.js';
+import type {
+  Candidate,
+  CashFlow,
+  Cents,
+  EngineInput,
+  FeedLiability,
+  IsoDate,
+  RunningBatchHandoff
+} from './types.js';
 
 /**
  * The bird count the enumeration steps by — the hatchery's order unit, so a
@@ -38,4 +48,44 @@ export function enumerateCandidates(
   }
 
   return candidates;
+}
+
+/**
+ * Split the running batch's cash position at a candidate's placement date.
+ *
+ * `projectCashCalendar` re-books the full chick cost and overhead lump on its
+ * own day 1, so the candidate's `openingCents` cannot be the client's current
+ * bank balance — it has to be the RUNNING batch's projected closing balance on
+ * the day before the candidate is placed. Everything after that date stays
+ * dated, because AD-43's reserve-floor filter reads the trough rather than the
+ * endpoint.
+ *
+ * The horizon is the running batch's own completion, for the AD-36 reason
+ * AD-43 gives: a fixed window would give candidates at different dates
+ * different amounts of the running batch inside it.
+ */
+export function handoffAtPlacement(
+  input: EngineInput,
+  feed: FeedLiability,
+  currentOpeningCents: Cents,
+  placementDate: IsoDate
+): RunningBatchHandoff {
+  const curve = input.curve ?? SEED_BREED_CURVE;
+  const lastCurveDay = curve.points[curve.points.length - 1]!.day_number;
+  const horizon = lastCurveDay + input.parameters.feed_terms_days;
+  const calendar = projectCashCalendar(input, horizon, currentOpeningCents, feed);
+
+  const dayBefore = addDays(placementDate, -1);
+  let opening_cents = currentOpeningCents;
+  const carried_flows: CashFlow[] = [];
+
+  for (const day of calendar.days) {
+    if (day.date <= dayBefore) {
+      opening_cents = day.closing_cents;
+      continue;
+    }
+    carried_flows.push(...day.flows);
+  }
+
+  return { opening_cents, carried_flows };
 }
