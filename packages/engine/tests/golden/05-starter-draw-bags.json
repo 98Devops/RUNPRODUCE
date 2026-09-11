@@ -1,7 +1,7 @@
 {
   "id": 5,
   "name": "starter-draw-bags-day-14",
-  "description": "Starter draw bags (cum feed day 14 / 50) — 26.64 bags",
+  "description": "First draw bags — cum feed through day 14 / 50 = 26.64 bags. Covers days 1-14, spanning STARTER and one GROWER day; NOT the starter phase total (22.98). See KB-11, AD-37.",
   "input": {
     "asOf": "2026-02-19",
     "batch": {
@@ -13,7 +13,7 @@
     "parameters": {
       "mortality": { "base_rate_bp_daily": 0, "preharvest_ramp_start_day": 30, "preharvest_ramp_rate_bp_daily": 0 },
       "slaughter_target_g": 1770,
-      "gate_price_cents_per_bird": "430",
+      "gate_price_cents_per_bird": "425",
       "gate_price_cents_per_kg": null,
       "gate_pricing_basis": "PER_BIRD",
       "gate_capacity_per_day": 750,
@@ -28,5 +28,5 @@
     "draws": [],
     "sales": []
   },
-  "expect": { "path": "decision.feed.starter_bags_to_day_14", "value": 26.64 }
+  "expect": { "path": "decision.feed.first_draw_bags_to_day_14", "value": 26.64 }
 }

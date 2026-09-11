@@ -186,6 +186,16 @@ Update the relevant context file whenever implementation changes:
 
 Context windows are the practical constraint on this build.
 
+- **Edit `context/*.md` through a script file, never inline shell.** Write
+  the edits to a `.mjs` in the scratchpad and run it, and replace with a
+  FUNCTION (`s.replace(a, () => b)`) so `$&` and `` $` `` in the
+  replacement text stay literal. Inline shell mangles backticks and `$`;
+  `git checkout` can restore a file with CRLF that silently breaks
+  multi-line anchors on the retry. These files are read by every future
+  session, so a half-applied edit is worse than none: it is wrong context
+  carrying the same authority as right context. Assert the anchor matched,
+  and read the diff before committing.
+
 - Start every session by reading `CLAUDE.md`, then
   `progress-tracker.md` and `current-issues.md`. Read the other context
   files as the unit requires.

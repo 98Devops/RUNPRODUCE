@@ -13,7 +13,7 @@
     "parameters": {
       "mortality": { "base_rate_bp_daily": 0, "preharvest_ramp_start_day": 30, "preharvest_ramp_rate_bp_daily": 0 },
       "slaughter_target_g": 1770,
-      "gate_price_cents_per_bird": "430",
+      "gate_price_cents_per_bird": "425",
       "gate_price_cents_per_kg": null,
       "gate_pricing_basis": "PER_BIRD",
       "gate_capacity_per_day": 750,

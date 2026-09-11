@@ -33,13 +33,19 @@ chicks, raises them ~30 days, sells through two channels.
 | **Extra chicks** | Free chicks supplied by the hatchery above the ordered count. **They count toward the flock.** | |
 | **Day number** | Days since placement. Day 1 is placement day. | ~~age in days~~ |
 | **Opening birds** | Birds alive at the start of a day | |
-| **Closing birds** | Opening − mortality − sold | |
+| **Closing birds** | Opening − daily mortality − daily culls − sold. All three removals are **derived** from cumulative columns. | |
 | **Mortality** | Birds that died | ~~deaths, losses~~ (a loss is financial) |
+| **Cumulative mortality** | Total dead since placement, as of a given day. **This is what gets entered.** | ~~today's deaths~~ |
+| **Daily mortality** | One day's deaths. Always **derived** as `cumulative[d] − cumulative[d−1]`, never entered. | ~~mortality count~~ |
 | **Cull** | A bird deliberately removed, not a natural death | |
+| **Cumulative culls** | Total culled since placement, as of a given day. **This is what gets entered**, exactly as mortality is. | ~~today's culls~~ |
+| **Daily culls** | One day's culls. Always **derived** as `cumulative[d] − cumulative[d−1]`, never entered. | ~~cull count~~ |
 | **Livability** | % of placed chicks still alive | ~~survival rate~~ |
 | **Pre-harvest mortality** | The accelerating death rate in the final days before harvest. The core operational risk. | |
 | **Breed curve** | The 41-day table of expected weight and feed intake per bird per day. Seeded from the client's own data. | ~~growth standard~~ |
 | **Calibration** | Adjusting the breed curve to observed weights | |
+| **Inter-batch gap** | The mandatory 14 days between harvest completion and the next placement, for spraying and disinfection. A hard floor no cash position overrides. Invariant 16. | ~~turnaround, downtime~~ |
+| **Dressing percentage** | Dressed weight as a share of live weight. Daniel's is ~62%, which is where the 1,770 g slaughter target comes from: 1,770 x 0.62 = ~1.1 kg dressed. | ~~yield~~ (ambiguous) |
 
 ---
 
@@ -63,15 +69,17 @@ chicks, raises them ~30 days, sells through two channels.
 | Term | Meaning | Not |
 |---|---|---|
 | **Gate sale** | A live bird sold at the farm for cash, same day. Channel `GATE`. | ~~retail, direct sale, cash sale~~ |
-| **Bulk sale** | A bird sent via the abattoir to the contract buyer. Paid 30 days later. Channel `BULK`. | ~~wholesale, contract sale~~ |
+| **Bulk sale** | A **presale**: a pre-commitment under which the contract buyer takes birds **regardless of finish size**, sent via the abattoir and paid 30 days later. Channel `BULK`. The no-weight-gate part is structural, not a pricing quirk — it is what makes sending less-finished birds to bulk economical. | ~~wholesale, contract sale~~, ~~just the channel that pays late~~ |
 | **Gate capacity** | Birds the local market absorbs per day. 500–1,000. **A rate, not a total.** The binding constraint on batch size. | |
 | **Contract buyer** | The bulk purchaser. Collects from the abattoir. | |
-| **Abattoir** | Third party performing slaughter. **RunProduce bears this cost.** | |
+| **Abattoir** | Third party performing slaughter. **RunProduce bears this cost.** |
+| **Offal transfer** | The abattoir keeping the offals on top of its cash fee. Real economic value given up, recorded on the sales order as `offal_disposition` with `offal_value_cents` NULL — not valued, which is not the same as zero. | ~~waste, by-product~~ |
+| **Big chest** | Daniel's term for a visually good bird, which sells at the flat gate price whatever it weighs. **The system cannot compute it** — it is a visual judgement about conformation, not a weight. Never presented as derived. | |
 | **Bulk net** | Contract price − abattoir fee − transport to abattoir | ~~bulk price~~ |
 | **Receivable** | Money owed by the contract buyer, dated 30 days out | |
 | **Receipt** | An actual payment landing | ~~payment~~ (ambiguous — could be outgoing) |
 | **Pricing basis** | `PER_BIRD` or `PER_KG`. Determines whether growth adds revenue. | |
-| **Slaughter target** | 1,770 g live weight. Reached around day 30. | |
+| **Slaughter target** | 1,770 g live weight — the weight that dresses to ~1.1 kg at Daniel's ~62%. First met on **day 31** on his own curve, not day 30. | ~~harvest weight~~ |
 
 ---
 
@@ -79,7 +87,10 @@ chicks, raises them ~30 days, sells through two channels.
 
 | Term | Meaning | Not |
 |---|---|---|
-| **Core credit** | Chick cost + feed cost to harvest. What gate sales must cover. | |
+| **Core credit** | Chick cost + feed cost to harvest, and nothing else. What gate sales must cover. The brief's "DOC + feed break-even". | ~~total cost~~ (overheads are not in it) |
+| **Overhead** | A production cost that is neither chicks nor feed: vaccine, electricity and heating, labour, transport and other. Booked in the client's own Final Report. | ~~indirect cost, opex~~ |
+| **Overhead basis** | `PER_BIRD` or `PER_BATCH`. The client's brief separates variable from fixed costs and says "do not double-count"; the basis is what keeps that honest. | |
+| **Full production cost** | Core credit + overheads. Drives the brief's "full production break-even", which is shown **beside** the core-credit one, never instead of it. | ~~total cost~~ |
 | **Cashflow days** | Market date − draw due date. Negative means the bill lands before the birds are sellable. **The client's own term — keep it.** | |
 | **Market date** | The day birds become sellable | |
 | **Reserve floor** | The cash level below which no recommendation may take him | ~~minimum balance~~ |
@@ -87,6 +98,8 @@ chicks, raises them ~30 days, sells through two channels.
 | **Harvest window** | The day range in which harvesting is sensible, e.g. day 29–31. Always a range — weight comes from a sample. | ~~harvest date~~ |
 | **Max safe batch size** | Largest placement that gate capacity can clear before pre-harvest mortality eats the gain | |
 | **Cost of delay** | What one more day of holding costs, per channel | |
+| **Place nothing** | The outcome where the best candidate is to place no next batch at all. A real answer with its own overhead justification, never a zero-bird batch through the standard fields. AD-41. | ~~skip a cycle~~ |
+| **Placement step** | The bird count the allocation enumeration steps batch size by — the hatchery's order unit, so a recommendation is orderable. Assumed 100 pending OQ-18. | ~~increment, granularity~~ |
 
 ---
 
@@ -97,8 +110,14 @@ Named, capitalised, and used consistently in code and UI:
 | Strategy | Optimises for |
 |---|---|
 | **Cover Fast** | Fewest days to clear core credit |
-| **Maximum Growth** | Earliest possible next placement |
+| **Maximum Growth** | **Leveraged rollover** — the largest next batch the proceeds can finance, with grower and finisher draws timed against sales proceeds so growth compounds. Subject to the 14-day inter-batch gap. |
 | **Build Reserve** | Highest cash retained after obligations |
+
+**Settled 2026-09-10 (AD-35).** "Maximum Growth" now names Daniel's own
+**leveraged rollover** pattern rather than an earliest-placement-date
+objective, which invariant 16's 14-day floor had largely determined
+anyway. Three modes, not four. Say "leveraged rollover" when explaining
+what the mode does; "Maximum Growth" is the label it wears in the UI.
 
 ---
 
@@ -114,6 +133,7 @@ Named, capitalised, and used consistently in code and UI:
 | **Provisional fixture** | A golden fixture whose expected value rests on an assumption rather than client data. **It still asserts** — it is not held. |
 | **Placeholder** | `expect.placeholder` in a fixture file: the expected value is not knowable yet, and this names the OQ it waits on. |
 | **Missing input** | The engine's refusal to compute when a required value is unknown. Never a silent default. |
+| **Carried forward** | A day with no daily record, whose cumulative totals are the last recorded ones, unchanged. Marked `carried_forward`, with `days_since_last_record` for staleness. Distinct from a recorded day whose delta was genuinely zero, and always rendered differently. Invariant 5. | ~~estimated, filled, interpolated~~ (nothing is forecast into the gap) |
 | **Unit** | One step of the build, U1–U11 |
 | **OQ-n** | An open question in `current-issues.md` |
 | **AD-n** | An architecture decision in `progress-tracker.md` |

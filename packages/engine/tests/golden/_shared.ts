@@ -146,3 +146,40 @@ export function resolvePath(root: unknown, path: string): unknown {
   }
   return current;
 }
+
+/**
+ * JSON has no bigint, so a fixture file holds money as a decimal string —
+ * `"807981"` for $8,079.81. These two functions are that encoding, and only
+ * that: the fixture VALUES are the client's contract and are never touched.
+ *
+ * The key convention is CONTEXT.md's naming rule — a money field always
+ * carries `cents` in its name (`chick_price_cents`, `price_cents_per_bird`) —
+ * so the decode follows the glossary rather than a hand-listed set of fields
+ * that would drift the moment a new money field is added.
+ */
+export function parseFixtureInput(raw: unknown): unknown {
+  if (Array.isArray(raw)) return raw.map(parseFixtureInput);
+  if (raw === null || typeof raw !== 'object') return raw;
+
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    out[key] =
+      key.includes('cents') && typeof value === 'string'
+        ? BigInt(value)
+        : parseFixtureInput(value);
+  }
+  return out;
+}
+
+/** The same encoding on the way out, so a returned bigint compares to the file. */
+export function toComparable(value: unknown): unknown {
+  if (typeof value === 'bigint') return value.toString();
+  if (Array.isArray(value)) return value.map(toComparable);
+  if (value === null || typeof value !== 'object') return value;
+
+  const out: Record<string, unknown> = {};
+  for (const [key, nested] of Object.entries(value as Record<string, unknown>)) {
+    out[key] = toComparable(nested);
+  }
+  return out;
+}

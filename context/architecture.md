@@ -33,7 +33,8 @@
 │       │   ├── costing.ts      M2 cost engine
 │       │   ├── feed.ts         M3 feed liability
 │       │   ├── harvest.ts      M4 harvest optimiser
-│       │   ├── allocation.ts   M5 cash + allocation
+│       │   ├── cash.ts         M5a cash calendar (AD-46)
+│       │   ├── allocation.ts   M5b allocation optimiser
 │       │   ├── recommend.ts    M6 plain-language advice
 │       │   ├── scenario.ts     M7 parameter sweep
 │       │   ├── explain.ts      Explained<T> wrapper
@@ -103,6 +104,13 @@ memberships     (org_id, user_id, role)          -- OWNER | MANAGER | WORKER
 parameter_sets  (id, org_id, name, effective_from, is_active)
 parameters      (parameter_set_id, key, value_numeric, unit, confidence)
                 -- confidence: MEASURED | CALIBRATED | ASSUMED
+                -- Overheads live here, one row per line item
+                -- (overhead_vaccine_cents, overhead_labour_cents, ...),
+                -- each with its basis in `unit` (PER_BIRD | PER_BATCH)
+                -- and MEASURED confidence where the figure is the
+                -- client's own. No separate overheads table: the shape
+                -- is already key/value/unit/confidence. The engine's
+                -- SEED_OVERHEADS is the default when a set carries none.
 
 breed_curves       (id, org_id, name, source)
 breed_curve_points (curve_id, day, weight_g, feed_g, phase)
@@ -113,7 +121,11 @@ batches         (id, org_id, code, placement_date, chick_count,
                 -- status: PLANNED | ACTIVE | HARVESTING | CLOSED
 
 daily_records   (id, batch_id, record_date, day_number,
-                 mortality_count, cull_count,
+                 mortality_cumulative, cull_cumulative,
+                -- BOTH are running totals AS OF THIS DAY, entered by
+                -- hand. Daily deltas are derived, never stored.
+                -- CHECK: both monotonic per batch, and their SUM is
+                -- bounded by chick_count + extra_chick_count.
                  feed_starter_kg, feed_grower_kg, feed_finisher_kg,
                  avg_weight_g, weight_sample_size,
                  notes, recorded_by, recorded_at)
@@ -135,9 +147,24 @@ sales_orders    (id, org_id, batch_id, channel, order_date,
                  price_cents_per_bird, price_cents_per_kg,
                  pricing_basis, gross_cents,
                  abattoir_fee_cents, transport_cents, net_cents,
+                 offal_disposition, offal_value_cents NULL,
                  terms_days, due_date, status)
                 -- channel: GATE | BULK
                 -- pricing_basis: PER_BIRD | PER_KG
+                -- offal_disposition: RETAINED_BY_ABATTOIR
+                --                  | RETAINED_BY_PRODUCER | SOLD
+                --   Under the current deal the abattoir keeps the
+                --   offals on top of its 10c/bird cash fee (OQ-2,
+                --   answered 2026-09-10). Only the 10c flows through
+                --   the financial model, but the transfer is real
+                --   economic value given up and is recorded as a fact
+                --   rather than dropped for having no cash line.
+                -- offal_value_cents: NULL means "not valued", which is
+                --   NOT zero. Zero would assert the offals are worth
+                --   nothing; null says nobody has priced them. Same
+                --   rule as every other unknown here (invariant 5). A
+                --   future deal that pays for offals fills this in and
+                --   the history stays comparable.
 receipts        (id, sales_order_id, receipt_date, amount_cents, method)
 
 expenses        (id, org_id, batch_id NULL, expense_date, category,
@@ -156,6 +183,79 @@ scenarios       (id, org_id, batch_id, name, param_overrides JSONB)
 alerts          (id, org_id, batch_id NULL, rule_key, severity,
                  title, body, triggered_at, acknowledged_at)
 ```
+
+### Harvest and channel design notes
+
+Settled with the client 2026-09-10. These are design rules M4 and M5 are
+built from, not commentary — they live here rather than in a closed open
+question so the rule and its reason stay together.
+
+**The slaughter target is dressing-yield arithmetic, not band
+optimisation.** 1,770 g live is the weight that yields ~1.1 kg dressed
+at Daniel's actual dressing percentage of ~62% (`1770 × 0.62 = 1,097 g`).
+The target is not "reach the top of a band and stop" — that earlier
+reading is **withdrawn**, see OQ-7. The rule stays exactly *first day
+`weight_g >= slaughter_target_g`*, and it is now grounded rather than
+provisional. On the client's own curve that is **day 31** (1,754 g at
+day 30, 1,843 g at day 31).
+
+**But the day is sensitive to the yield, and the yield is an estimate.**
+Sensitivity run 2026-09-10 across 58–66%: day 31 holds only between
+**59.7% and 62.8%**. Below that the target falls on day 32; above it,
+day 30, and day 29 by 66%. Daniel's ~62% sits **0.8 points** from
+flipping the answer to day 30. On this curve a bird gains ~87 g/day, so
+one harvest day is worth only ~3 points of dressing yield — the day
+cannot be pinned more precisely than the yield is known, and "~62%" is
+not known that precisely. Harvest-day output therefore keeps
+`confidence: 'assumed'` until a measured dressing percentage exists.
+See **OQ-17**.
+
+**Overshoot still costs money, and that part of OQ-7 survives.** The
+bulk contract bands on dressed weight and pays LESS per bird as the bird
+gets heavier — $3.90 at 1.1 kg dressed, $3.80 at 1.2 kg, $3.70 at 1.3 kg.
+So the target is a floor to reach, not a direction to keep travelling in.
+M4 must surface holding past the band as the revenue loss it is. The
+correction in OQ-7 was to *why* 1,770 g is the number, not to *whether*
+heavier is worse.
+
+**Bulk is a presale, and that is why under-finished birds go there.**
+The bulk arrangement is a pre-commitment: the contract buyer takes the
+birds **regardless of finish size**. That is a structural fact about the
+deal, not a pricing quirk, and it is what makes sending less-finished
+birds to bulk economical — every day not spent finishing a bulk bird is
+feed not bought. M4 must reason from this directly:
+
+- A bulk bird has **no weight gate**. It does not need to reach
+  `slaughter_target_g` to be sellable, only to be priced.
+- The question M4 asks about a bulk bird is therefore *"is another day
+  of feed worth what another day of growth adds to this bird's band?"* —
+  and given the bands pay less as weight rises, the answer past the
+  1.1 kg band is usually **no**.
+- A gate bird has a real quality gate (see gate pricing below) and is
+  a different decision. Bulk and gate are not the same optimisation with
+  a different price constant.
+
+**Gate pricing is quality-gated, and the system cannot see quality.**
+Daniel prices a visually good bird — his words, "big chest" — flat at
+about $4.20–$4.30 whatever it weighs under ~2 kg; a heavier bird he
+prices per kg at about $2.00/kg. The two happen to converge near the
+crossover. This is a **documented approximation of a visual judgement**,
+never a formula the engine can claim to compute:
+
+- Default gate revenue is the **flat ~$4.25 per bird**, and it carries
+  `confidence: 'assumed'` until real sales data exists.
+- Per-kg at ~$2.00/kg is the **fallback for birds recorded above
+  ~2 kg** live weight.
+- The engine cannot derive "big chest" from weight, and must never
+  present the flat/per-kg switch as precise. The crossover is not clean
+  either: at exactly 2 kg the flat price is $4.25 while per-kg gives
+  $4.00, and they only meet at about 2.125 kg. Presenting a sharp
+  threshold would be inventing precision the input does not have.
+
+This reconciles the two client sources rather than picking one: the
+brief's "$4.30 per bird" is the flat rate for typical birds, and the
+spreadsheet's observed $2.00/kg is the heavy-bird rate. Both are his,
+and they describe different birds. See OQ-4.
 
 ### Derived views
 ```
@@ -194,9 +294,29 @@ The codebase must never violate these.
 4. **Only `lib/repositories` imports the Supabase client.** No route,
    component, or engine file may query the database directly.
 
-5. **The engine never invents an input.** A missing required value
-   produces a typed `MissingInput` result naming what is missing. It
-   never substitutes a default silently.
+5. **The engine never invents an input, and never passes an absence off
+   as a measurement.** A missing required value produces a typed
+   `MissingInput` result naming what is missing. It never substitutes a
+   default silently.
+
+   **Carried-forward values must be marked as such.** Where the engine
+   legitimately continues with the last known value rather than
+   refusing — a day with no daily record carries the previous
+   cumulative removals forward — the value itself is never adjusted,
+   and no forecast fills the gap. But the output must carry the fact
+   that it was carried forward (`carried_forward`, and
+   `days_since_last_record` for how stale it is), because "nobody died
+   that day" and "nobody wrote anything down that day" both derive a
+   delta of zero and are otherwise indistinguishable. Silently
+   identical is the failure mode this invariant exists to prevent: it
+   is invented data wearing a measurement's clothes.
+
+   **The UI must render the distinction**, on the same footing as the
+   `measured` / `calibrated` / `assumed` confidence badges in
+   `ui-context.md` §141. A carried-forward figure is never drawn as a
+   plain entered one — U9's decision console included. The engine's job
+   is to make the distinction available; the console's job is to show
+   it, and neither may drop it.
 
 6. **Every engine output carries provenance.** Values are returned
    wrapped as `Explained<T>` with formula, inputs, and confidence.
@@ -220,6 +340,62 @@ The codebase must never violate these.
 12. **Request handlers do no long-lived work.** Nightly snapshots and
     alert evaluation run in Netlify Scheduled Functions, not in request
     handlers.
+
+13. **Bird removals are entered cumulatively and are monotonic.**
+    Both `daily_records.mortality_cumulative` and
+    `daily_records.cull_cumulative` are running totals as of that day,
+    not that day's counts. Therefore, for each column:
+    `cumulative[d] >= cumulative[d-1]`, and **jointly**:
+    `mortality_cumulative[d] + cull_cumulative[d] <= chick_count + extra_chick_count`.
+    The bound is joint rather than per-column because a culled bird is
+    no longer available to die; bounding each separately would admit a
+    flock losing twice its own size. Daily deltas are derived —
+    `delta[d] = cumulative[d] - cumulative[d-1]` — and never stored.
+    This replaces the previous reading of invariant 3, under which birds
+    alive was a running **sum of per-day deltas**: a single missed or
+    double-entered day silently corrupted every later figure with no way
+    to detect it. Under a monotonic cumulative column a bad entry is
+    caught by the invariant on the spot, and a missed day self-heals
+    because the next entry restates the true total.
+
+14. **There is no standard mortality curve.** Per the client, "it
+    varies". The forecast rate is calibrated per batch from that
+    batch's own trailing cumulative entries (EMA, alpha 0.4 — the same
+    pattern as weight-curve calibration). The constants in
+    `MortalityModel` are a **fallback**, used only where insufficient
+    own-batch history exists, and never as the permanent source. See
+    OQ-12 for the sufficiency threshold.
+
+15. **Core credit is chick cost plus feed cost, and nothing else.**
+    Overheads are real money and are charged — `overhead_cost_cents`,
+    `full_production_cost_cents` — but they are never folded into
+    `core_credit_cents`. The client's brief requires the break-evens to
+    be displayed separately ("These are NOT the same number. Display
+    them separately"), and a single blended figure cannot be
+    un-blended afterwards. An overhead line declares its basis,
+    `PER_BIRD` or `PER_BATCH`, because the brief separates variable
+    from fixed costs and says "do not double-count".
+
+16. **The inter-batch gap is a hard floor on placement, and cash never
+    overrides it.** The next placement date is at least **harvest
+    completion + 14 days** — spraying and disinfection of the house.
+    Client-stated, 2026-09-10. This is a biosecurity constraint, not a
+    financial one, so it binds regardless of cash position, regardless
+    of mode, and regardless of how good the opportunity looks.
+
+    M5's enumeration therefore treats it as a **ceiling on optimism**:
+    the earliest placement candidate is `harvest_end + 14`, and no
+    candidate earlier than that is ever generated. It is not a penalty
+    term, not a soft preference, and not something a strategy can trade
+    away — a mode that could out-argue it would eventually recommend
+    placing into an uncleaned house.
+
+    Two consequences worth stating, because both are easy to get wrong:
+    - The gap runs from **harvest completion**, not from first sale. A
+      batch cleared over several days finishes when the last bird goes.
+    - "Maximum Growth" cannot recommend placing sooner than this even
+      when cash allows it. The mode optimises within the floor, never
+      against it. See AD-31.
 
 ## Hosting notes (Netlify)
 
