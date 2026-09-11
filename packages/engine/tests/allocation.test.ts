@@ -3,6 +3,7 @@ import {
   candidateInput,
   enumerateCandidates,
   handoffAtPlacement,
+  pickWinner,
   projectCandidate,
   scoreCandidate
 } from '../src/allocation.js';
@@ -10,7 +11,16 @@ import { projectCashCalendar } from '../src/cash.js';
 import { computeFeedLiability } from '../src/feed.js';
 import { missingInputsFor } from '../src/index.js';
 import { projectProduction } from '../src/production.js';
-import type { Candidate, Cents, EngineInput, Grams, IsoDate, Parameters } from '../src/types.js';
+import type {
+  Candidate,
+  CashCalendar,
+  Cents,
+  EngineInput,
+  Grams,
+  IsoDate,
+  Parameters,
+  ScoredCandidate
+} from '../src/types.js';
 
 const PLACEMENT = '2026-02-06' as IsoDate;
 
@@ -276,5 +286,49 @@ describe('scoreCandidate', () => {
     // not Infinity and not a large sentinel: a sentinel sorts, and sorting a
     // "never happened" into a ranking is a confident wrong answer.
     expect(scoreCandidate(baseInput(), c, handoff).cover_fast_days).toBeNull();
+  });
+});
+
+describe('pickWinner', () => {
+  const at = (date: string, birds: number, cents: bigint): ScoredCandidate => ({
+    candidate: { placement_date: date as IsoDate, chick_count: birds },
+    calendar: {} as CashCalendar,
+    cover_fast_days: null,
+    maximum_growth_birds: birds,
+    build_reserve_cents: cents as Cents,
+    breaches_reserve_floor: false
+  });
+
+  it('breaks a tie on the earliest date, then the smaller size', () => {
+    const scored = [at('2026-04-05', 300, 0n), at('2026-04-03', 300, 0n), at('2026-04-03', 200, 0n)];
+    const won = pickWinner('BUILD_RESERVE', scored);
+
+    // AD-44. Stated and tested, so the answer does not depend on loop order —
+    // which no test pins down and which changes silently on a refactor.
+    expect(won?.winner.candidate.placement_date).toBe('2026-04-03');
+    expect(won?.winner.candidate.chick_count).toBe(200);
+  });
+
+  it('reports how many candidates tied, because an insensitive choice is news', () => {
+    const scored = [at('2026-04-03', 200, 0n), at('2026-04-04', 300, 0n), at('2026-04-05', 100, 0n)];
+    expect(pickWinner('BUILD_RESERVE', scored)?.tied_candidates).toBe(3);
+  });
+
+  it('excludes a floor-breaching candidate from the ranking entirely', () => {
+    const breaching = { ...at('2026-04-03', 300, 999_999n), breaches_reserve_floor: true };
+    const clean = at('2026-04-04', 100, 1n);
+    expect(pickWinner('BUILD_RESERVE', [breaching, clean])?.winner.candidate.chick_count).toBe(100);
+  });
+
+  it('returns null when every candidate breaches the floor', () => {
+    const breaching = { ...at('2026-04-03', 300, 999_999n), breaches_reserve_floor: true };
+    // A real and reportable answer, not a failure to find one.
+    expect(pickWinner('BUILD_RESERVE', [breaching])).toBeNull();
+  });
+
+  it('drops null Cover Fast scorers rather than ranking them last', () => {
+    const never = at('2026-04-03', 300, 0n);
+    const clears = { ...at('2026-04-10', 100, 0n), cover_fast_days: 55 };
+    expect(pickWinner('COVER_FAST', [never, clears])?.winner.candidate.chick_count).toBe(100);
   });
 });

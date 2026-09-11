@@ -5,6 +5,7 @@ import { computeCosting } from './costing.js';
 import { computeFeedLiability } from './feed.js';
 import { projectProduction } from './production.js';
 import type {
+  AllocationMode,
   Candidate,
   CashCalendar,
   CashFlow,
@@ -12,6 +13,7 @@ import type {
   EngineInput,
   FeedLiability,
   IsoDate,
+  ModeWinner,
   RunningBatchHandoff,
   ScoredCandidate
 } from './types.js';
@@ -184,4 +186,50 @@ export function scoreCandidate(
     build_reserve_cents: calendar.closing_cents,
     breaches_reserve_floor: calendar.breaches_reserve_floor
   };
+}
+
+/**
+ * The best candidate for one mode, with the tie-break stated rather than left
+ * to loop order — which no test pins down and which changes silently on a
+ * refactor (AD-44).
+ *
+ * Returns null when the mode has nothing to rank: every candidate breaches the
+ * floor, or (for Cover Fast) none of them ever clears core credit. That is a
+ * real and reportable answer, not a failure to find one.
+ */
+export function pickWinner(
+  mode: AllocationMode,
+  scored: readonly ScoredCandidate[]
+): ModeWinner | null {
+  // AD-43: the floor filters. A breaching candidate is not ranked lower, it is
+  // not ranked. If that empties the field, "nothing is affordable" is the
+  // honest answer and the caller reports it as one.
+  const eligible = scored.filter(
+    (s) => !s.breaches_reserve_floor && (mode !== 'COVER_FAST' || s.cover_fast_days !== null)
+  );
+  if (eligible.length === 0) return null;
+
+  const better = (a: ScoredCandidate, b: ScoredCandidate): number => {
+    if (mode === 'COVER_FAST') return (a.cover_fast_days ?? 0) - (b.cover_fast_days ?? 0);
+    if (mode === 'MAXIMUM_GROWTH') return b.maximum_growth_birds - a.maximum_growth_birds;
+    if (b.build_reserve_cents > a.build_reserve_cents) return 1;
+    return b.build_reserve_cents < a.build_reserve_cents ? -1 : 0;
+  };
+
+  const ranked = [...eligible].sort((a, b) => {
+    const byScore = better(a, b);
+    if (byScore !== 0) return byScore;
+    // AD-44: earliest date, because the floor already handles biosecurity and
+    // idle days earn nothing; then smaller size, because at an equal score it
+    // risks less capital.
+    if (a.candidate.placement_date !== b.candidate.placement_date) {
+      return a.candidate.placement_date < b.candidate.placement_date ? -1 : 1;
+    }
+    return a.candidate.chick_count - b.candidate.chick_count;
+  });
+
+  const winner = ranked[0]!;
+  const tied_candidates = ranked.filter((s) => better(s, winner) === 0).length;
+
+  return { mode, winner, tied_candidates, candidates_considered: scored.length };
 }

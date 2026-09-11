@@ -255,6 +255,18 @@ export interface ScoredCandidate {
   readonly breaches_reserve_floor: boolean;
 }
 
+/**
+ * One mode's answer: the winning candidate, and how insensitive the choice
+ * was. `tied_candidates` is reported rather than swallowed (AD-44) — a winner
+ * that beat 400 others is a different fact from one that tied with them.
+ */
+export interface ModeWinner {
+  readonly mode: AllocationMode;
+  readonly winner: ScoredCandidate;
+  readonly tied_candidates: number;
+  readonly candidates_considered: number;
+}
+
 export interface Candidate {
   readonly placement_date: IsoDate;
   readonly chick_count: number;
