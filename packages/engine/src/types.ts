@@ -219,6 +219,16 @@ export interface Parameters {
    * assumption — 3 to 5 days, validated by nothing yet (OQ-12).
    */
   readonly calibration_trailing_days_min?: number;
+  /**
+   * The bird count the allocation enumeration steps by. Omitted means
+   * `DEFAULT_PLACEMENT_STEP_BIRDS` — an assumed 100, pending OQ-18.
+   */
+  readonly placement_step_birds?: number;
+}
+
+export interface Candidate {
+  readonly placement_date: IsoDate;
+  readonly chick_count: number;
 }
 
 export interface EngineInput {
