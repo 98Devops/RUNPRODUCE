@@ -143,6 +143,69 @@ describe('projectCashCalendar — dated outflows', () => {
       false
     );
   });
+
+  it('throws rather than dropping a flow dated before placement day 1', () => {
+    // terms_days: 0 and a collection the day before placement survives
+    // feed.ts's asOf filter (it's already collected) but derives a due_date
+    // before day 1 — the case finding 2 names.
+    const engineInput = input('2026-02-06', {
+      draws: [
+        {
+          collection_date: '2026-02-05' as IsoDate,
+          phase: 'STARTER',
+          bags: 5,
+          kg: 250,
+          price_per_bag_cents: 3250n as Cents,
+          terms_days: 0
+        }
+      ]
+    });
+    expect(() =>
+      projectCashCalendar(engineInput, 5, 0n as Cents, feedFor(engineInput))
+    ).toThrow(/before placement day 1/);
+  });
+});
+
+describe('projectCashCalendar — planned feed draws (finding 1)', () => {
+  it('books a not-yet-collected planned draw on its due date, priced by phase like measured feed', () => {
+    const engineInput = input('2026-02-06'); // no draws entered at all
+    const calendar = projectCashCalendar(engineInput, 45, 0n as Cents, feedFor(engineInput));
+
+    // Planned draw 2 (feed.test.ts: collection 2026-02-20, days 15-21) is
+    // entirely GROWER: 67+73+80+86+93+100+107 = 606 g/bird x 3,000 birds =
+    // 1,818,000 g, at GROWER's 62 cents/kg = 112,716 cents exactly (no
+    // rounding needed — divides evenly). Due 30 days later: 2026-03-22.
+    const dueDay = calendar.days.find((d) => d.date === '2026-03-22');
+    expect(dueDay?.flows.map((f) => f.kind)).toContain('PLANNED_FEED_DRAW_PAYMENT');
+    expect(dueDay?.out_cents).toBe(112716n);
+
+    expect(calendar.planned_feed_confidence).toBe('assumed');
+  });
+
+  it('does not double-book a planned draw once the same collection has a real, entered draw', () => {
+    // planned_draws[0] covers days 1-14, collection_date = placement,
+    // due_date = placement + 30 = 2026-03-08 — the SAME collection as the
+    // real draw entered below. Only the real payment should land there.
+    const engineInput = input('2026-03-10', {
+      draws: [
+        {
+          collection_date: '2026-02-06' as IsoDate,
+          phase: 'STARTER',
+          bags: 10,
+          kg: 500,
+          price_per_bag_cents: 3250n as Cents,
+          terms_days: 30
+        }
+      ]
+    });
+    const calendar = projectCashCalendar(engineInput, 40, 0n as Cents, feedFor(engineInput));
+    const dueDay = calendar.days.find((d) => d.date === '2026-03-08');
+
+    expect(dueDay?.flows.filter((f) => f.kind === 'FEED_DRAW_PAYMENT')).toHaveLength(1);
+    expect(dueDay?.flows.filter((f) => f.kind === 'PLANNED_FEED_DRAW_PAYMENT')).toHaveLength(0);
+    // The real draw's own price ($325.00), not that PLUS a planned figure.
+    expect(dueDay?.out_cents).toBe(32500n);
+  });
 });
 
 const bulkOrder = {
@@ -214,17 +277,38 @@ describe('projectCashCalendar — receipts', () => {
    * minus transport, and transport is null pending OQ-2 while OQ-16 gates the
    * double-count question independently.
    */
-  it('reports both gaps for a BULK order rather than guessing bulk net', () => {
+  it('reports both value gaps and the formula gap for a BULK order rather than guessing bulk net', () => {
     const missing = cashFlowsMissingInputs(input('2026-03-10', { sales: [bulkOrder] }));
     const keys = missing.map((m) => m.key);
 
     expect(keys).toContain('transport_cents_per_bird');
     expect(keys).toContain('abattoir_fee');
+    expect(keys).toContain('bulk_price');
     expect(missing.every((m) => /OQ-2|OQ-16/.test(m.why))).toBe(true);
+
+    // OQ-16 gates transport independently of OQ-2 (finding 6) — pin the
+    // specific entry's wording, not just the property across every entry.
+    const transportEntry = missing.find((m) => m.key === 'transport_cents_per_bird');
+    expect(transportEntry?.why).toMatch(/OQ-16/);
   });
 
   it('reports nothing missing when there is no bulk order', () => {
     expect(cashFlowsMissingInputs(input('2026-03-10', { sales: [gateOrder] }))).toEqual([]);
+  });
+
+  it('keeps reporting a BULK candidate once abattoir fee and transport are both supplied — OQ-16 is a formula question, not a values one (finding 4)', () => {
+    const engineInput = input('2026-03-10', {
+      parameters: parameters({
+        abattoir_fee_cents: 5000n as Cents,
+        transport_cents_per_bird: 1000n as Cents
+      }),
+      sales: [bulkOrder]
+    });
+    const missing = cashFlowsMissingInputs(engineInput);
+
+    expect(missing.map((m) => m.key)).toEqual(['bulk_price']);
+    expect(missing[0]?.why).toMatch(/OQ-16/);
+    expect(missing[0]?.why).toMatch(/does not release|not release/);
   });
 
   it('throws rather than returning a calendar missing a bulk receipt', () => {
@@ -262,6 +346,57 @@ describe('projectCashCalendar — overheads', () => {
 
     // Vaccine $42 and transport $400 double; labour $640 and electricity $140 do not.
     expect(total).toBe(8400n + 80000n + 64000n + 14000n);
+  });
+
+  it('scales chick cost and PER_BIRD overheads off chick_count + extra_chick_count, not chick_count alone — invariant 9', () => {
+    const engineInput = input('2026-02-06', {
+      batch: {
+        placement_date: PLACEMENT,
+        chick_count: 3000,
+        extra_chick_count: 100,
+        chick_price_cents: 100n as Cents
+      }
+    });
+    const calendar = projectCashCalendar(engineInput, 1, 0n as Cents, feedFor(engineInput));
+    const day1 = calendar.days[0];
+
+    // Flock = 3,100. Chick cost: 3,100 x $1.00 = $3,100.00 (310000 cents).
+    //
+    // Vaccine (PER_BIRD, $42.00 measured at 3,000): 4200 x 3100 / 3000 =
+    // 4,340 cents exactly (13,020,000 / 3,000 divides evenly).
+    // Transport/other (PER_BIRD, $400.00 measured at 3,000): 40000 x 3100 /
+    // 3000 = 41,333.33..., rounds UP to 41,334 cents (a cost never rounds
+    // down — overheadLineCents).
+    // Electricity ($140.00) and labour ($640.00) are PER_BATCH: unchanged.
+    // Overhead total: 4,340 + 41,334 + 14,000 + 64,000 = 123,674 cents.
+    const chickFlow = day1?.flows.find((f) => f.kind === 'CHICK_COST');
+    expect(chickFlow?.amount_cents).toBe(-310000n);
+
+    const overheadTotal = (day1?.flows.filter((f) => f.kind === 'OVERHEAD') ?? []).reduce(
+      (sum, f) => sum - f.amount_cents,
+      0n
+    );
+    expect(overheadTotal).toBe(123674n);
+    expect(day1?.out_cents).toBe(310000n + 123674n);
+  });
+
+  it('treats an omitted overheads parameter as the measured default, distinct from an explicit empty model', () => {
+    const omitted = input('2026-02-06');
+    const withDefault = projectCashCalendar(omitted, 1, 0n as Cents, feedFor(omitted));
+    const defaultTotal = (
+      withDefault.days[0]?.flows.filter((f) => f.kind === 'OVERHEAD') ?? []
+    ).reduce((sum, f) => sum - f.amount_cents, 0n);
+    // $1,222.00 — SEED_OVERHEADS at 3,000 birds, absent means "use the
+    // client's measured default", per Parameters.overheads.
+    expect(defaultTotal).toBe(122200n);
+
+    const explicitEmpty = input('2026-02-06', {
+      parameters: parameters({ overheads: { lines: [] } })
+    });
+    const withEmpty = projectCashCalendar(explicitEmpty, 1, 0n as Cents, feedFor(explicitEmpty));
+    // {lines: []} means "charge nothing" — deliberately, not "use the default".
+    expect(withEmpty.days[0]?.flows.filter((f) => f.kind === 'OVERHEAD')).toHaveLength(0);
+    expect(withEmpty.days[0]?.out_cents).toBe(300000n); // chick cost only
   });
 });
 

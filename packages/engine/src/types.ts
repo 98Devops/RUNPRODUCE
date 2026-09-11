@@ -523,6 +523,7 @@ export interface HarvestPlan {
 export type CashFlowKind =
   | 'CHICK_COST'
   | 'FEED_DRAW_PAYMENT'
+  | 'PLANNED_FEED_DRAW_PAYMENT'
   | 'OVERHEAD'
   | 'GATE_RECEIPT'
   | 'BULK_RECEIPT';
@@ -544,6 +545,7 @@ export interface CashFlow {
 export interface CashDay {
   readonly day_number: number;
   readonly date: IsoDate;
+  /** Balance carried in from the previous day's `closing_cents`; day 1's is the calendar's own `opening_cents`. */
   readonly opening_cents: Cents;
   readonly in_cents: Cents;
   readonly out_cents: Cents;
@@ -570,6 +572,18 @@ export interface CashDay {
 export interface CashCalendar {
   readonly days: readonly CashDay[];
   readonly through_day: number;
+  /**
+   * The balance at the START of day 1 — i.e. on the placement date, before
+   * any flow this calendar projects. Day 1 re-books the full chick cost and
+   * the full overhead lump, which in reality may already be paid, so this is
+   * NOT the client's current bank balance unless `asOf` happens to be the
+   * placement date. A caller passing today's balance on a batch placed weeks
+   * ago will double-count day 1's outflow.
+   *
+   * Any flow dated before placement (terms so short it was already paid, for
+   * instance) must already be folded into this figure — `projectCashCalendar`
+   * throws rather than silently dropping one.
+   */
   readonly opening_cents: Cents;
   readonly closing_cents: Cents;
   /** The lowest closing balance across the projection. */
@@ -593,6 +607,19 @@ export interface CashCalendar {
    * to keep visible.
    */
   readonly overhead_timing: Confidence;
+  /**
+   * How well-founded the PLANNED feed draws booked into this calendar are —
+   * copied straight from `feed.planned_confidence`.
+   *
+   * 'assumed' today, for the same reason `FeedLiability.planned_draws` is:
+   * the schedule holds the flock flat because U3 has no mortality model
+   * (AD-24), so every planned draw's size — and therefore its price — is an
+   * upper bound, not a forecast. A calendar containing planned draws is
+   * partly measured fact (chick cost, any already-collected draw, overhead
+   * amounts) and partly this assumption; a reader must be able to tell which
+   * part they are looking at.
+   */
+  readonly planned_feed_confidence: Confidence;
 }
 
 export interface Lever {

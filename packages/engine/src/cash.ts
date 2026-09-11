@@ -1,6 +1,9 @@
-import { addDays } from './day-number.js';
+import { SEED_BREED_CURVE, pointForDay } from './breed-curve.js';
+import { costOfFeed } from './costing.js';
+import { addDays, daysBetween } from './day-number.js';
 import { SEED_OVERHEADS, overheadBreakdown } from './overheads.js';
 import type {
+  BreedCurve,
   CashCalendar,
   CashDay,
   CashFlow,
@@ -8,6 +11,7 @@ import type {
   EngineInput,
   FeedLiability,
   MissingInput,
+  Phase,
   SalesOrder
 } from './types.js';
 
@@ -44,6 +48,23 @@ export function cashFlowsMissingInputs(input: EngineInput): MissingInput[] {
         'not release OQ-16.'
     });
   }
+  // OQ-16 is a question about the FORMULA — whether transport belongs in bulk
+  // net at all — not about the two values above. Supplying both does not
+  // answer it, so this entry must survive even once abattoir_fee_cents and
+  // transport_cents_per_bird are both non-null. Without it,
+  // cashFlowsMissingInputs() would return [] the day the client answers OQ-2,
+  // and the BULK branch below would still throw unconditionally — a raw
+  // Error where invariant 5 promises a typed blank. 'bulk_price' is the
+  // existing key for "we cannot price a bulk sale"; this is exactly that.
+  missing.push({
+    key: 'bulk_price',
+    why:
+      'OQ-16 asks whether transport belongs in bulk net at all, given the Final Report ' +
+      'already books an Other/Transport line for a gate-sold batch — a question about the ' +
+      'bulk-net FORMULA, not its inputs. Supplying abattoir_fee_cents and ' +
+      'transport_cents_per_bird does not release it: no BULK candidate is scoreable until ' +
+      'OQ-16 is answered.'
+  });
   return missing;
 }
 
@@ -73,23 +94,76 @@ function receiptCents(sale: SalesOrder): Cents {
 }
 
 /**
+ * Prices a `PlannedDraw`'s span the way the rest of the engine prices feed —
+ * `computeCosting`'s own method, grams per day bucketed by breed-curve phase,
+ * each phase's cents rounded UP (`costOfFeed`, exported from costing.ts for
+ * exactly this reuse) — because a `PlannedDraw` carries `bags` and `kg` but no
+ * money of its own; nobody has entered a supplier price for feed not yet
+ * drawn.
+ *
+ * `flock` is held FLAT across the span, matching `computeFeedLiability`'s own
+ * treatment of `planned_draws` (U3 has no mortality model, AD-24) — the money
+ * derived here must agree with the upper-bound `kg` already on the record,
+ * not silently switch to a more precise, declining flock the rest of the
+ * planned schedule does not use.
+ */
+function pricePlannedDrawSpan(
+  curve: BreedCurve,
+  flock: number,
+  coversFirstDay: number,
+  coversLastDay: number
+): Cents {
+  const gramsByPhase: Record<Phase, bigint> = { STARTER: 0n, GROWER: 0n, FINISHER: 0n };
+  for (let day = coversFirstDay; day <= coversLastDay; day += 1) {
+    const point = pointForDay(curve, day);
+    gramsByPhase[point.phase] += BigInt(point.feed_g) * BigInt(flock);
+  }
+  let cents = 0n;
+  for (const phase of curve.phases) {
+    cents += costOfFeed(gramsByPhase[phase.phase], phase.price_per_kg_cents);
+  }
+  return cents as Cents;
+}
+
+/**
  * M5a — the cash calendar.
  *
  * Day-by-day opening / in / out / closing from placement through
  * `throughDay`. Pure arithmetic on dated flows; it holds no opinion about
  * which candidate or strategy is better.
  *
- * Chick cost, feed draw payments, sales receipts and overheads are the flows
- * it projects.
+ * Chick cost, feed draw payments (both collected and planned), sales
+ * receipts and overheads are the flows it projects.
  *
  * `throughDay` has NO DEFAULT on purpose. AD-43 makes the 90-day calendar a
  * display horizon while each allocation candidate is scored over its own
  * completion horizon, and a default here would let a caller silently inherit
  * the wrong window — the mismatch error AD-36 names.
+ *
+ * Two things are assumed rather than measured, and the calendar says so on
+ * two separate fields rather than one, because they are independent facts:
+ * `overhead_timing` (the amounts are the client's own; only the date they
+ * land on is this module's guess) and `planned_feed_confidence` (feed not
+ * yet drawn is priced off a flat-flock schedule, because U3 has no
+ * mortality model — see `feed.planned_draws`).
+ *
+ * Sales orders are taken as given: every order in `input.sales` becomes a
+ * receipt regardless of `order_date` relative to `input.asOf`. Unlike
+ * `feed.ts`, which filters draws against `asOf` itself, this module does not
+ * enforce invariant 7 on sales — the caller owns that filtering. M5b needs
+ * this: a candidate's whole point is receipts that have not happened yet.
  */
 export function projectCashCalendar(
   input: EngineInput,
   throughDay: number,
+  /**
+   * The balance at the START of day 1 — i.e. on the placement date, before
+   * any flow this function projects. Day 1 re-books the full chick cost and
+   * the full overhead lump, so passing the client's CURRENT balance on a
+   * batch placed weeks before `asOf` double-counts that outflow. Any flow
+   * that would fall before placement must already be folded in here; see the
+   * throw in `buildDays`.
+   */
   openingCents: Cents,
   feed: FeedLiability
 ): CashCalendar {
@@ -113,7 +187,8 @@ export function projectCashCalendar(
   });
 
   /**
-   * Overhead TIMING is assumed, and this is the only assumption in the module.
+   * Overhead TIMING is assumed — one of two independent assumptions in this
+   * module; the other is the planned feed schedule below.
    *
    * `computeCosting` gives amounts and no dates — the client books overheads
    * per batch, not per day. Charging them all at placement is the simplest
@@ -144,6 +219,47 @@ export function projectCashCalendar(
       date: draw.due_date,
       amount_cents: -draw.total_cents as Cents,
       description: `${draw.bags} bags ${draw.phase} drawn ${draw.collection_date}`
+    });
+  }
+
+  /**
+   * `feed.planned_draws` is the WHOLE-CYCLE idealised schedule (placement
+   * through the last curve day), unconditionally — it is not filtered down
+   * to "what remains", so it overlaps in concept with `feed.draws` for any
+   * draw already collected. Booking every planned entry regardless would
+   * double-charge that overlap: a real, measured `FEED_DRAW_PAYMENT` above,
+   * and a second, assumed payment for the same feed here — a confident wrong
+   * number in the pessimistic direction, but still one invariant 5 forbids.
+   *
+   * The dedup key is `collection_date`, not `due_date`: a real draw's due
+   * date is `collection_date + the DRAW'S OWN terms_days` (which can differ
+   * from `parameters.feed_terms_days`, the only terms a planned draw knows),
+   * so two payments for the same physical collection can legitimately land
+   * on different dates. Matching the collection event itself is what a
+   * "has this already happened" question actually asks.
+   *
+   * A collection that happened on a date the idealised schedule would not
+   * have chosen (drawn early or late in reality) will not match by this key
+   * and so still double-counts — a known limitation of `planned_draws`
+   * carrying no link back to the real schedule, not something this module
+   * can repair without touching feed.ts.
+   */
+  const curve = input.curve ?? SEED_BREED_CURVE;
+  const collectedDates = new Set(feed.draws.map((draw) => draw.collection_date));
+  for (const planned of feed.planned_draws) {
+    if (collectedDates.has(planned.collection_date)) continue;
+    flows.push({
+      kind: 'PLANNED_FEED_DRAW_PAYMENT',
+      date: planned.due_date,
+      amount_cents: -pricePlannedDrawSpan(
+        curve,
+        flock,
+        planned.covers_first_day,
+        planned.covers_last_day
+      ) as Cents,
+      description:
+        `${planned.bags} bags planned, days ${planned.covers_first_day}-` +
+        `${planned.covers_last_day} (not yet collected, schedule assumed)`
     });
   }
 
@@ -191,19 +307,38 @@ export function projectCashCalendar(
     });
   }
 
-  return buildDays(input, throughDay, openingCents, flows, floor);
+  return buildDays(input, throughDay, openingCents, flows, floor, feed.planned_confidence);
 }
 
-/** Lays dated flows onto the day series. A flow outside the horizon is dropped. */
+/**
+ * Lays dated flows onto the day series.
+ *
+ * A flow AFTER the horizon is dropped — intended, and what a `throughDay`
+ * shorter than the full projection is FOR. A flow BEFORE day 1 is not
+ * dropped: it throws. `openingCents` is documented as the balance at the
+ * start of day 1, with every pre-placement flow already folded in, so a flow
+ * that lands before placement is a caller error — most likely a draw whose
+ * `terms_days` collapsed its due date to before placement — and silently
+ * discarding it would raise the reported minimum, the flattering direction
+ * this engine must never err in.
+ */
 function buildDays(
   input: EngineInput,
   throughDay: number,
   openingCents: Cents,
   flows: readonly CashFlow[],
-  floor: Cents
+  floor: Cents,
+  plannedFeedConfidence: CashCalendar['planned_feed_confidence']
 ): CashCalendar {
   const byDate = new Map<string, CashFlow[]>();
   for (const flow of flows) {
+    if (daysBetween(input.batch.placement_date, flow.date) < 0) {
+      throw new Error(
+        `Cash flow dated ${flow.date} (${flow.kind}) falls before placement day 1 ` +
+          `(${input.batch.placement_date}). A flow before day 1 belongs in openingCents, ` +
+          'not in this projection — see the openingCents parameter doc.'
+      );
+    }
     const existing = byDate.get(flow.date);
     if (existing === undefined) byDate.set(flow.date, [flow]);
     else existing.push(flow);
@@ -239,14 +374,15 @@ function buildDays(
     opening = closing;
   }
 
-  return summarise(days, throughDay, openingCents);
+  return summarise(days, throughDay, openingCents, plannedFeedConfidence);
 }
 
 /** The headline figures, derived from the day series so they cannot disagree. */
 function summarise(
   days: readonly CashDay[],
   throughDay: number,
-  openingCents: Cents
+  openingCents: Cents,
+  plannedFeedConfidence: CashCalendar['planned_feed_confidence']
 ): CashCalendar {
   const [first, ...rest] = days;
   if (first === undefined) throw new Error('Cash calendar has no days');
@@ -270,6 +406,7 @@ function summarise(
     minimum_date: minimum.date,
     breaches_reserve_floor: breach !== null,
     first_breach_date: breach === null ? null : breach.date,
-    overhead_timing: 'assumed'
+    overhead_timing: 'assumed',
+    planned_feed_confidence: plannedFeedConfidence
   };
 }

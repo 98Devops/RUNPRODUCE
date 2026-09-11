@@ -69,8 +69,12 @@ export function computeCosting(
  * on whole kilograms; elsewhere a cost rounded down would flatter a break-even,
  * which is the one direction this engine must never err in (AD-26). At most one
  * cent per phase.
+ *
+ * Exported so `cash.ts` can price a `PlannedDraw`'s span with the identical
+ * rounding rule rather than a second copy of it — a planned draw's money is
+ * derived the same way every other feed cost in the engine is.
  */
-function costOfFeed(grams: bigint, price_per_kg_cents: Cents): bigint {
+export function costOfFeed(grams: bigint, price_per_kg_cents: Cents): bigint {
   const product = grams * price_per_kg_cents;
   const whole = product / 1000n;
   return product % 1000n === 0n ? whole : whole + 1n;

@@ -7,9 +7,21 @@ Update this file after every meaningful implementation change.
 **U5 — M5a cash calendar.** Started 2026-09-10, after U4 closed and the
 U5 grilling session cleared the assumptions that gate the allocation
 optimiser (AD-40 through AD-45, OQ-18).
-**Outcome: done.** `packages/engine/src/cash.ts`, 7 tasks, TDD
-throughout, 209 unit tests passing, golden suite unchanged at 11
-written / 11 passing / 1 held, lint/typecheck/build clean.
+**Outcome: done, including the pre-merge review fix wave.**
+`packages/engine/src/cash.ts`, 7 tasks, TDD throughout, then a final
+code-review fix wave (7 findings + one documentation-only item) before
+merge: `feed.planned_draws` is now booked as `PLANNED_FEED_DRAW_PAYMENT`
+(priced the way `computeCosting` prices feed, deduped against already-
+collected draws by `collection_date`); a flow dated before placement day
+1 now throws instead of being silently dropped; `openingCents` /
+`opening_cents` are documented as the balance at the START of day 1;
+`cashFlowsMissingInputs` now keeps reporting a BULK candidate (key
+`bulk_price`) once both OQ-2 values land, since OQ-16 gates the formula
+independently; plus three test-only hardenings (invariant 9 with
+`extra_chick_count`, the OQ-16-specific assertion, and `lines: []` vs
+omitted overheads). 215 unit tests passing (was 209), golden suite
+unchanged at 11 written / 11 passing / 1 held, lint/typecheck/build
+clean. Report: `.superpowers/sdd/u5-cash-calendar-plan/final-fix-report.md`.
 
 ## Current Goal
 
@@ -30,10 +42,11 @@ completeness fixture.
 ## Completed
 
 - **U5 · M5a cash calendar.** `packages/engine/src/cash.ts`, 7 tasks, 17
-  new tests, TDD throughout. 209 tests green; golden suite **unchanged**
-  at 11 written / 11 passing / 1 held — expected, since M5a is
-  deliberately not wired into `computeDecision()`; lint, typecheck and
-  build clean.
+  new tests, TDD throughout, then a pre-merge review fix wave adding 6
+  more (23 in `cash.test.ts` total). 215 tests green; golden suite
+  **unchanged** at 11 written / 11 passing / 1 held — expected, since
+  M5a is deliberately not wired into `computeDecision()`; lint, typecheck
+  and build clean.
 
   **Not wired into the decision path, on purpose.** `decision.allocation`
   keeps throwing `NotImplementedError` until M5b lands, so a future M5
