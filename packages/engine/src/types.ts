@@ -224,6 +224,20 @@ export interface Parameters {
    * `DEFAULT_PLACEMENT_STEP_BIRDS` — an assumed 100, pending OQ-18.
    */
   readonly placement_step_birds?: number;
+  /**
+   * The largest placement the allocation enumeration may consider.
+   *
+   * OPERATOR-ENTERED, with no derived default and no hardcoded cap (OQ-23,
+   * answered 2026-09-11: the field takes "any figure technically"; 5,000 is
+   * realistic today, 30,000 the brief's planning target). Deliberately NOT
+   * gate-derived — gate capacity caps how fast a batch converts to same-day
+   * cash, and a bulk-inclusive batch exceeds gate absorption by design.
+   * CONTEXT.md's "max safe batch size" is the gate-derived OUTPUT; this is
+   * the enumeration's bound. They share a formula and are not the same thing.
+   *
+   * Absent, `requirePlacementCeiling` throws rather than defaulting.
+   */
+  readonly max_placement_birds?: number;
 }
 
 /**
@@ -247,12 +261,23 @@ export type AllocationMode = 'COVER_FAST' | 'MAXIMUM_GROWTH' | 'BUILD_RESERVE';
  */
 export interface ScoredCandidate {
   readonly candidate: Candidate;
-  readonly calendar: CashCalendar;
+  /**
+   * null when the candidate could not be projected at all — a bulk-inclusive
+   * batch, whose calendar `projectCashCalendar` refuses until OQ-2 and OQ-16
+   * land. Every other field that needs a calendar is null with it.
+   */
+  readonly calendar: CashCalendar | null;
   /** Days until receipts repay core credit, or null if they never do. */
   readonly cover_fast_days: number | null;
+  /** Placement size. The one scalar that needs no calendar, so never null. */
   readonly maximum_growth_birds: number;
-  readonly build_reserve_cents: Cents;
-  readonly breaches_reserve_floor: boolean;
+  readonly build_reserve_cents: Cents | null;
+  /**
+   * null means UNCHECKED, not "does not breach". Without a calendar there is
+   * no day-by-day trough to read, and reporting `false` would assert the
+   * candidate is affordable on no evidence.
+   */
+  readonly breaches_reserve_floor: boolean | null;
 }
 
 /**
@@ -265,6 +290,13 @@ export interface ModeWinner {
   readonly winner: ScoredCandidate;
   readonly tied_candidates: number;
   readonly candidates_considered: number;
+  /**
+   * False when the reserve floor could not be evaluated, because no candidate
+   * had a calendar. The winner is then the best on its scalar ALONE, with a
+   * hard constraint unexamined — a materially weaker claim, and one the
+   * caller has to be able to see.
+   */
+  readonly reserve_floor_checked: boolean;
 }
 
 /**
@@ -279,7 +311,25 @@ export interface PlaceNothing {
   /** PER_BATCH overhead only. PER_BIRD lines scale to zero unaided. */
   readonly overhead_avoided_cents: Cents;
   readonly overhead_still_incurred_cents: Cents;
-  readonly closing_cents: Cents;
+  /** null when the running batch could not be projected. Never 0n for that. */
+  readonly closing_cents: Cents | null;
+}
+
+/**
+ * The whole allocation answer: one winner per mode, or a typed refusal for the
+ * modes whose scalar needs a bulk net nobody has supplied.
+ *
+ * Modes refuse INDEPENDENTLY. Cover Fast and Build Reserve both read the cash
+ * calendar, so a bulk-inclusive batch blocks them; Maximum Growth ranks on
+ * placement size and still answers. That split is the design working, not a
+ * partial failure.
+ */
+export interface AllocationResult {
+  readonly cover_fast: ModeWinner | readonly MissingInput[] | null;
+  readonly maximum_growth: ModeWinner | null;
+  readonly build_reserve: ModeWinner | readonly MissingInput[] | null;
+  readonly place_nothing: PlaceNothing;
+  readonly candidates_considered: number;
 }
 
 export interface Candidate {

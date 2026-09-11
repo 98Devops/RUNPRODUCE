@@ -3,12 +3,14 @@ import {
   candidateInput,
   enumerateCandidates,
   handoffAtPlacement,
+  computeAllocation,
   pickWinner,
   placeNothing,
   projectCandidate,
   scoreCandidate
 } from '../src/allocation.js';
 import { projectCashCalendar } from '../src/cash.js';
+import { planHarvest } from '../src/harvest.js';
 import { computeFeedLiability } from '../src/feed.js';
 import { missingInputsFor } from '../src/index.js';
 import { projectProduction } from '../src/production.js';
@@ -19,7 +21,10 @@ import type {
   EngineInput,
   Grams,
   IsoDate,
+  MissingInput,
+  ModeWinner,
   Parameters,
+  SalesOrder,
   ScoredCandidate
 } from '../src/types.js';
 
@@ -43,11 +48,17 @@ function parameters(overrides: Partial<Parameters> = {}): Parameters {
     delivery_mode: 'ABATTOIR',
     feed_terms_days: 30,
     reserve_floor_cents: 0n as Cents,
+    // OQ-23: operator-entered, no derived default. Small here so the grid stays
+    // cheap — 3 sizes x 31 dates rather than the client's real 5,000.
+    max_placement_birds: 300,
     ...overrides
   };
 }
 
-function baseInput(paramOverrides: Partial<Parameters> = {}): EngineInput {
+function baseInput(
+  paramOverrides: Partial<Parameters> = {},
+  sales: readonly SalesOrder[] = []
+): EngineInput {
   return {
     asOf: PLACEMENT,
     batch: {
@@ -59,8 +70,12 @@ function baseInput(paramOverrides: Partial<Parameters> = {}): EngineInput {
     parameters: parameters(paramOverrides),
     records: [],
     draws: [],
-    sales: []
+    sales
   };
+}
+
+function harvestOf(engineInput: EngineInput) {
+  return planHarvest(engineInput, projectProduction(engineInput));
 }
 
 function feedFor(engineInput: EngineInput) {
@@ -362,5 +377,145 @@ describe('placeNothing', () => {
     // It carries the overhead arithmetic that justifies it, and no candidate.
     expect('candidate' in nothing).toBe(false);
     expect('maximum_growth_birds' in nothing).toBe(false);
+  });
+});
+
+describe('requirePlacementCeiling', () => {
+  it('throws when nobody has said what caps a placement', () => {
+    // OQ-23 settled the SOURCE — the operator types it — not a value the engine
+    // may assume. 5,000 is today's scale and 30,000 the brief's target; picking
+    // either here would invent the number that decides how much of the decision
+    // space the engine is willing to look at.
+    const noCeiling = baseInput();
+    const { max_placement_birds: _omitted, ...rest } = noCeiling.parameters;
+    const stripped: EngineInput = { ...noCeiling, parameters: rest as Parameters };
+
+    expect(() =>
+      computeAllocation(stripped, feedFor(stripped), harvestOf(stripped), 0n as Cents)
+    ).toThrow(/max_placement_birds/);
+  });
+});
+
+describe('computeAllocation — the two-blocked-one-working asymmetry', () => {
+  const BULK: readonly SalesOrder[] = [
+    {
+      channel: 'BULK',
+      order_date: '2026-03-10' as IsoDate,
+      bird_count: 500,
+      avg_live_weight_g: 1800 as Grams,
+      pricing_basis: 'PER_BIRD',
+      price_cents_per_bird: 390n as Cents,
+      price_cents_per_kg: null,
+      terms_days: 30
+    }
+  ];
+  const bulkInput = () => baseInput({}, BULK);
+  const runBulk = () =>
+    computeAllocation(bulkInput(), feedFor(bulkInput()), harvestOf(bulkInput()), 0n as Cents);
+
+  it('does not throw, even though the running batch cannot be projected', () => {
+    // The regression this pins: every projection path — handoffAtPlacement,
+    // projectCandidate, placeNothing's closing balance — runs through
+    // projectCashCalendar, which REFUSES a bulk-inclusive input. Scoring first
+    // and checking afterwards throws before any refusal can be reported.
+    expect(() => runBulk()).not.toThrow();
+  });
+
+  it('refuses Cover Fast and Build Reserve, naming OQ-2 and OQ-16', () => {
+    const result = runBulk();
+    const keys = (result.cover_fast as MissingInput[]).map((m) => m.key);
+
+    expect(keys).toContain('transport_cents_per_bird');
+    expect(keys).toContain('bulk_price');
+    expect(Array.isArray(result.build_reserve)).toBe(true);
+  });
+
+  it('still answers Maximum Growth, whose scalar needs no bulk net', () => {
+    const result = runBulk();
+
+    // Two of three modes blocked while the third answers is correct and
+    // expected, not a partial failure. It is invariant 5 working.
+    expect(Array.isArray(result.maximum_growth)).toBe(false);
+    expect((result.maximum_growth as ModeWinner).winner.maximum_growth_birds).toBeGreaterThan(0);
+  });
+
+  it('admits the reserve floor went unchecked rather than implying it passed', () => {
+    const result = runBulk();
+    const won = result.maximum_growth as ModeWinner;
+
+    // Without a calendar there is no trough to read, so "does not breach the
+    // floor" is not a fact we hold. Reporting false would assert the winner is
+    // affordable on no evidence — the confident wrong answer invariant 5 is
+    // about. Null means unchecked, and the flag says so out loud.
+    expect(won.winner.breaches_reserve_floor).toBeNull();
+    expect(won.reserve_floor_checked).toBe(false);
+  });
+
+  it('says in the output itself that the split is expected', () => {
+    const result = runBulk();
+    const why = (result.cover_fast as MissingInput[]).map((m) => m.why).join(' ');
+
+    // So anyone reading a test run or a demo finds the explanation in the
+    // output rather than having to find the spec.
+    expect(why).toMatch(/Maximum Growth/);
+    expect(why).toMatch(/expected/i);
+  });
+
+  it('reports place_nothing overheads but a null closing balance', () => {
+    const result = runBulk();
+
+    // The overhead arithmetic needs no projection and is still real. The
+    // closing balance needs one, and there isn't one — so it is null, not 0n.
+    expect(result.place_nothing.overhead_avoided_cents).toBe(78_000n);
+    expect(result.place_nothing.closing_cents).toBeNull();
+  });
+});
+
+describe('computeAllocation — a gate-only batch answers everything', () => {
+  // A floor low enough that candidates are affordable. baseInput carries NO
+  // sales, so the running batch spends a whole cycle and earns nothing; against
+  // a zero floor every candidate breaches and every mode correctly returns
+  // null. That is real behaviour and is pinned separately below — it is just
+  // not the behaviour THIS block is about.
+  const affordable = () => baseInput({ reserve_floor_cents: -10_000_000n as Cents });
+  const run = () =>
+    computeAllocation(affordable(), feedFor(affordable()), harvestOf(affordable()), 0n as Cents);
+
+  it('answers all three modes', () => {
+    const result = run();
+    expect(Array.isArray(result.cover_fast)).toBe(false);
+    expect(Array.isArray(result.build_reserve)).toBe(false);
+    expect(Array.isArray(result.maximum_growth)).toBe(false);
+  });
+
+  it('checks the reserve floor for real, and says so', () => {
+    const result = run();
+    expect((result.maximum_growth as ModeWinner).reserve_floor_checked).toBe(true);
+    expect((result.maximum_growth as ModeWinner).winner.breaches_reserve_floor).toBe(false);
+  });
+
+  it('enumerates from the harvest completion floor, not from placement', () => {
+    const result = run();
+    // gate_window.last_day is 31, so completion is placement + 30 = 2026-03-08,
+    // and invariant 16's floor is 14 days after that.
+    const won = result.maximum_growth as ModeWinner;
+    expect(won.winner.candidate.placement_date >= '2026-03-22').toBe(true);
+    expect(result.candidates_considered).toBe(93); // 3 sizes x 31 dates
+  });
+
+  it('gives place_nothing a real closing balance', () => {
+    expect(run().place_nothing.closing_cents).not.toBeNull();
+  });
+
+  it('returns null for every mode when nothing clears the floor', () => {
+    // Not a failure to find an answer — "nothing is affordable" IS the answer,
+    // and the caller reports it as one (AD-43). baseInput never sells, so a
+    // zero floor is unreachable.
+    const broke = computeAllocation(baseInput(), feedFor(baseInput()), harvestOf(baseInput()), 0n as Cents);
+    expect(broke.cover_fast).toBeNull();
+    expect(broke.maximum_growth).toBeNull();
+    expect(broke.build_reserve).toBeNull();
+    // The candidates were still enumerated and considered; none survived.
+    expect(broke.candidates_considered).toBe(93);
   });
 });

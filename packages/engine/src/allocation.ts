@@ -1,5 +1,5 @@
 import { SEED_BREED_CURVE } from './breed-curve.js';
-import { projectCashCalendar } from './cash.js';
+import { cashFlowsMissingInputs, projectCashCalendar } from './cash.js';
 import { addDays } from './day-number.js';
 import { computeCosting } from './costing.js';
 import { computeFeedLiability } from './feed.js';
@@ -7,14 +7,17 @@ import { SEED_OVERHEADS, overheadBreakdown } from './overheads.js';
 import { projectProduction } from './production.js';
 import type {
   AllocationMode,
+  AllocationResult,
   Candidate,
   CashCalendar,
   CashFlow,
   Cents,
   EngineInput,
   FeedLiability,
+  HarvestPlan,
   IsoDate,
   ModeWinner,
+  Parameters,
   PlaceNothing,
   RunningBatchHandoff,
   ScoredCandidate
@@ -206,16 +209,26 @@ export function pickWinner(
   // AD-43: the floor filters. A breaching candidate is not ranked lower, it is
   // not ranked. If that empties the field, "nothing is affordable" is the
   // honest answer and the caller reports it as one.
+  // A null `breaches_reserve_floor` means UNCHECKED, not clean, so it does not
+  // exclude — the candidate is still the best on its own scalar. What it does
+  // do is make `reserve_floor_checked` false below, so nobody reads the winner
+  // as having cleared a constraint that was never evaluated.
   const eligible = scored.filter(
-    (s) => !s.breaches_reserve_floor && (mode !== 'COVER_FAST' || s.cover_fast_days !== null)
+    (s) =>
+      s.breaches_reserve_floor !== true &&
+      (mode !== 'COVER_FAST' || s.cover_fast_days !== null) &&
+      (mode !== 'BUILD_RESERVE' || s.build_reserve_cents !== null)
   );
   if (eligible.length === 0) return null;
 
   const better = (a: ScoredCandidate, b: ScoredCandidate): number => {
     if (mode === 'COVER_FAST') return (a.cover_fast_days ?? 0) - (b.cover_fast_days ?? 0);
     if (mode === 'MAXIMUM_GROWTH') return b.maximum_growth_birds - a.maximum_growth_birds;
-    if (b.build_reserve_cents > a.build_reserve_cents) return 1;
-    return b.build_reserve_cents < a.build_reserve_cents ? -1 : 0;
+    // BUILD_RESERVE: nulls are filtered out above, so both sides are real.
+    const aCents = a.build_reserve_cents ?? 0n;
+    const bCents = b.build_reserve_cents ?? 0n;
+    if (bCents > aCents) return 1;
+    return bCents < aCents ? -1 : 0;
   };
 
   const ranked = [...eligible].sort((a, b) => {
@@ -233,7 +246,13 @@ export function pickWinner(
   const winner = ranked[0]!;
   const tied_candidates = ranked.filter((s) => better(s, winner) === 0).length;
 
-  return { mode, winner, tied_candidates, candidates_considered: scored.length };
+  return {
+    mode,
+    winner,
+    tied_candidates,
+    candidates_considered: scored.length,
+    reserve_floor_checked: winner.breaches_reserve_floor !== null
+  };
 }
 
 /**
@@ -243,12 +262,30 @@ export function pickWinner(
  * batch through the standard fields: that would put $0 of revenue and the full
  * PER_BATCH overhead into a projection as though a batch existed.
  */
-export function placeNothing(input: EngineInput, handoff: RunningBatchHandoff): PlaceNothing {
+export function placeNothing(
+  input: EngineInput,
+  /**
+   * null when the running batch could not be projected — a bulk-inclusive
+   * batch, whose calendar is refused until OQ-2 and OQ-16 land. The overhead
+   * arithmetic below needs no projection and stays real either way.
+   */
+  handoff: RunningBatchHandoff | null
+): PlaceNothing {
   const overheads = input.parameters.overheads ?? SEED_OVERHEADS;
   // Only PER_BATCH lines are avoided by not placing. PER_BIRD lines scale to
   // zero on their own, so counting them as "avoided" would double the saving.
   const perBatch = overheadBreakdown(overheads, 0).filter((line) => line.basis === 'PER_BATCH');
   const overhead_avoided_cents = perBatch.reduce((sum, line) => sum + line.cents, 0n) as Cents;
+
+  if (handoff === null) {
+    // Null, never 0n. A zero balance is a claim about the money; this is the
+    // absence of one.
+    return {
+      overhead_avoided_cents,
+      overhead_still_incurred_cents: 0n as Cents,
+      closing_cents: null
+    };
+  }
 
   const carriedSum = handoff.carried_flows.reduce((sum, f) => sum + f.amount_cents, 0n);
 
@@ -256,5 +293,133 @@ export function placeNothing(input: EngineInput, handoff: RunningBatchHandoff): 
     overhead_avoided_cents,
     overhead_still_incurred_cents: 0n as Cents,
     closing_cents: (handoff.opening_cents + carriedSum) as Cents
+  };
+}
+
+/**
+ * The enumeration's upper bound — the largest placement the optimiser may even
+ * consider.
+ *
+ * OPERATOR-ENTERED. OQ-23 settled the SOURCE (the client's own requirements
+ * call: the placement field takes "any figure technically", 5,000 realistic
+ * today, 30,000 the brief's planning target) but deliberately not a value the
+ * engine may assume. So this throws on absence rather than defaulting: a
+ * default here would invent the single number deciding how much of the decision
+ * space gets looked at, which is invariant 5's mistake at its largest scale.
+ *
+ * NOT gate-derived, and that is the whole point of OQ-23. Gate capacity caps
+ * how fast a batch converts to same-day cash; a bulk-inclusive batch exceeds
+ * gate absorption by design, on the brief's own instruction to "use the bulk
+ * buyer to absorb volume". The client says the same thing himself: 7,000 at the
+ * gate while pushing to place 15,000.
+ */
+function requirePlacementCeiling(parameters: Parameters): number {
+  const ceiling = parameters.max_placement_birds;
+  if (ceiling === undefined) {
+    throw new Error(
+      'Cannot enumerate candidates: parameters.max_placement_birds is not set. ' +
+        'What caps a placement is the operator\'s to state (OQ-23) — house space, ' +
+        'hatchery supply or cash — and the engine does not guess it. Neither the ' +
+        "brief's 30,000 target nor today's 5,000 is a ceiling we may assume."
+    );
+  }
+  if (ceiling <= 0) {
+    throw new Error(`max_placement_birds must be positive, got ${ceiling}`);
+  }
+  return ceiling;
+}
+
+/**
+ * A candidate the engine can name but cannot price.
+ *
+ * Every field needing a cash calendar is null, because a bulk-inclusive batch
+ * has no calendar until OQ-2 and OQ-16 land. Only `maximum_growth_birds`
+ * survives, which is exactly why Maximum Growth still answers while the other
+ * two modes refuse.
+ */
+function unscorableCandidate(candidate: Candidate): ScoredCandidate {
+  return {
+    candidate,
+    calendar: null,
+    cover_fast_days: null,
+    maximum_growth_birds: candidate.chick_count,
+    build_reserve_cents: null,
+    breaches_reserve_floor: null
+  };
+}
+
+/**
+ * M5b — the allocation answer.
+ *
+ * Enumerates size x date candidates from invariant 16's floor, scores each
+ * against one cash projection, and returns a winner per mode plus
+ * `place_nothing`.
+ *
+ * **The refusal is checked BEFORE anything is projected, not after.** Every
+ * projection path here runs through `projectCashCalendar`, which refuses a
+ * bulk-inclusive input outright — so scoring first and reporting the refusal
+ * afterwards would throw before the refusal could ever be returned. The blocked
+ * path therefore builds no calendars at all.
+ */
+export function computeAllocation(
+  input: EngineInput,
+  feed: FeedLiability,
+  harvest: HarvestPlan,
+  openingCents: Cents
+): AllocationResult {
+  // Harvest COMPLETION, not first sale (invariant 16). The gate window's last
+  // day is the day the last bird goes.
+  const harvestCompletionDate = addDays(
+    input.batch.placement_date,
+    harvest.gate_window.last_day - 1
+  );
+
+  const maxChickCount = requirePlacementCeiling(input.parameters);
+  const candidates = enumerateCandidates(input, harvestCompletionDate, maxChickCount);
+  const blocked = cashFlowsMissingInputs(input);
+
+  /**
+   * One handoff per DATE, not per candidate. The handoff depends only on the
+   * placement date — it is the running batch's position split at that date, and
+   * the candidate's size does not enter it. Without this the grid projects the
+   * same 31 calendars once per size: 93 projections at the test ceiling, and
+   * thousands at the client's real one.
+   */
+  const handoffByDate = new Map<IsoDate, RunningBatchHandoff>();
+  const handoffFor = (date: IsoDate): RunningBatchHandoff => {
+    let handoff = handoffByDate.get(date);
+    if (handoff === undefined) {
+      handoff = handoffAtPlacement(input, feed, openingCents, date);
+      handoffByDate.set(date, handoff);
+    }
+    return handoff;
+  };
+
+  const scored: ScoredCandidate[] = blocked.length > 0
+    ? candidates.map(unscorableCandidate)
+    : candidates.map((candidate) =>
+        scoreCandidate(input, candidate, handoffFor(candidate.placement_date))
+      );
+
+  /**
+   * The asymmetry, stated in the output rather than only in the spec, so
+   * anyone reading a demo or a test run finds the explanation where the
+   * refusal is instead of having to go looking for it.
+   */
+  const asymmetry =
+    ' Two of three modes returning missing_input while Maximum Growth returns a real ' +
+    'number is EXPECTED, not a regression: its scalar is placement size, which needs no ' +
+    'bulk net. Its winner carries reserve_floor_checked: false, because without a ' +
+    'calendar the floor could not be evaluated either. See u5-allocation-optimiser.md.';
+  const refusal = blocked.map((m) => ({ ...m, why: m.why + asymmetry }));
+
+  const earliest = candidates[0]?.placement_date ?? input.batch.placement_date;
+
+  return {
+    cover_fast: blocked.length > 0 ? refusal : pickWinner('COVER_FAST', scored),
+    maximum_growth: pickWinner('MAXIMUM_GROWTH', scored),
+    build_reserve: blocked.length > 0 ? refusal : pickWinner('BUILD_RESERVE', scored),
+    place_nothing: placeNothing(input, blocked.length > 0 ? null : handoffFor(earliest)),
+    candidates_considered: candidates.length
   };
 }
