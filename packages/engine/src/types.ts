@@ -170,6 +170,17 @@ export interface Parameters {
   readonly gate_price_cents_per_kg: Cents | null;
   readonly gate_pricing_basis: PricingBasis;
   readonly gate_capacity_per_day: number;
+  /**
+   * NOT READ BY THE ENGINE TODAY. M4 prices bulk from the contract's dressed-
+   * weight bands (`bulk_bands` / `SEED_BULK_BANDS`), which is the client's own
+   * schedule; this flat per-bird figure is reserved for M5b's bulk-net
+   * computation, which is blocked on OQ-2's transport half and OQ-16.
+   *
+   * Flagged rather than deleted, and flagged rather than quietly honoured:
+   * two live sources for one price is exactly the shape of KB-3, and setting
+   * this field today changes nothing. Which source wins is M5b's decision to
+   * make once OQ-16 lands, not one to pre-empt here. See OQ-22.
+   */
   readonly bulk_price_cents_per_bird: Cents | null;
   /** null until the client answers OQ-2. Never estimate. */
   readonly abattoir_fee_cents: Cents | null;
@@ -433,12 +444,29 @@ export interface BulkBand {
  * the reported window never claims the day holds at a yield where it does not.
  */
 export interface YieldSensitivity {
-  readonly holds_from_pct: number;
-  readonly holds_to_pct: number;
-  /** The harvest day at a yield below `holds_from_pct`. */
-  readonly day_below: number;
-  /** The harvest day at a yield above `holds_to_pct`. */
-  readonly day_above: number;
+  /**
+   * The yield range over which the harvest day does not move.
+   *
+   * NULL when no dressing percentage in the scanned range produces the harvest
+   * day at all — which is a real state, not a wide window, and used to escape
+   * as `Infinity` / `-Infinity`.
+   */
+  readonly holds_from_pct: number | null;
+  readonly holds_to_pct: number | null;
+  /** The harvest day at a yield below `holds_from_pct`. Null with no window. */
+  readonly day_below: number | null;
+  /** The harvest day at a yield above `holds_to_pct`. Null with no window. */
+  readonly day_above: number | null;
+  /**
+   * Whether the window actually contains `assumed_dressing_yield_pct`.
+   *
+   * It normally does. It does not when `slaughter_target_g` and
+   * `dressing_yield_pct` disagree — they are two encodings of one fact, and
+   * only the target drives the day. False means the plan is reporting a
+   * harvest day at a yield its own sensitivity window excludes, and the two
+   * parameters need reconciling by whoever set them.
+   */
+  readonly brackets_assumed_yield: boolean;
 }
 
 /**
@@ -504,8 +532,23 @@ export interface HarvestPlan {
    * the bird is held into a heavier, worse-paying band (AD-33).
    */
   readonly band_overshoot_loss_cents: Cents | null;
-  /** Whether the mortality charged here was calibrated or the assumed fallback. */
+  /**
+   * Whether the BASE mortality rate charged here was calibrated from this
+   * batch's own records or is the assumed fallback. It does NOT describe the
+   * pre-harvest uplift — see `preharvest_uplift_source`, which is separate
+   * precisely so this field cannot be read as covering both.
+   */
   readonly mortality_source: 'calibrated' | 'assumed';
+  /**
+   * The pre-harvest ramp's uplift is always `'assumed'` today: no client data
+   * has ever spoken to it, and calibration deliberately excludes ramp days
+   * rather than calibrate a base rate against its own assumption (OQ-1).
+   *
+   * Mandatory on the output rather than optional, for the same reason
+   * `yield_sensitivity` is: a consumer reading `mortality_source: 'calibrated'`
+   * must actively choose to drop this caveat rather than find it absent.
+   */
+  readonly preharvest_uplift_source: Confidence;
   /** Recorded own-batch days the calibration had to work with. */
   readonly trailing_days_used: number;
   /**

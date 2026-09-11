@@ -1,4 +1,4 @@
-import type { DecisionResult, EngineInput, MissingInput } from './types.js';
+import type { DecisionResult, EngineInput, HarvestPlan, MissingInput } from './types.js';
 import { NotImplementedError } from './errors.js';
 import { projectProduction } from './production.js';
 import { computeCosting } from './costing.js';
@@ -20,6 +20,7 @@ export {
   bandForDressedG,
   calibrateMortalityRate,
   dailyMortalityRateBp,
+  preharvestUpliftBp,
   planHarvest
 } from './harvest.js';
 export { projectCashCalendar, cashFlowsMissingInputs } from './cash.js';
@@ -54,7 +55,11 @@ export function computeDecision(input: EngineInput): DecisionResult {
   const production = projectProduction(input);
   const costing = computeCosting(input, production);
   const feed = computeFeedLiability(input, production);
-  const harvest = planHarvest(input, production);
+
+  // Memoised so repeated reads return the same object rather than recomputing.
+  // The engine is pure, so a second call would give an equal plan — but not an
+  // identical one, and a consumer is entitled to expect `d.harvest === d.harvest`.
+  let harvestPlan: HarvestPlan | undefined;
 
   return {
     kind: 'ok',
@@ -62,7 +67,19 @@ export function computeDecision(input: EngineInput): DecisionResult {
       production,
       costing,
       feed,
-      harvest,
+      /**
+       * Lazy, like `allocation` and for the same blast-radius reason. M4 built
+       * this eagerly, so a breed curve that never reaches `slaughter_target_g`
+       * threw out of `computeDecision` and took production, costing and feed
+       * down with it — three sound results lost to a fourth that could not be
+       * built. A fixture targeting `decision.production` now survives an
+       * unbuildable harvest, which is the whole point of the getter pattern
+       * described above.
+       */
+      get harvest(): HarvestPlan {
+        harvestPlan ??= planHarvest(input, production);
+        return harvestPlan;
+      },
       get allocation(): never {
         throw new NotImplementedError('allocation optimiser (M5)', 'U5');
       }
@@ -80,6 +97,30 @@ export function computeDecision(input: EngineInput): DecisionResult {
  */
 function missingInputsFor(input: EngineInput): MissingInput[] {
   const missing: MissingInput[] = [];
+
+  /**
+   * The gate price is needed by every batch, bulk sales or not — the harvest
+   * plan's gate window and hold cost both read it. It is checked BEFORE the
+   * bulk early-return for that reason: the original structure returned early
+   * for a gate-only batch, so this could never have fired even if it had been
+   * written.
+   *
+   * `'gate_price'` has been a declared `MissingInputKey` since U1 and was
+   * emitted nowhere; `planHarvest` priced a null gate price at `0n` instead,
+   * valuing a bird at nothing. This is the refusal that slot was for.
+   */
+  const basis = input.parameters.gate_pricing_basis;
+  const gateRate =
+    basis === 'PER_KG'
+      ? input.parameters.gate_price_cents_per_kg
+      : input.parameters.gate_price_cents_per_bird;
+  if (gateRate === null) {
+    missing.push({
+      key: 'gate_price',
+      why: `Client has not provided a ${basis} gate price`
+    });
+  }
+
   const sellsBulk = input.sales.some((sale) => sale.channel === 'BULK');
   if (!sellsBulk) return missing;
 

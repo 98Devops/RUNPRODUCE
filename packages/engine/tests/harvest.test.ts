@@ -146,8 +146,19 @@ describe('calibrateMortalityRate', () => {
   });
 
   it('calibrates from recorded days once the sufficiency threshold is met', () => {
-    // 0.5% a day on 3,000 birds: 15, then 15 of a smaller flock each day.
-    const records = [record(16, 15), record(17, 30), record(18, 45), record(19, 60)];
+    /**
+     * 0.5% a day on 3,000 birds, compounded from day 1: 231 dead by day 16,
+     * then ~14 a day of a shrinking flock.
+     *
+     * The cumulative figures CHANGED in the M4 review fix wave, and the band
+     * below did not. They used to read 15/30/45/60, which says 15 deaths in
+     * the first SIXTEEN days — 0.03% a day, not the 0.5% this comment always
+     * claimed. That data only produced a ~50 bp rate because the day-16 delta
+     * was charged to a single day; the test passed because of the defect it
+     * now guards against. The intent is unchanged and the assertion is
+     * untouched — only the numbers that express it are now honest.
+     */
+    const records = [record(16, 231), record(17, 245), record(18, 259), record(19, 272)];
     const result = calibrateMortalityRate(projectProduction(input(20, 3000, records)), parameters());
 
     expect(result.source).toBe('calibrated');
@@ -328,5 +339,177 @@ describe('computeDecision — harvest is wired in', () => {
     const result = computeDecision(input(41, 3000));
     if (result.kind !== 'ok') throw new Error('expected ok');
     expect(result.decision.harvest.bulk_harvest_day).toBe(31);
+  });
+});
+
+/**
+ * M4's pre-merge code review, 2026-09-11. M4 shipped on approved reported
+ * values without an independent review pass — the same gap that let the
+ * `feed.planned_draws` double-count survive in M5a until its final review.
+ * Every test below reproduces a finding from that review.
+ */
+describe('M4 review — a null gate price is refused, never priced at zero', () => {
+  /**
+   * Invariant 5, and the sharpest form of it: zero is a number, and it is the
+   * one number that makes holding a bird look free. `gate_price` already
+   * existed as a MissingInputKey and was emitted nowhere.
+   */
+  it('reports gate_price missing rather than valuing a bird at nothing', () => {
+    const result = computeDecision(
+      input(30, 5000, [], { gate_price_cents_per_bird: null })
+    );
+
+    expect(result.kind).toBe('missing_input');
+    if (result.kind !== 'missing_input') throw new Error('unreachable');
+    expect(result.missing.map((m) => m.key)).toContain('gate_price');
+  });
+
+  it('reports it on the PER_KG basis too, reading the rate that basis uses', () => {
+    const result = computeDecision(
+      input(30, 5000, [], {
+        gate_pricing_basis: 'PER_KG' as PricingBasis,
+        gate_price_cents_per_kg: null
+      })
+    );
+
+    expect(result.kind).toBe('missing_input');
+    if (result.kind !== 'missing_input') throw new Error('unreachable');
+    expect(result.missing.map((m) => m.key)).toContain('gate_price');
+  });
+
+  it('does not report it when the OTHER basis is the null one', () => {
+    // PER_BIRD is set, PER_KG is null — which is every fixture's shape.
+    const result = computeDecision(input(30, 5000));
+    expect(result.kind).toBe('ok');
+  });
+
+  it('guards planHarvest directly, the way cash.ts guards its own caller', () => {
+    expect(() => plan(30, 5000, [], { gate_price_cents_per_bird: null })).toThrow(
+      /gate price/i
+    );
+  });
+});
+
+describe('M4 review — calibration does not erase the pre-harvest ramp', () => {
+  /**
+   * `dailyMortalityRateBp` is `base + uplift`. Calibration observes the BASE
+   * rate; the pre-harvest uplift is a separate assumption OQ-1 never spoke to,
+   * and substituting one flat calibrated number for the whole curve deleted it
+   * — labelling a 3.5x understatement 'calibrated' over precisely the window
+   * the harvest decision turns on.
+   */
+  /**
+   * EVERY day 1-19 recorded, at the model's OWN ~15 bp base rate (4 birds a day
+   * of 3,000). No gap, deliberately: a sparse set would let the gap-span defect
+   * below inflate the rate and mask this one. Records at 50 bp would sit on top
+   * of the ramp's own total and hide it just as thoroughly.
+   */
+  const preRampRecords = Array.from({ length: 19 }, (_, i) => record(i + 1, (i + 1) * 4));
+
+  it('still steps the daily loss up when the ramp starts', () => {
+    const held = plan(20, 3000, preRampRecords).hold_cost_to_day;
+    const lostOn = (day: number): number =>
+      (held[String(day)]?.birds_lost ?? 0) - (held[String(day - 1)]?.birds_lost ?? 0);
+
+    expect(lostOn(30)).toBeGreaterThan(lostOn(29));
+  });
+
+  it('forecasts a loss of the fallback ramp\'s order, not a fraction of it', () => {
+    // The records observe the model's own 15 bp base, so a calibration that
+    // keeps the uplift must land near the pure fallback rather than far under.
+    const calibrated = plan(20, 3000, preRampRecords).hold_cost_to_day['41']?.birds_lost ?? 0;
+    const fallback = plan(20, 3000).hold_cost_to_day['41']?.birds_lost ?? 0;
+
+    expect(calibrated).toBeGreaterThan(fallback * 0.8);
+  });
+
+  it('says the uplift is still assumed even when the base rate is calibrated', () => {
+    const p = plan(20, 3000, preRampRecords);
+    expect(p.mortality_source).toBe('calibrated');
+    expect(p.preharvest_uplift_source).toBe('assumed');
+  });
+});
+
+describe('M4 review — a gap-spanning delta is not one day of deaths', () => {
+  /**
+   * A carried-forward day is skipped, but the RECORDED day that follows a gap
+   * carries the whole gap's arrears in its derived delta, and was divided by
+   * one day's opening birds. 45 deaths over 18 days read identically to 45
+   * deaths over 3.
+   */
+  it('rates 45 deaths over 18 days below 45 deaths over 3 consecutive days', () => {
+    const sparse = [record(10, 15), record(14, 30), record(18, 45)];
+    const dense = [record(16, 15), record(17, 30), record(18, 45)];
+
+    const spread = calibrateMortalityRate(projectProduction(input(20, 3000, sparse)), parameters());
+    const packed = calibrateMortalityRate(projectProduction(input(20, 3000, dense)), parameters());
+
+    expect(spread.rate_bp ?? 0).toBeLessThan(packed.rate_bp ?? 0);
+  });
+
+  it('amortises the delta across the days it actually covers', () => {
+    // One record at day 12: 60 deaths of 3,000 over days 1-12 is 5 a day,
+    // ~16.7 bp, not 200 bp.
+    const single = [record(12, 60), record(13, 65), record(14, 70)];
+    const result = calibrateMortalityRate(
+      projectProduction(input(20, 3000, single)),
+      parameters()
+    );
+
+    expect(result.rate_bp ?? 0).toBeLessThan(50);
+  });
+});
+
+describe('M4 review — the yield window is honest about its own bounds', () => {
+  it('reports null bounds rather than Infinity when no yield gives the day', () => {
+    const { yield_sensitivity: s } = plan(41, 3000, [], { slaughter_target_g: 2850 as Grams });
+
+    expect(s.holds_from_pct).toBeNull();
+    expect(s.holds_to_pct).toBeNull();
+    expect(s.brackets_assumed_yield).toBe(false);
+  });
+
+  it('says so when the window excludes the very yield the day was picked at', () => {
+    const { yield_sensitivity: s, assumed_dressing_yield_pct } = plan(41, 3000, [], {
+      dressing_yield_pct: 58
+    });
+
+    expect(assumed_dressing_yield_pct).toBe(58);
+    expect(s.brackets_assumed_yield).toBe(false);
+  });
+
+  it('brackets the assumed yield under the seeded 62%', () => {
+    const { yield_sensitivity: s } = plan(41, 3000);
+
+    expect(s.brackets_assumed_yield).toBe(true);
+    expect(s.holds_from_pct ?? 0).toBeLessThanOrEqual(SEED_DRESSING_YIELD_PCT);
+    expect(s.holds_to_pct ?? 0).toBeGreaterThanOrEqual(SEED_DRESSING_YIELD_PCT);
+  });
+});
+
+describe('M4 review — an empty flock is not advised to hold', () => {
+  it('does not run the gate window to the end of the curve on zero birds', () => {
+    const wiped = [record(18, 3000), record(19, 3000), record(20, 3000)];
+    const { gate_window } = plan(20, 3000, wiped);
+
+    expect(gate_window.last_day).toBe(gate_window.first_day);
+  });
+});
+
+describe('M4 review — an unbuildable harvest does not take the decision down', () => {
+  /**
+   * `planHarvest` became eager in M4 while `allocation` stayed a lazy getter.
+   * A curve that never reaches the target therefore killed production, costing
+   * and feed too — a blast radius no fixture covers.
+   */
+  it('leaves production, costing and feed readable', () => {
+    const result = computeDecision(input(30, 5000, [], { slaughter_target_g: 2900 as Grams }));
+
+    expect(result.kind).toBe('ok');
+    if (result.kind !== 'ok') throw new Error('unreachable');
+    expect(result.decision.production.closing_birds).toBeGreaterThan(0);
+    expect(result.decision.costing).toBeDefined();
+    expect(result.decision.feed.due_dates).toBeDefined();
+    expect(() => result.decision.harvest).toThrow(/slaughter target/i);
   });
 });

@@ -973,6 +973,38 @@ step determines carries `confidence: 'assumed'`. See AD-41.
 **Does not block U5.** The parameter is the whole mechanism, and a different
 answer changes its default rather than any code. Ask it with the rest.
 
+### OQ-22 · `bulk_price_cents_per_bird` is declared and never read 🟡 INTERNAL
+**Status:** Open, documented in place, **behaviour deliberately unchanged**.
+**Raised:** 2026-09-11, from M4's pre-merge code review. **Affects:** whether a
+caller setting a bulk price gets the price they set. **This is ours, not
+Daniel's.**
+
+**The defect.** `Parameters.bulk_price_cents_per_bird` appears in `types.ts` and
+**nowhere else in `packages/engine/src`**. M4 prices bulk from the contract's
+dressed-weight bands (`bulk_bands` / `SEED_BULK_BANDS`) instead. Setting the
+field to `900n` changes no output; setting it to `null` still produces a priced
+bulk figure. Every fixture carries `"390"` in it, which is the lowest band's
+price — so the two agree today by coincidence of seeding, not by construction.
+
+**Why it was not "fixed" in the review fix wave.** Honouring the field means
+deciding which of two sources wins for a bulk price, and that is precisely
+M5b's bulk-net question — blocked on OQ-2's transport half and OQ-16. Picking a
+winner now would answer a blocked question by implementation accident, in a
+commit whose purpose was closing review findings. Deleting the field would
+equally pre-empt M5b, which may well want it.
+
+**What was done instead.** The field carries a doc comment saying, in the type
+itself, that the engine does not read it, that bands are the live source, and
+that it is reserved for M5b. A reader can no longer set it and reasonably
+expect it to matter.
+
+**Why it is logged rather than shrugged off.** Two live sources for one price
+is the exact shape of **KB-3**, the client-spreadsheet bug we diverge from by
+name. Ours is currently the benign version — one source is inert — and the way
+that stops being benign is someone wiring the second one up without noticing
+the first. **M5b must close this explicitly**, either by making bands the sole
+source or by defining the precedence, and not leave both live.
+
 ### OQ-20 · A planned draw and a real one are matched by exact date 🟡 INTERNAL
 **Status:** Open, known limitation, shipped deliberately. **Raised:** 2026-09-11,
 from M5a's final code review. **Affects:** whether a cash calendar can

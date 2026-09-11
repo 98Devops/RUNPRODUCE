@@ -41,6 +41,46 @@ completeness fixture.
 
 ## Completed
 
+- **U4 · M4 pre-merge code review fix wave.** 2026-09-11, on
+  `u2-production-costing` immediately before merging it to main. M4 was the
+  one part of the branch that had only ever had approval on its **reported
+  values** — never an independent review of its code — which is the same gap
+  that let the `feed.planned_draws` double-count survive in M5a until the
+  final pass. Reviewed at effort `high`; **eight findings, all reproduced**,
+  seven fixed and one documented in place.
+
+  **Two were invariant 5 violations**, and the first is the sharpest form of
+  it this project has produced: `gateValueCents` returned `0n` for a null gate
+  price, valuing a bird at nothing and so making a hold look free (fixture 7's
+  $3,200.71 collapses to $2,669.46, with 125 forecast-dead birds costing
+  zero). `'gate_price'` had been a declared `MissingInputKey` since U1 and was
+  **emitted nowhere** — and could not have fired if it had been, because
+  `missingInputsFor` returned early for any batch with no BULK sale. The
+  second: calibration erased the pre-harvest ramp (AD-48).
+
+  The rest: gap-spanning deltas mis-rated by up to 18x (AD-49); an unbuildable
+  harvest taking the whole decision down (AD-50); `yield_sensitivity` leaking
+  `Infinity` bounds and never seeing `dressing_yield_pct`, so a 58% yield
+  reported day 31 beside a window excluding 58 — now reported through a new
+  mandatory `brackets_assumed_yield`; and a zero-bird flock being advised to
+  hold to day 41. `bulk_price_cents_per_bird` is declared and never read:
+  documented in the type and logged as **OQ-22** rather than wired up, because
+  choosing between two price sources is M5b's blocked decision, not a fix
+  wave's.
+
+  **One pre-existing test changed, and the reason matters.** "calibrates from
+  recorded days once the sufficiency threshold is met" asserted a ~50 bp rate
+  from records reading 15/30/45/60 — which says 15 deaths in the first
+  **sixteen** days, 0.03% a day, not the 0.5% its own comment claimed. It
+  passed only because the day-16 delta was charged to a single day: **the test
+  passed because of the defect it now guards against.** The cumulative figures
+  now express 0.5% a day honestly; the assertion band is untouched.
+
+  229 unit tests passing (was 215, +14 new). Golden suite **unchanged** at 11
+  written / 11 passing / 1 held — no expected value moved, which is the point:
+  the contract with the client did not change, only the code's honesty about
+  what it does not know. Lint, typecheck and build clean.
+
 - **U5 · M5a cash calendar.** `packages/engine/src/cash.ts`, 7 tasks, 17
   new tests, TDD throughout, then a pre-merge review fix wave adding 6
   more (23 in `cash.test.ts` total). 215 tests green; golden suite
@@ -297,6 +337,57 @@ regenerating when real mortality data lands.
 Tracked in `current-issues.md`.
 
 ## Architecture Decisions
+
+**AD-48 · Calibration replaces the BASE mortality rate; the pre-harvest
+uplift survives it.**
+M4 returned one flat calibrated number for every day, which deleted the
+pre-harvest ramp outright — the thing CONTEXT.md calls the core
+operational risk — and labelled the result `'calibrated'`. The rate is
+`base + uplift`; only the base is something a batch's own records
+observe. So calibration substitutes the base and `preharvestUpliftBp`
+still applies from the ramp start day.
+
+Two consequences, both deliberate:
+
+- **Ramp days are excluded from the base calibration.** An observation
+  from day >= `preharvest_ramp_start_day` already contains the real
+  acceleration. Calibrating on it and adding the assumed uplift back
+  double-counts; subtracting the assumed uplift to recover a base is the
+  ratio-against-our-own-assumption OQ-1 exists to stop. They still
+  advance the gap cursor, because they are records.
+- **`preharvest_uplift_source` is a new, mandatory field** on
+  `HarvestPlan`, always `'assumed'`. `mortality_source: 'calibrated'`
+  describes the base rate only, and one field cannot honestly carry both
+  provenances. Mandatory rather than optional for the same reason
+  `yield_sensitivity` is (AD-39's reasoning): a consumer must actively
+  choose to drop the caveat rather than find it absent.
+
+**AD-49 · A recorded day's delta is amortised over the days it covers.**
+Carried-forward days were correctly skipped, but the recorded day that
+FOLLOWS a gap carries the whole gap's arrears in its derived delta, and
+that was divided by one day's opening birds. 45 deaths over 18 days
+calibrated byte-identically to 45 deaths over 3 consecutive days —
+50.26 bp either way.
+
+The delta is now divided by its actual span. Spreading it evenly across
+the gap is an assumption, and it is recorded as one: it is an assumption
+about the **shape** of a measured total, not an invented total, which is
+the line invariant 5 actually draws. The alternative of dropping
+post-gap days entirely would throw away the client's only data on
+precisely the batches that are recorded sparsely — which is most of them.
+
+**Known limitation, logged not fixed:** a gap-spanning observation enters
+the EMA once, though it represents N days, so it is under-weighted
+relative to a run of single days. The 18x error is gone; this residue is
+a weighting refinement, not a wrong number.
+
+**AD-50 · `planHarvest` is a lazy getter again, like `allocation`.**
+M4 made it eager, so a breed curve that never reaches
+`slaughter_target_g` threw out of `computeDecision` and took production,
+costing and feed down with it — three sound results lost to a fourth
+that could not be built. The getter pattern index.ts already documents
+exists for exactly this blast radius. Memoised, so
+`d.harvest === d.harvest` holds.
 
 **AD-35 · Maximum Growth is reframed as leveraged rollover. Three modes,
 not four.**

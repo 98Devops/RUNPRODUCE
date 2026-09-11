@@ -62,8 +62,21 @@ const EMA_ALPHA = 0.4;
  * AD-36 for the species of error.
  */
 export function dailyMortalityRateBp(model: MortalityModel, day: number): number {
-  const ramp = day >= model.preharvest_ramp_start_day ? model.preharvest_ramp_rate_bp_daily : 0;
-  return model.base_rate_bp_daily + ramp;
+  return model.base_rate_bp_daily + preharvestUpliftBp(model, day);
+}
+
+/**
+ * The pre-harvest ramp's UPLIFT over the base rate — the flat step, not the
+ * whole rate.
+ *
+ * Named and exported because calibration has to be able to keep it. The rate
+ * is `base + uplift`, and only the base is something this batch's own records
+ * observe; the uplift is the accelerating pre-harvest death rate CONTEXT.md
+ * calls the core operational risk, which no client data has ever spoken to.
+ * Substituting one flat calibrated number for the whole thing deleted it.
+ */
+export function preharvestUpliftBp(model: MortalityModel, day: number): number {
+  return day >= model.preharvest_ramp_start_day ? model.preharvest_ramp_rate_bp_daily : 0;
 }
 
 export interface CalibratedMortality {
@@ -100,9 +113,40 @@ export function calibrateMortalityRate(
   const threshold =
     parameters.calibration_trailing_days_min ?? DEFAULT_CALIBRATION_TRAILING_DAYS_MIN;
 
-  const observed = production.days
-    .filter((day) => !day.carried_forward && day.opening_birds > 0)
-    .map((day) => ((day.daily_mortality + day.daily_culls) / day.opening_birds) * 10000);
+  /**
+   * Two corrections the pre-merge review forced, neither expressible in the
+   * original one-line filter-and-map:
+   *
+   * 1. **A recorded day after a gap carries the gap's arrears.** Carried-
+   *    forward days are skipped, but the next RECORDED day's derived delta is
+   *    `cumulative[d] - cumulative[last recorded]`, which spans the whole gap.
+   *    Dividing that by ONE day's opening birds read 45 deaths over 18 days
+   *    identically to 45 deaths over 3. The delta is amortised over the days it
+   *    actually covers instead. Spreading it evenly is an assumption, but it is
+   *    an assumption about the SHAPE of a measured total, not an invented
+   *    total, and it beats charging every death in the gap to one day.
+   *
+   * 2. **Ramp days are not evidence about the base rate.** An observation from
+   *    day >= `preharvest_ramp_start_day` already contains whatever pre-harvest
+   *    acceleration is really happening. Calibrating the base on it and then
+   *    adding the assumed uplift back would count that acceleration twice; and
+   *    SUBTRACTING the assumed uplift to recover a base is the ratio-against-
+   *    our-own-assumption that OQ-1 exists to stop. Those days are left out of
+   *    the base calibration entirely — they still advance the span cursor,
+   *    because they are records.
+   */
+  const observed: number[] = [];
+  let lastRecordedDay = 0;
+  for (const day of production.days) {
+    if (day.carried_forward || day.opening_birds <= 0) continue;
+
+    const span = day.day_number - lastRecordedDay;
+    lastRecordedDay = day.day_number;
+    if (span <= 0) continue;
+    if (day.day_number >= parameters.mortality.preharvest_ramp_start_day) continue;
+
+    observed.push(((day.daily_mortality + day.daily_culls) / day.opening_birds / span) * 10000);
+  }
 
   if (observed.length < threshold) {
     return { rate_bp: null, source: 'assumed', trailing_days_used: observed.length };
@@ -160,7 +204,8 @@ const lastCurveDay = (curve: BreedCurve): number =>
 function yieldSensitivity(
   curve: BreedCurve,
   bands: readonly BulkBand[],
-  harvest_day: number
+  harvest_day: number,
+  assumed_yield_pct: number
 ): YieldSensitivity {
   const dressed_goal_g = bands.reduce(
     (lowest, band) => Math.min(lowest, band.dressed_floor_g),
@@ -182,6 +227,23 @@ function yieldSensitivity(
     }
   }
 
+  /**
+   * No yield in the scanned range produces this harvest day at all, which
+   * happens when the target sits in a stretch of the curve no dressing
+   * percentage reaches. The unguarded version returned `Infinity` /
+   * `-Infinity` bounds and a `day_below` of 1 — not a wide window, a broken
+   * one.
+   */
+  if (from > to) {
+    return {
+      holds_from_pct: null,
+      holds_to_pct: null,
+      day_below: null,
+      day_above: null,
+      brackets_assumed_yield: false
+    };
+  }
+
   const holds_from_pct = Math.ceil(from * 10) / 10;
   const holds_to_pct = Math.floor(to * 10) / 10;
 
@@ -189,7 +251,17 @@ function yieldSensitivity(
     holds_from_pct,
     holds_to_pct,
     day_below: dayAtYield(holds_from_pct - 0.1) ?? harvest_day,
-    day_above: dayAtYield(holds_to_pct + 0.1) ?? harvest_day
+    day_above: dayAtYield(holds_to_pct + 0.1) ?? harvest_day,
+    /**
+     * The window is derived from the band floors; the harvest day is derived
+     * from `slaughter_target_g`. Those are two encodings of one fact and
+     * nothing reconciled them, so a `dressing_yield_pct` of 58 reported day 31
+     * beside a 59.7-62.7 window that EXCLUDES 58 — each half internally
+     * consistent, the pair self-contradicting. Reported rather than thrown:
+     * both values are the client's to reconcile, not ours to pick between.
+     */
+    brackets_assumed_yield:
+      assumed_yield_pct >= holds_from_pct && assumed_yield_pct <= holds_to_pct
   };
 }
 
@@ -206,9 +278,18 @@ export function planHarvest(input: EngineInput, production: ProductionProjection
   const bands = parameters.bulk_bands ?? SEED_BULK_BANDS;
   const yield_pct = parameters.dressing_yield_pct ?? SEED_DRESSING_YIELD_PCT;
 
+  /**
+   * Calibration replaces the BASE rate and leaves the pre-harvest uplift
+   * standing. Returning one flat calibrated number for every day dropped the
+   * ramp entirely: clean pre-ramp records forecast a fraction of the fallback's
+   * loss to day 41 — an understatement across exactly the days the harvest
+   * decision turns on, wearing the label 'calibrated'.
+   */
   const calibration = calibrateMortalityRate(production, parameters);
   const rateBpFor = (day: number): number =>
-    calibration.rate_bp ?? dailyMortalityRateBp(parameters.mortality, day);
+    calibration.rate_bp === null
+      ? dailyMortalityRateBp(parameters.mortality, day)
+      : calibration.rate_bp + preharvestUpliftBp(parameters.mortality, day);
 
   const bulk_harvest_day = firstDayAtWeight(curve, parameters.slaughter_target_g);
   if (bulk_harvest_day === null) {
@@ -229,13 +310,38 @@ export function planHarvest(input: EngineInput, production: ProductionProjection
   const feedCentsForBirds = (day: number, birds: number): bigint =>
     feedCostCents(BigInt(birds) * BigInt(pointForDay(curve, day).feed_g), phaseRate(day));
 
+  /**
+   * Invariant 5, in its sharpest form. This returned `0n` for a null gate
+   * price, which values a bird at nothing and so makes holding one look free:
+   * fixture 7's hold cost comes out $2,669 instead of $3,200, with 125
+   * forecast-dead birds costing nothing. Zero is a number the client never
+   * gave us.
+   *
+   * `gate_price` is now emitted by `missingInputsFor`, so a caller going
+   * through `computeDecision` gets a typed refusal and never reaches here.
+   * This throw is the programming-error guard for a caller that skipped it —
+   * the same shape, and the same reasoning, as `projectCashCalendar`'s.
+   */
   const gateValueCents = (day: number): bigint => {
     const weight_g = pointForDay(curve, day).weight_g;
     if (parameters.gate_pricing_basis === 'PER_KG') {
       const rate = parameters.gate_price_cents_per_kg;
-      return rate === null ? 0n : (rate * BigInt(weight_g)) / 1000n;
+      if (rate === null) {
+        throw new Error(
+          'Cannot plan a harvest: the PER_KG gate price is unavailable. ' +
+            'Call missingInputsFor() first and return missing_input.'
+        );
+      }
+      return (rate * BigInt(weight_g)) / 1000n;
     }
-    return parameters.gate_price_cents_per_bird ?? 0n;
+    const perBird = parameters.gate_price_cents_per_bird;
+    if (perBird === null) {
+      throw new Error(
+        'Cannot plan a harvest: the PER_BIRD gate price is unavailable. ' +
+          'Call missingInputsFor() first and return missing_input.'
+      );
+    }
+    return perBird;
   };
 
   const bulkValueCents = (day: number): bigint | null =>
@@ -251,7 +357,10 @@ export function planHarvest(input: EngineInput, production: ProductionProjection
   const gate_first_day = firstDayAtWeight(curve, parameters.slaughter_target_g) ?? bulk_harvest_day;
   let gate_last_day = gate_first_day;
   const birds = production.closing_birds;
-  while (gate_last_day + 1 <= lastCurveDay(curve)) {
+  // With no birds every marginal gain and cost is 0n, the strict `gain < cost`
+  // never trips, and the window ran to the end of the curve — advising a hold
+  // on an empty flock. There is nothing to hold.
+  while (birds > 0 && gate_last_day + 1 <= lastCurveDay(curve)) {
     const next = gate_last_day + 1;
     const gain = (gateValueCents(next) - gateValueCents(gate_last_day)) * BigInt(birds);
     const lost = BigInt(Math.round((birds * rateBpFor(next)) / 10000));
@@ -277,7 +386,7 @@ export function planHarvest(input: EngineInput, production: ProductionProjection
   return {
     bulk_harvest_day,
     assumed_dressing_yield_pct: yield_pct,
-    yield_sensitivity: yieldSensitivity(curve, bands, bulk_harvest_day),
+    yield_sensitivity: yieldSensitivity(curve, bands, bulk_harvest_day, yield_pct),
     confidence: 'assumed',
     gate_window: { first_day: gate_first_day, last_day: gate_last_day },
     cost_of_delay_per_day: {
@@ -287,6 +396,7 @@ export function planHarvest(input: EngineInput, production: ProductionProjection
     band_overshoot_loss_cents:
       atHarvest === null ? null : ((bestBandPrice - atHarvest) * BigInt(birds)) as Cents,
     mortality_source: calibration.source,
+    preharvest_uplift_source: 'assumed',
     trailing_days_used: calibration.trailing_days_used,
     hold_cost_to_day: holdCostToDay(curve, production, rateBpFor, {
       feedCentsForBirds,
