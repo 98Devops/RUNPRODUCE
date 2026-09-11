@@ -1045,7 +1045,7 @@ function requirePlacementCeiling(parameters: Parameters): number;
   ): AllocationResult;
   ```
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 describe('computeAllocation — the two-blocked-one-working asymmetry', () => {
@@ -1092,12 +1092,12 @@ describe('computeAllocation — the two-blocked-one-working asymmetry', () => {
 });
 ```
 
-- [ ] **Step 2: Run it and watch it fail**
+- [x] **Step 2: Run it and watch it fail**
 
 Run: `cd packages/engine && npx vitest run tests/allocation.test.ts`
 Expected: FAIL — `computeAllocation is not a function`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```ts
 export function computeAllocation(
@@ -1165,12 +1165,12 @@ export function computeAllocation(
 }
 ```
 
-- [ ] **Step 4: Run the tests and watch them pass**
+- [x] **Step 4: Run the tests and watch them pass**
 
 Run: `cd packages/engine && npx vitest run tests/allocation.test.ts`
 Expected: PASS, 27 tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/engine/src/allocation.ts packages/engine/src/types.ts packages/engine/tests/allocation.test.ts
@@ -1180,6 +1180,31 @@ git commit -m "feat(engine): computeAllocation, with the blocked/working mode sp
 ---
 
 ## Task 9: Wire `decision.allocation` and retire the `NotImplementedError`
+
+> **BLOCKED ON OQ-25 — a different blocker from the one that held it before.**
+> Task 8 now exists, so the dependency that stopped this task is satisfied. What
+> stops it now is the getter's fourth argument.
+>
+> The sketch below passes `input.parameters.reserve_floor_cents` as
+> `computeAllocation`'s `openingCents`. Those are different quantities — the
+> minimum the business must KEEP versus the cash it HOLDS — and the substitution
+> is silent: the types match, the arithmetic runs, and every projected figure is
+> wrong by the size of the floor.
+>
+> **There is nothing correct to pass instead.** `EngineInput` and `Parameters`
+> carry no cash balance at all (verified 2026-09-11). The data is
+> `cash_accounts.opening_balance_cents` in the architecture, which is **U6**.
+> `0n` is not a safe default either: it asserts the client is broke, which
+> against a positive reserve floor makes every candidate unaffordable for
+> structural rather than financial reasons.
+>
+> **Done instead, because neither needed the balance:** `allocation.ts`'s public
+> API is now exported from `index.ts` (it was unreachable from the package entry
+> point, and no test noticed because the allocation tests import the module
+> directly), and the getter's `NotImplementedError` now names OQ-25 and U6
+> rather than claiming the optimiser is unbuilt. It stays
+> `NotImplementedError` specifically so `classifyFixture` keeps HOLDING a
+> fixture that targets `decision.allocation` instead of failing it.
 
 **Files:**
 - Modify: `packages/engine/src/index.ts`, `packages/engine/src/types.ts`
@@ -1264,41 +1289,23 @@ asymmetry → Task 8.
 
 **Known soft spots, stated rather than hidden.**
 
-1. **Task 8 calls `handoffAtPlacement` once per candidate**, each of which
-   projects the running batch's full calendar — 31 dates × N sizes projections
-   of the same handful of calendars. The handoff depends only on the *date*, so
-   it should be memoised per date once Task 8 is green. Left as a Task 8
-   refactor step rather than a premature optimisation, but it is 31 projections
-   versus up to 8,401 and worth taking.
+1. ~~**Task 8 calls `handoffAtPlacement` once per candidate.**~~ **DONE
+   2026-09-11.** Memoised per date inside `computeAllocation`: the handoff
+   depends only on the placement date, so the grid now projects 31 running-batch
+   calendars rather than one per candidate.
 
-2. **`maxChickCount` was wrong, and it is now OQ-23.** RESOLVED as a
-   question, 2026-09-11; Task 8 is blocked until it is answered.
+2. ~~**`maxChickCount` was wrong, and it is now OQ-23.**~~ **ANSWERED
+   2026-09-11.** The ceiling is operator-entered — `Parameters.max_placement_birds`,
+   no derived default, `requirePlacementCeiling` throws on absence. The client's
+   own words settle both halves: the field takes *"any figure technically"*
+   (5,000 realistic, 30,000 the brief's target), and *"they can 7k birds on the
+   gate but to push aggressively to 15k..."* names gate absorption and placement
+   size as different quantities in one sentence.
 
-   The first draft derived the ceiling as gate capacity × harvest-window days.
-   That is a **conflation of two quantities that share a formula**, not merely
-   a number set too low:
-
-   - **Max safe batch size** — gate-derived, and correctly so. An **output**:
-     CONTEXT.md defines it as "largest placement that gate capacity can clear",
-     and project-overview.md goal 4 asks for it.
-   - **The enumeration ceiling** — must **not** be gate-derived. A
-     bulk-inclusive batch exceeds gate absorption by design, on the brief's own
-     instruction: *"Use cash sales to finance the cycle. Use the bulk buyer to
-     absorb volume."*
-
-   **The 30,000 range is a real client scale, checked rather than assumed:**
-   the second client artifact is the 30,000-broiler brief itself; OQ-15 records
-   that that brief costs itself at ~59c/bird at that scale; and
-   project-overview.md goal 5 states 3,000-30,000 as a product requirement.
-   So the range is not what needs revising down — the ceiling's **source** is
-   what needs replacing.
-
-   **And correcting it makes M5b look more blocked, not less.** The
-   gate-derived cap kept every candidate gate-only, and gate-only candidates
-   are scoreable today. At the real range most candidates are bulk-inclusive,
-   so Cover Fast and Build Reserve return `missing_input` for them until OQ-2's
-   transport half and OQ-16 land. The wrong cap was **masking** how thin M5b's
-   scoreable region actually is.
+   **The prediction below held.** At the real range most candidates are
+   bulk-inclusive, and those are exactly the ones Cover Fast and Build Reserve
+   refuse. Verified in code rather than argued: supplying both OQ-2 values still
+   leaves `bulk_price`, because OQ-16 gates the formula independently.
 
 3. **`place_nothing`'s `closing_cents` ignores the running batch's reserve floor
    breaches**, because it has no calendar of its own. If that matters, it needs
@@ -1325,6 +1332,16 @@ answering OQ-23 alone does not make Task 8 useful; it makes the size of the
 blocked region visible. That is worth knowing before anyone reads a demo where
 two of three modes refuse across most of the grid and treats it as a
 regression. It is not one.
+
+**OQ-22 CANNOT be closed by this unit, and that is now settled rather than
+pending.** The plan required M5b to decide the precedence between
+`Parameters.bulk_price_cents_per_bird` and M4's contract bands, on the grounds
+that "M5b is where bulk net is finally computed". **M5b never computes a bulk
+net** — every bulk-inclusive candidate refuses on OQ-2/OQ-16, so there is no
+calculation for a precedence rule to govern and nothing to test a decision
+against. Verified 2026-09-11: `bulk_price_cents_per_bird` is still read nowhere
+in `packages/engine/src` outside `types.ts`. The question moves to whichever
+unit first computes bulk net. Original note follows.
 
 **OQ-22 must be closed by this unit.** `bulk_price_cents_per_bird` is declared
 in `Parameters` and read nowhere, while M4 prices bulk off the contract bands.

@@ -124,6 +124,28 @@ invariant 5 forbids either way.
 options, none picked yet, because it is a decision about what the engine is
 entitled to assume rather than a coding choice.
 
+**Two things Task 9 did NOT need a cash balance for, done 2026-09-11:**
+
+- **`allocation.ts` is now exported from `index.ts`.** Everything M5b built was
+  unreachable from the package entry point, and no test noticed because the
+  allocation tests import `../src/allocation.js` directly. `decision.test.ts`
+  now asserts the surface, and that assertion was verified to fail with the
+  export removed rather than merely written after the fix.
+- **The getter's `NotImplementedError` tells the truth.** It said the allocation
+  optimiser was unbuilt; the optimiser is built, and what is missing is the
+  balance. It now reads `allocation wiring (needs an opening cash balance —
+  OQ-25)` against unit `U6`. Still `NotImplementedError` specifically, because
+  `classifyFixture` holds a fixture only on that exact type and fails on every
+  other — a different throw would turn a held fixture red for a reason that is
+  not about the fixture.
+
+**OQ-22 is settled as out of scope rather than left pending.** The plan required
+M5b to decide precedence between `bulk_price_cents_per_bird` and M4's contract
+bands, because "M5b is where bulk net is finally computed". M5b never computes a
+bulk net — every bulk-inclusive candidate refuses — so there is no calculation
+for a precedence rule to govern. Verified: the field is still read nowhere
+outside `types.ts`. It moves to whichever unit first computes bulk net.
+
 ## Previous Goal
 
 **U5 — M5b Tasks 8 and 9. Both blocked on OQ-23.**

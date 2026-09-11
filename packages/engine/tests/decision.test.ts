@@ -120,3 +120,45 @@ describe('computeDecision', () => {
     }
   });
 });
+
+describe('the engine surface', () => {
+  /**
+   * The gap this exists to catch: every M5b function lived in allocation.ts and
+   * was never re-exported from index.ts, so the whole module was unreachable
+   * from the package entry point. No test noticed, because the allocation tests
+   * import '../src/allocation.js' directly.
+   */
+  it('reaches the allocation module from the package entry point', async () => {
+    const engine = await import('../src/index.js');
+    for (const name of [
+      'computeAllocation',
+      'enumerateCandidates',
+      'handoffAtPlacement',
+      'candidateInput',
+      'projectCandidate',
+      'scoreCandidate',
+      'pickWinner',
+      'placeNothing',
+      'DEFAULT_PLACEMENT_STEP_BIRDS'
+    ]) {
+      expect(engine, `${name} should be exported from index.ts`).toHaveProperty(name);
+    }
+  });
+
+  it('holds allocation on the cash balance, not on the optimiser being unbuilt', () => {
+    const result = computeDecision(input());
+    if (result.kind !== 'ok') throw new Error('expected ok');
+
+    let thrown: unknown;
+    try {
+      void result.decision.allocation;
+    } catch (error) {
+      thrown = error;
+    }
+    // Still NotImplementedError, because classifyFixture holds only on that
+    // exact type — but the reason is now OQ-25, and the unit is U6.
+    expect(isNotImplemented(thrown)).toBe(true);
+    expect((thrown as Error).message).toMatch(/OQ-25/);
+    expect((thrown as Error).message).toMatch(/U6/);
+  });
+});
