@@ -257,6 +257,84 @@ same truck twice. An answered OQ-2 is **not** sufficient to proceed.
 
 ## Open questions — blocking
 
+### OQ-21 · A fractional-bag draw crashes the engine 🔴 URGENT — INTERNAL
+**Status:** Open, unfixed, **reproduced 2026-09-11**. **Raised:** 2026-09-11,
+out of the M5a review session — but the defect is **pre-existing U3 scope**,
+not M5a's. **Affects:** every `computeDecision()` call for a batch whose
+entered draws carry a non-integer bag count. **This is ours, not Daniel's**,
+though the shape of the fix needs one answer from him.
+
+**The crash.** `feed.ts:75` prices an entered draw as
+`BigInt(draw.bags) * draw.price_per_bag_cents`. `FeedDraw.bags` is typed
+`number` with no integer constraint, and `BigInt()` throws on any fractional
+value. Reproduced against a single 26.64-bag draw:
+
+```
+RangeError: The number 26.64 cannot be converted to a BigInt
+            because it is not an integer
+  at src/feed.ts:75:21
+  at Module.computeFeedLiability src/feed.ts:66:44
+```
+
+**It is not hypothetical — it is sitting on his own figure.** 26.64 is
+Daniel's own first-draw bag count (`Feed!C2 = Record!M16/50`, 3,000 birds),
+and **fixture 5 already asserts it** as `first_draw_bags_to_day_14`. So the
+engine computes 26.64 on the PLANNING half and crashes on the LIABILITY half
+the moment that same number is entered as a real draw. The only reason CI is
+green is that every fixture's entered draws happen to carry whole bags
+(27, 40, 48, 52, 53) — an accident of the fixture set, not a property of the
+code.
+
+**Severity: it takes the whole decision down, not the feed block.** The
+`RangeError` is uncaught and propagates out of `computeFeedLiability` →
+`computeDecision`. No `missing_input`, no partial result, no explained value —
+a stack trace instead of a decision. That is worse than any wrong number this
+repo has argued over, because **nothing renders at all**.
+
+**Scope: `feed.ts:75` is the only exposure.** Every other `BigInt()` in
+`packages/engine/src` converts a value that is structurally an integer — bird
+counts, integer grams, flock size — or rounds first (`harvest.ts:257`).
+`bags` is the one client-entered field the client's own arithmetic produces
+as a decimal.
+
+**The question for Daniel:** *does the feed supplier ever invoice a part
+bag — 26.64 bags at $32.50 — or does he always collect whole 50 kg bags and
+26.64 is only what the sheet computes before he rounds to what he actually
+carries away?*
+
+**Why the answer changes the fix, not just the wording.**
+- If a part bag is **real commerce**, the fix prices it: multiply out and
+  round the resulting cents, matching `costOfFeed`'s round-up convention so
+  a liability is never understated. Money stays `bigint` cents; only the
+  conversion moves.
+- If a part bag is a **spreadsheet artefact**, the fix rejects it at the
+  input boundary with a typed error naming the field — because a 26.64 in
+  the bags column then means the capture screen fed a `kg ÷ 50` into a field
+  that wants what the supplier invoiced, and pricing it would launder a data
+  error into a confident number.
+
+**Rejected outright: silently rounding `bags`.** It changes the money owed
+without telling anyone, in a direction nobody chose. Invariant 5 forbids it
+whichever way it rounds.
+
+**Not blocked on his answer.** One option — crash on nothing, return a typed
+`MissingInput`/validation error naming `bags` — is strictly better than a
+`RangeError` under either answer, and can land before he replies.
+
+**Secondary, found in the same line and verified.** `feed.ts:78` sets
+`kg_discrepancy` with float equality: `draw.kg !== draw.bags * KG_PER_BAG`.
+`26.64 * 50` is exactly `1332`, so fixture 5's own number is safe — but
+`bags * 50` is **not** exact in general for a 2dp bag count (`0.07 * 50`
+gives `3.5000000000000004`), so some part-bag draws would report a
+discrepancy that does not exist. Worth closing in the same change; it is a
+wrong flag, not a crash, so it does not carry this issue's urgency.
+
+**Why it did not stop the branch.** M5b consumes `feed.planned_draws` and
+`feed.draws`; it does not change how a draw is priced, so the fix does not
+collide with it. Deliberately logged rather than fixed in-session: it is a
+U3 change with a client question attached, and folding it into an M5a merge
+would put an unreviewed pricing decision inside a cash-calendar commit.
+
 ### OQ-1 · Real mortality by day ✅ ANSWERED 2026-09-10
 **Answer (Daniel):** *"It varies."* He wants the system to **track actual
 cumulative mortality entered daily**, not forecast off an assumed
@@ -1277,10 +1355,14 @@ recommendation — divergences are the most valuable data available.
 | U5 · bulk net revenue computation | OQ-2 (transport) **and** OQ-16 — both required, neither sufficient alone |
 | U5 · any **bulk-inclusive** candidate score | OQ-2 (transport) **and** OQ-16. The enumeration's SHAPE is buildable today and is spec'd; a candidate routing birds to bulk returns `missing_input` naming both gaps, never a gate-only figure dressed as complete |
 | Calibrated `MaxSafeBatchSize` | OQ-1 (mortality data) |
+| U3 · pricing a **part-bag** draw | OQ-21 — the client question half only. Refusing to crash on one is **not** blocked and should land first |
 | Default strategy selection | ~~OQ-3~~ answered; mode set decided (AD-35) |
 | ~~Gate harvest window past day 32~~ | **Moot.** Built in U4: under the settled flat gate price the window ends at day 31, so there is no "past day 32" to unblock. It reopens only if per-kg gate pricing becomes the default — see OQ-11 |
 
 None of these blocked U1–U4, all four of which are now done. They affect
-output accuracy and default selection, not structure. **Invariant 16's 14-day
-inter-batch gap is not in this table on purpose** — it is not blocked on
+output accuracy and default selection, not structure. **OQ-21 is the one
+exception in kind** — it is not an accuracy gap in work still to come but a live
+crash in U3 code already written, and only its rounding half waits on Daniel.
+
+**Invariant 16's 14-day inter-batch gap is not in this table on purpose** — it is not blocked on
 anything, it is a settled hard constraint M5 builds against (AD-31).
