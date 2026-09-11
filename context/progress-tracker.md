@@ -139,6 +139,16 @@ entitled to assume rather than a coding choice.
   other — a different throw would turn a held fixture red for a reason that is
   not about the fixture.
 
+**OQ-26 — Cover Fast structurally cannot answer.** Found by running M5b's own
+output rather than reading it: `pickWinner('COVER_FAST', ...)` returns null for
+every realistic input, including one where the running batch sells 2,900 birds
+at the gate for cash. A candidate has no forecast sales (`candidateInput`
+empties them) and the running batch's receipts collapse into `openingCents`
+before the candidate is placed, so `in_cents` is zero across the whole horizon.
+Honest — it reports null, not a fabricated number — but easily misread as "no
+candidate covers fast". Pinned by a test, documented at the scalar, and logged;
+closing it needs M6's channel split, not a patch.
+
 **OQ-22 is settled as out of scope rather than left pending.** The plan required
 M5b to decide precedence between `bulk_price_cents_per_bird` and M4's contract
 bands, because "M5b is where bulk net is finally computed". M5b never computes a

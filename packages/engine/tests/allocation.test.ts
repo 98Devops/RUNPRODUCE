@@ -519,3 +519,39 @@ describe('computeAllocation — a gate-only batch answers everything', () => {
     expect(broke.candidates_considered).toBe(93);
   });
 });
+
+describe('Cover Fast cannot currently answer — pinned, not accepted', () => {
+  it('returns null even when the running batch sells for real cash', () => {
+    const selling = () =>
+      baseInput({ reserve_floor_cents: -10_000_000n as Cents }, [
+        {
+          channel: 'GATE',
+          order_date: '2026-03-08' as IsoDate,
+          bird_count: 2900,
+          avg_live_weight_g: 1770 as Grams,
+          pricing_basis: 'PER_BIRD',
+          price_cents_per_bird: 425n as Cents,
+          price_cents_per_kg: null,
+          terms_days: 0
+        }
+      ]);
+    const result = computeAllocation(
+      selling(),
+      feedFor(selling()),
+      harvestOf(selling()),
+      0n as Cents
+    );
+
+    // OQ-26. Two design facts combine to make this structural, not incidental:
+    //   1. candidateInput empties `sales` — a candidate carries no forecast
+    //      sales of its own, and M5b does not model any.
+    //   2. Anything the running batch settles BEFORE the candidate's placement
+    //      collapses into opening_cents rather than riding along as a dated
+    //      receipt — correctly, or it would be double-counted.
+    // So in_cents is zero across a candidate's whole horizon and the scalar
+    // never clears core credit. The other two modes answer normally.
+    expect(result.cover_fast).toBeNull();
+    expect(result.maximum_growth).not.toBeNull();
+    expect(result.build_reserve).not.toBeNull();
+  });
+});

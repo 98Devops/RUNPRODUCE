@@ -1201,6 +1201,49 @@ throws `NotImplementedError` ("still holds the module U5 has not built"), and
 that test would fail on the ceiling throw while the getter is no more usable
 than before. Task 9 lands with Task 8, not before it.
 
+### OQ-26 · Cover Fast structurally cannot answer 🔴 INTERNAL
+**Status:** Open, **pinned by a test rather than left to be discovered**.
+**Raised:** 2026-09-11, from reviewing M5b's own output after Task 8.
+**Affects:** one of the three headline modes — a third of the product's
+decision surface. **This is ours, not Daniel's.**
+
+**The finding.** `pickWinner('COVER_FAST', ...)` returns `null` for every
+realistic input, including one where the running batch sells 2,900 birds at the
+gate for real cash. Verified by running it, not by reading the code.
+
+**It is structural, not a bug in the scalar.** Two design facts combine, and
+each is individually correct:
+
+1. **`candidateInput` empties `sales`** (Task 4). A candidate has no sales
+   history, and inheriting the running batch's would replay it. M5b forecasts
+   no sales for a hypothetical batch — nothing in the unit does.
+2. **The running batch's receipts do not fill the gap.** Anything it settles
+   before the candidate's placement collapses into `openingCents`
+   (`handoffAtPlacement`, Task 3) — correctly, or it would be double-counted.
+   Only receipts landing ON or AFTER the placement date ride along, and by then
+   a batch harvested weeks earlier has usually been paid.
+
+So `day.in_cents` is zero across a candidate's whole horizon, cumulative
+receipts never reach `core_credit_cents`, and the scalar never fires.
+
+**Why it is logged rather than quietly accepted.** The output is *honest* —
+`null` says "could not determine", not a fabricated number, so invariant 5 is
+intact. The risk is the **reading**: a console showing Cover Fast with no
+recommendation invites "no candidate covers fast", which is a different and
+false claim. An honest blank that is reliably misread is still a reporting
+defect.
+
+**What closing it needs.** A forecast of the candidate's OWN sales — how many
+birds it would sell, when, through which channel. That is a real modelling
+decision (it needs the gate/bulk split M6 exists to make), not a patch to the
+scalar. Until then Cover Fast should be presented as unavailable rather than as
+having no answer.
+
+**Do NOT close it by lowering the bar.** Scoring against something cheaper to
+compute — days to first receipt, or the running batch's receipts alone — would
+produce a number that ranks, and a ranking built on the wrong quantity is worse
+than a blank. Same reasoning as AD-43's refusal to sentinel a null.
+
 ### OQ-25 · The engine has no cash balance, and M5b needs one 🔴 BLOCKS M5b TASK 9
 **Status:** Open. **Raised:** 2026-09-11, from executing M5b Task 9.
 **Affects:** whether `decision.allocation` can be wired at all.
@@ -1705,6 +1748,7 @@ recommendation — divergences are the most valuable data available.
 | U5 · any **bulk-inclusive** candidate score | OQ-2 (transport) **and** OQ-16. The enumeration's SHAPE is buildable today and is spec'd; a candidate routing birds to bulk returns `missing_input` naming both gaps, never a gate-only figure dressed as complete |
 | Calibrated `MaxSafeBatchSize` | OQ-1 (mortality data) |
 | ~~M5b · Task 8, the enumeration ceiling~~ | **UNBLOCKED 2026-09-11.** ~~OQ-23~~ answered: the ceiling is an operator-entered `max_placement_birds`, no derived cap. Tasks 1-7 built; Tasks 8 and 9 now proceed, with **bulk scoring still refused** on OQ-2/OQ-16 |
+| M5b · the Cover Fast mode | **OQ-26** — structurally cannot answer: a candidate has no forecast sales, so receipts never clear core credit. Needs M6 |
 | M5b · Task 9, wiring `decision.allocation` | **OQ-25** — the engine holds no cash balance to pass as `openingCents`, and the plan passed `reserve_floor_cents`, a different quantity. Recommendation: leave the getter throwing until U6 |
 | M5b · scoring any **bulk-inclusive** candidate | OQ-2 transport **and** OQ-16. Verified in code 2026-09-11: supplying both OQ-2 values still leaves `bulk_price`, because OQ-16 gates the formula independently. Gate-only candidates score today |
 | U3 · pricing a **part-bag** draw | OQ-21 — the client question half only. **The crash half landed 2026-09-11**: a part-bag draw now returns a typed `feed_draw_bags` refusal instead of a `RangeError` |

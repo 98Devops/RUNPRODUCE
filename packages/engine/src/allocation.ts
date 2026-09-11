@@ -174,6 +174,22 @@ export function scoreCandidate(
   // that never happens inside the horizon — a real state, not a large number.
   // A sentinel would sort, and sorting a "never happened" into a ranking is
   // exactly the confident wrong answer invariant 5 forbids.
+  /**
+   * KNOWN LIMITATION — OQ-26. This scalar cannot currently fire.
+   *
+   * `day.in_cents` is receipts, and a candidate has none: `candidateInput`
+   * empties `sales` because a candidate has no sales history, and M5b forecasts
+   * no sales for a hypothetical batch. The running batch's receipts do not fill
+   * the gap either — anything it settles before the candidate's placement is
+   * collapsed into `openingCents` by `handoffAtPlacement`, correctly, or it
+   * would be counted twice.
+   *
+   * So `cover_fast_days` is null for every realistic input and
+   * `pickWinner('COVER_FAST', ...)` returns null with it. That is HONEST — it
+   * reports "could not determine" rather than a number — but it is easy to
+   * misread as "no candidate covers fast", which is a different claim. Closing
+   * it needs a forecast of the candidate's own sales, which is M6's territory.
+   */
   let cumulativeReceipts = 0n;
   let cover_fast_days: number | null = null;
   for (const day of calendar.days) {
