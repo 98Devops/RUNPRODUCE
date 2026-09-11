@@ -308,6 +308,14 @@ export type MissingInputKey =
   | 'transport_cents_per_bird'
   | 'gate_price'
   | 'bulk_price'
+  /**
+   * A feed draw whose `bags` is not a whole number. Not "absent" in the literal
+   * sense — the value is there — but the engine still cannot turn it into money
+   * without answering OQ-21, so it refuses through the same typed channel
+   * rather than crashing or rounding. Same shape as `bulk_price`: "we cannot
+   * price this".
+   */
+  | 'feed_draw_bags'
   | 'mortality_history';
 
 export interface MissingInput {

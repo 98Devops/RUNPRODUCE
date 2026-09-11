@@ -2,7 +2,7 @@ import type { DecisionResult, EngineInput, HarvestPlan, MissingInput } from './t
 import { NotImplementedError } from './errors.js';
 import { projectProduction } from './production.js';
 import { computeCosting } from './costing.js';
-import { computeFeedLiability } from './feed.js';
+import { computeFeedLiability, feedDrawsMissingInputs } from './feed.js';
 import { planHarvest } from './harvest.js';
 
 export * from './types.js';
@@ -12,7 +12,7 @@ export { SEED_BREED_CURVE, pointForDay, cumulativeFeedG, feedGByPhase } from './
 export { dayNumberFor, addDays, daysBetween } from './day-number.js';
 export { projectProduction } from './production.js';
 export { computeCosting } from './costing.js';
-export { computeFeedLiability } from './feed.js';
+export { computeFeedLiability, feedDrawsMissingInputs, kgDiscrepancy } from './feed.js';
 export {
   SEED_BULK_BANDS,
   SEED_DRESSING_YIELD_PCT,
@@ -120,6 +120,16 @@ export function missingInputsFor(input: EngineInput): MissingInput[] {
       why: `Client has not provided a ${basis} gate price`
     });
   }
+
+  /**
+   * OQ-21. A fractional bag count is checked here, alongside the gate price
+   * and before the bulk early-return, for the same reason that one is: it
+   * affects every batch that has entered a draw, bulk sales or not. It used
+   * to throw an uncaught `RangeError` out of `computeFeedLiability` below and
+   * take production and costing down with it — a stack trace where this
+   * function promises a typed blank.
+   */
+  missing.push(...feedDrawsMissingInputs(input));
 
   const sellsBulk = input.sales.some((sale) => sale.channel === 'BULK');
   if (!sellsBulk) return missing;

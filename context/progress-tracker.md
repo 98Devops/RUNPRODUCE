@@ -37,6 +37,28 @@ widening scope:**
 **Task 9 was NOT built, and the plan was wrong to say it could be.** See
 Current Goal.
 
+## Interleaved: OQ-21 crash fix (2026-09-11)
+
+Taken while M5b Tasks 8-9 sit blocked, because it is a live crash on the
+client's own figure in already-shipped U3 code, and it needed nothing from
+Daniel. **Scoped to the crash only** — it decides nothing about whether part
+bags should eventually be accepted or priced.
+
+- `feed_draw_bags` added to `MissingInputKey`. `computeDecision` now returns a
+  typed `missing_input` naming the draw and its collection date, where it
+  previously threw an uncaught `RangeError` out of the eager
+  `computeFeedLiability` call and took production and costing down with it.
+- `feedDrawsMissingInputs()` + a named guard inside `computeFeedLiability`,
+  mirroring `cash.ts`'s check-then-guard precedent. The guard matters because
+  M5b's `projectCandidate` calls `computeFeedLiability` directly.
+- `kgDiscrepancy()` compares at gram resolution instead of `!==` on
+  `bags * 50`, so a genuine part-bag match (`0.07` bags / `3.5` kg) stops
+  reporting a discrepancy that does not exist. Gram resolution is invariant
+  2's own unit, not a tolerance invented for the occasion.
+
+**261 unit tests passing** (was 254). Golden unchanged at 11 / 11 / 1 held.
+Lint, typecheck, build clean. **U6 was NOT started** — build order stands.
+
 ## Previous Phase
 
 **U5 — M5a cash calendar.** Started 2026-09-10, after U4 closed and the

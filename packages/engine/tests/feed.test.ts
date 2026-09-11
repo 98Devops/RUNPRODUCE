@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { computeFeedLiability } from '../src/feed.js';
+import { computeFeedLiability, kgDiscrepancy } from '../src/feed.js';
+import { computeDecision } from '../src/index.js';
 import { projectProduction } from '../src/production.js';
 import { addDays } from '../src/day-number.js';
 import { Money } from '../src/money.js';
@@ -263,5 +264,80 @@ describe('planned draw cadence', () => {
     const kg = planned.reduce((sum, p) => sum + p.kg, 0);
     // 4,408 g/bird through day 41 * 3,000 birds = 13,224 kg — fixture 2.
     expect(kg).toBeCloseTo(13224, 6);
+  });
+});
+
+/**
+ * OQ-21. `bags` is the one client-entered field whose own arithmetic produces a
+ * decimal: the planning half computes `kg / 50` to 2dp, so 26.64 is Daniel's
+ * real first-draw figure and fixture 5 already asserts it. Pricing it with
+ * `BigInt(draw.bags)` threw a RangeError out of `computeFeedLiability` and, via
+ * the eager call in `computeDecision`, took production and costing down with it.
+ *
+ * These tests pin the REFUSAL, not a pricing rule. Whether a part bag is real
+ * commerce to be priced or a capture-screen artefact to be rejected is still
+ * open with Daniel; nothing here answers it.
+ */
+describe('OQ-21 — a fractional bag count refuses instead of crashing', () => {
+  const fractional = baseInput({
+    draws: drawsOf({ bags: 26.64, kg: 1332 })
+  });
+
+  it('does not throw a RangeError out of computeDecision', () => {
+    expect(() => computeDecision(fractional)).not.toThrow();
+  });
+
+  it('returns a typed missing_input naming the bags field', () => {
+    const result = computeDecision(fractional);
+
+    expect(result.kind).toBe('missing_input');
+    if (result.kind !== 'missing_input') throw new Error('unreachable');
+    const entry = result.missing.find((m) => m.key === 'feed_draw_bags');
+    expect(entry).toBeDefined();
+    // The refusal has to be actionable: it names the draw, so a capture screen
+    // can point at the row rather than at the concept.
+    expect(entry?.why).toContain('26.64');
+    expect(entry?.why).toContain('2026-02-06');
+  });
+
+  it('still refuses rather than answering OQ-21 in the client\'s stead', () => {
+    const result = computeDecision(fractional);
+    if (result.kind !== 'missing_input') throw new Error('unreachable');
+    const why = result.missing.find((m) => m.key === 'feed_draw_bags')?.why ?? '';
+
+    // Neither rounding nor pricing is chosen here. A refusal that quietly
+    // rounded would change the money owed in a direction nobody picked.
+    expect(why).toMatch(/OQ-21/);
+  });
+
+  it('throws a named, explanatory error if computeFeedLiability is called directly', () => {
+    // Same precedent as cash.ts: the refusal is the caller's to report, and
+    // this guard only catches a caller that skipped it. It must not be a raw
+    // RangeError — M5b's projectCandidate calls computeFeedLiability directly.
+    expect(() => feedFor(fractional)).toThrow(/bags/);
+    expect(() => feedFor(fractional)).not.toThrow(RangeError);
+  });
+
+  it('leaves a whole-bag draw completely unchanged', () => {
+    const whole = baseInput({ draws: drawsOf({ bags: 27, kg: 1350 }) });
+    expect(computeDecision(whole).kind).toBe('ok');
+    expect(feedFor(whole).draws[0]?.total_cents).toBe(27n * 3250n);
+  });
+});
+
+describe('OQ-21 secondary — kg_discrepancy no longer reports a float artefact', () => {
+  it('does not flag a part-bag draw whose kg genuinely matches', () => {
+    // 0.07 * 50 is 3.5000000000000004 in binary floating point, so the old
+    // exact `!==` reported a discrepancy that does not exist. Compared at
+    // gram resolution — the project's own weight unit, invariant 2 — these
+    // are equal, and equal is what they are.
+    const draw = drawsOf({ bags: 0.07, kg: 3.5 })[0]!;
+    expect(draw.bags * 50).not.toBe(draw.kg); // the artefact itself, for the record
+    expect(kgDiscrepancy(draw)).toBe(false);
+  });
+
+  it('still flags a draw whose kg really does disagree with its bags', () => {
+    const draw = drawsOf({ bags: 27, kg: 1300 })[0]!;
+    expect(kgDiscrepancy(draw)).toBe(true);
   });
 });

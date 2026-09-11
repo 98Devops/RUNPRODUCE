@@ -344,8 +344,24 @@ same truck twice. An answered OQ-2 is **not** sufficient to proceed.
 
 ## Open questions — blocking
 
-### OQ-21 · A fractional-bag draw crashes the engine 🔴 URGENT — INTERNAL
-**Status:** Open, unfixed, **reproduced 2026-09-11**. **Raised:** 2026-09-11,
+### OQ-21 · A fractional-bag draw crashes the engine 🟠 CRASH FIXED — CLIENT HALF OPEN
+**Status:** **The crash is fixed** (2026-09-11). The engine now refuses with a
+typed `missing_input` keyed `feed_draw_bags`, naming the draw and its date,
+instead of throwing a `RangeError`. `feed.ts` also carries a named guard for a
+caller that skips the check, matching `cash.ts`'s precedent — it matters
+because M5b's `projectCandidate` calls `computeFeedLiability` directly.
+**The secondary `kg_discrepancy` float bug is fixed too:** `kgDiscrepancy()`
+compares at gram resolution (invariant 2's own unit), so `0.07` bags against
+`3.5` kg no longer reports a discrepancy that does not exist.
+
+**What is still open is the CLIENT half, and only that:** whether a part bag
+is real commerce to be priced or a capture-screen artefact to be rejected.
+The fix deliberately answers neither — it refuses. Nothing rounds `bags`, and
+no price is derived for a part bag. When Daniel answers, the refusal is
+replaced by pricing (round the resulting cents up, as `costOfFeed` does) or by
+a hard input-boundary rejection, and this entry closes.
+
+**Originally raised and reproduced 2026-09-11.** **Raised:** 2026-09-11,
 out of the M5a review session — but the defect is **pre-existing U3 scope**,
 not M5a's. **Affects:** every `computeDecision()` call for a batch whose
 entered draws carry a non-integer bag count. **This is ours, not Daniel's**,
@@ -1546,7 +1562,7 @@ recommendation — divergences are the most valuable data available.
 | U5 · any **bulk-inclusive** candidate score | OQ-2 (transport) **and** OQ-16. The enumeration's SHAPE is buildable today and is spec'd; a candidate routing birds to bulk returns `missing_input` naming both gaps, never a gate-only figure dressed as complete |
 | Calibrated `MaxSafeBatchSize` | OQ-1 (mortality data) |
 | M5b · Task 8, the enumeration ceiling | OQ-23 — what actually caps a placement. Tasks 1-7 do not read it and are **built**; **Task 9 is blocked too**, transitively — it wires `decision.allocation` to `computeAllocation`, which is Task 8 |
-| U3 · pricing a **part-bag** draw | OQ-21 — the client question half only. Refusing to crash on one is **not** blocked and should land first |
+| U3 · pricing a **part-bag** draw | OQ-21 — the client question half only. **The crash half landed 2026-09-11**: a part-bag draw now returns a typed `feed_draw_bags` refusal instead of a `RangeError` |
 | Default strategy selection | ~~OQ-3~~ answered; mode set decided (AD-35) |
 | ~~Gate harvest window past day 32~~ | **Moot.** Built in U4: under the settled flat gate price the window ends at day 31, so there is no "past day 32" to unblock. It reopens only if per-kg gate pricing becomes the default — see OQ-11 |
 

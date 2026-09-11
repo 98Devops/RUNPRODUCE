@@ -4,8 +4,10 @@ import type {
   Cents,
   DrawLiability,
   EngineInput,
+  FeedDraw,
   FeedLiability,
   IsoDate,
+  MissingInput,
   PlannedDraw,
   ProductionProjection
 } from './types.js';
@@ -28,6 +30,52 @@ const SUBSEQUENT_DRAW_DAYS = 7;
 /** Bags to 2dp. A bag count is divisible and is not money — it stays a float. */
 function bagsFromKg(kg: number): number {
   return Math.round((kg / KG_PER_BAG) * 100) / 100;
+}
+
+/**
+ * Whether a draw's recorded kg disagrees with its bag count.
+ *
+ * Compared at GRAM resolution rather than with `!==` on the raw product.
+ * `bags * 50` is not exact in binary floating point for a 2dp bag count —
+ * `0.07 * 50` gives `3.5000000000000004` — so exact inequality reported a
+ * discrepancy that does not exist. Grams are the project's own weight unit
+ * (invariant 2), so agreeing to the gram IS agreeing; this is that unit
+ * convention applied, not a tolerance invented to paper over the artefact.
+ */
+export function kgDiscrepancy(draw: FeedDraw): boolean {
+  const fromBagsG = Math.round(draw.bags * KG_PER_BAG * 1000);
+  const recordedG = Math.round(draw.kg * 1000);
+  return fromBagsG !== recordedG;
+}
+
+/**
+ * Draws this module cannot price, and why — checked BEFORE pricing.
+ *
+ * `bags` is the one client-entered field the client's own arithmetic produces
+ * as a decimal (`bagsFromKg` above rounds `kg / 50` to 2dp, which is where
+ * 26.64 comes from). `BigInt()` throws on a fractional value, so pricing one
+ * used to take the WHOLE decision down with an uncaught `RangeError` — no
+ * `missing_input`, no partial result, nothing rendered at all.
+ *
+ * This refuses instead, and refuses on purpose rather than rounding: whether a
+ * part bag is real commerce to be priced or a capture-screen artefact to be
+ * rejected is OQ-21, still open with the client. Rounding `bags` would change
+ * the money owed in a direction nobody chose, which invariant 5 forbids
+ * whichever way it rounds.
+ */
+export function feedDrawsMissingInputs(input: EngineInput): MissingInput[] {
+  return input.draws
+    .filter((draw) => !Number.isInteger(draw.bags))
+    .map((draw) => ({
+      key: 'feed_draw_bags' as const,
+      why:
+        `The feed draw collected ${draw.collection_date} carries ${draw.bags} bags, ` +
+        'which is not a whole number. A draw is priced per bag, and whether the ' +
+        'supplier ever invoices a part bag — or whether this is a kg / 50 figure ' +
+        'entered into a field that wants what the supplier invoiced — is OQ-21, ' +
+        'unanswered. The bag count is not rounded: that would change the money ' +
+        'owed in a direction nobody chose.'
+    }));
 }
 
 /**
@@ -63,6 +111,20 @@ export function computeFeedLiability(
     (draw) => daysBetween(draw.collection_date, asOf) >= 0
   );
 
+    // A draw we cannot price is not a draw with a caveat, it is a wrong
+  // liability — so this is a programming-error guard, not the invariant-5
+  // path. Callers must check feedDrawsMissingInputs() first and return
+  // missing_input; this only catches one that skipped it. It matters that it
+  // is named rather than a raw RangeError: M5b's projectCandidate calls this
+  // function directly.
+  const unpriceable = feedDrawsMissingInputs(input);
+  if (unpriceable.length > 0) {
+    throw new Error(
+      `Cannot price a feed draw: ${unpriceable.map((m) => m.why).join(' ')} ` +
+        'Call feedDrawsMissingInputs() first and return missing_input.'
+    );
+  }
+
   const draws: DrawLiability[] = collected.map((draw) => {
     const due_date = addDays(draw.collection_date, draw.terms_days);
     return {
@@ -75,7 +137,7 @@ export function computeFeedLiability(
       total_cents: (BigInt(draw.bags) * draw.price_per_bag_cents) as Cents,
       terms_days: draw.terms_days,
       days_until_due: daysBetween(asOf, due_date),
-      kg_discrepancy: draw.kg !== draw.bags * KG_PER_BAG
+      kg_discrepancy: kgDiscrepancy(draw)
     };
   });
 
