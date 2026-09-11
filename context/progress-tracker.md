@@ -4,6 +4,41 @@ Update this file after every meaningful implementation change.
 
 ## Current Phase
 
+**U5 — M5b allocation enumeration. Tasks 1-7 built; Tasks 8 and 9 blocked
+on OQ-23.** Branch `u5-m5b-allocation-enumeration`, started 2026-09-11,
+TDD throughout — test written and watched fail, then implementation, then
+the suite green, one commit per task.
+
+| Task | What landed | Commit |
+|---|---|---|
+| 1 | `projectCashCalendar` takes `carriedFlows` — another batch's dated obligations, a parameter rather than a lump in `openingCents` so the trough stays honest | `35b4e08` |
+| 2 | `enumerateCandidates` — the size x date grid from the invariant-16 floor to floor + 30, stepped by `placement_step_birds` (assumed 100, OQ-18) | `e4c1b9d` |
+| 3 | `handoffAtPlacement` — the running batch split at the candidate's placement date, before collapsed into an opening balance and after handed over still dated | `a7b63f4` |
+| 4 | `candidateInput` / `projectCandidate` — one synthetic `EngineInput` and one projection per candidate, over its OWN completion horizon (41 + terms) | `9816d23` |
+| 5 | `scoreCandidate` — AD-43's three integer scalars, the reserve floor reported as a separate fact rather than folded into a score | `ffe89eb` |
+| 6 | `pickWinner` — AD-44's stated tie-break (earliest date, then smaller size), with `tied_candidates` reported | `a44a4b3` |
+| 7 | `placeNothing` — its own outcome carrying the PER_BATCH overhead it avoids, never a zero-bird batch through the standard fields | `0cb7281` |
+
+**254 unit tests passing** (was 215): 2 new in `cash.test.ts`, 23 new in
+`allocation.test.ts`. Golden suite **unchanged** at 11 written / 11 passing /
+1 held, as the plan required. Lint, typecheck and build clean.
+
+**Two deliberate departures from the plan text, both narrowing rather than
+widening scope:**
+
+1. **Task 3's invariant test uses the handoff's own 71-day horizon, not the
+   plan's 90.** The plan compared a split against a projection it never came
+   from; it would have passed on the coincidence that the tail days carry no
+   flows, which is not what "double-counts nothing" means.
+2. **`missingInputsFor` is now exported from `index.ts`** (was private), so
+   Task 4 can check a synthetic candidate against the same refusal gate
+   `computeDecision` uses. A pure predicate; no behaviour change.
+
+**Task 9 was NOT built, and the plan was wrong to say it could be.** See
+Current Goal.
+
+## Previous Phase
+
 **U5 — M5a cash calendar.** Started 2026-09-10, after U4 closed and the
 U5 grilling session cleared the assumptions that gate the allocation
 optimiser (AD-40 through AD-45, OQ-18).
@@ -24,6 +59,44 @@ unchanged at 11 written / 11 passing / 1 held, lint/typecheck/build
 clean. Report: `.superpowers/sdd/u5-cash-calendar-plan/final-fix-report.md`.
 
 ## Current Goal
+
+**U5 — M5b Tasks 8 and 9. Both blocked on OQ-23.**
+
+**Task 9 is blocked, and the plan said it was not.** Found on 2026-09-11
+while executing, before any of Task 9 was written. The plan header claimed
+`Tasks 1-7 and 9 are unaffected`; Task 9's own **Interfaces** block says
+`Consumes: computeAllocation (Task 8)`. The Interfaces block is the accurate
+one — Task 9's whole job is to replace the `NotImplementedError` getter with
+a call to `computeAllocation`, which is Task 8's function and is gated on
+`requirePlacementCeiling`, a deliberate hole that throws until OQ-23 lands.
+
+Building it anyway would trade a `NotImplementedError` for a ceiling
+`Error`. That is worse, not neutral: `classifyFixture` holds a golden
+fixture **only** on `NotImplementedError` and fails on any other throw, and
+`decision.test.ts` asserts that reading `allocation` throws
+`NotImplementedError` — that test would fail while the getter stayed exactly
+as unusable as it is now. Both the plan header and the OQ-23 entry in
+`current-issues.md` have been corrected.
+
+**What Task 8 still needs, in order:**
+
+1. **OQ-23** — what actually caps a placement. Without it there is no
+   `maxChickCount` to enumerate against. Blocks the task starting at all.
+2. **OQ-2's transport half and OQ-16** — without these, no bulk-inclusive
+   candidate produces a *number*. Answering OQ-23 alone does not make Task 8
+   useful; it makes the size of the blocked region visible, because the real
+   range is mostly bulk-inclusive. Two of three modes refusing across most of
+   the grid is invariant 5 working, not a regression.
+3. **OQ-22** must be closed by this unit — `bulk_price_cents_per_bird` is
+   declared and read nowhere while M4 prices bulk off the contract bands. M5b
+   is where bulk net is computed, so M5b decides the precedence.
+
+**Also queued for Task 8:** memoise `handoffAtPlacement` per date. It depends
+only on the date, so the naive loop is up to 8,401 projections of the same 31
+calendars. Deferred deliberately — it is a real optimisation, not a premature
+one, but it has no value until Task 8 exists to call it.
+
+## Previous Goal
 
 **U5 — M5b allocation enumeration. Planned, not started, still blocked.**
 

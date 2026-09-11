@@ -137,7 +137,7 @@ in context.
   to `[]`, so every existing caller and all 23 existing `cash.test.ts` tests
   keep compiling and passing unchanged.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 it('books carried flows from another batch alongside its own', () => {
@@ -173,7 +173,7 @@ it('still throws when a carried flow predates the candidate placement', () => {
 });
 ```
 
-- [ ] **Step 2: Run it and watch it fail**
+- [x] **Step 2: Run it and watch it fail**
 
 Run: `cd packages/engine && npx vitest run tests/cash.test.ts`
 Expected: FAIL — `projectCashCalendar` takes 4 arguments, the 5th is ignored,
@@ -181,7 +181,7 @@ so `withCarried.closing_cents` equals `without.closing_cents` and the first
 test's subtraction is off by 50,000. The second test fails because nothing
 throws.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```ts
 export function projectCashCalendar(
@@ -214,13 +214,13 @@ add:
   flows.push(...carriedFlows);
 ```
 
-- [ ] **Step 4: Run the tests and watch them pass**
+- [x] **Step 4: Run the tests and watch them pass**
 
 Run: `cd packages/engine && npx vitest run tests/cash.test.ts`
 Expected: PASS, and all 23 pre-existing `cash.test.ts` tests still pass —
 `carriedFlows` defaults to `[]`, so nothing else moves.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/engine/src/cash.ts packages/engine/tests/cash.test.ts
@@ -253,7 +253,7 @@ git commit -m "feat(engine): projectCashCalendar accepts another batch's carried
   ```
   `Parameters` gains `readonly placement_step_birds?: number;`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 describe('enumerateCandidates', () => {
@@ -292,12 +292,12 @@ describe('enumerateCandidates', () => {
 });
 ```
 
-- [ ] **Step 2: Run it and watch it fail**
+- [x] **Step 2: Run it and watch it fail**
 
 Run: `cd packages/engine && npx vitest run tests/allocation.test.ts`
 Expected: FAIL — `Cannot find module '../src/allocation.js'`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```ts
 import { addDays } from './day-number.js';
@@ -362,12 +362,12 @@ and inside `Parameters`:
   readonly placement_step_birds?: number;
 ```
 
-- [ ] **Step 4: Run the tests and watch them pass**
+- [x] **Step 4: Run the tests and watch them pass**
 
 Run: `cd packages/engine && npx vitest run tests/allocation.test.ts`
 Expected: PASS, 4 tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/engine/src/allocation.ts packages/engine/src/types.ts packages/engine/tests/allocation.test.ts
@@ -403,7 +403,7 @@ the running batch's calendar is projected once, everything it settles **before**
 the candidate's placement collapses into an opening balance, and everything it
 settles **on or after** is handed over as dated flows.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 describe('handoffAtPlacement', () => {
@@ -440,12 +440,12 @@ describe('handoffAtPlacement', () => {
 });
 ```
 
-- [ ] **Step 2: Run it and watch it fail**
+- [x] **Step 2: Run it and watch it fail**
 
 Run: `cd packages/engine && npx vitest run tests/allocation.test.ts`
 Expected: FAIL — `handoffAtPlacement is not a function`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```ts
 /**
@@ -494,12 +494,12 @@ const curve = input.curve ?? SEED_BREED_CURVE;
 const LAST_CURVE_DAY = curve.points[curve.points.length - 1]!.day_number;
 ```
 
-- [ ] **Step 4: Run the tests and watch them pass**
+- [x] **Step 4: Run the tests and watch them pass**
 
 Run: `cd packages/engine && npx vitest run tests/allocation.test.ts`
 Expected: PASS, 7 tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/engine/src/allocation.ts packages/engine/tests/allocation.test.ts
@@ -526,7 +526,7 @@ git commit -m "feat(engine): chain a candidate's opening balance off the running
   ): CashCalendar;
   ```
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 describe('candidateInput', () => {
@@ -582,12 +582,12 @@ describe('projectCandidate', () => {
 });
 ```
 
-- [ ] **Step 2: Run it and watch it fail**
+- [x] **Step 2: Run it and watch it fail**
 
 Run: `cd packages/engine && npx vitest run tests/allocation.test.ts`
 Expected: FAIL — `candidateInput is not a function`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```ts
 /**
@@ -641,12 +641,12 @@ export function projectCandidate(
 }
 ```
 
-- [ ] **Step 4: Run the tests and watch them pass**
+- [x] **Step 4: Run the tests and watch them pass**
 
 Run: `cd packages/engine && npx vitest run tests/allocation.test.ts`
 Expected: PASS, 12 tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/engine/src/allocation.ts packages/engine/tests/allocation.test.ts
@@ -683,7 +683,7 @@ git commit -m "feat(engine): project each candidate once, over its own completio
 horizon — a real state, not a large number, and it excludes the candidate from
 Cover Fast's ranking rather than ranking it last.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 describe('scoreCandidate', () => {
@@ -726,12 +726,12 @@ describe('scoreCandidate', () => {
 });
 ```
 
-- [ ] **Step 2: Run it and watch it fail**
+- [x] **Step 2: Run it and watch it fail**
 
 Run: `cd packages/engine && npx vitest run tests/allocation.test.ts`
 Expected: FAIL — `scoreCandidate is not a function`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```ts
 export function scoreCandidate(
@@ -764,12 +764,12 @@ export function scoreCandidate(
 }
 ```
 
-- [ ] **Step 4: Run the tests and watch them pass**
+- [x] **Step 4: Run the tests and watch them pass**
 
 Run: `cd packages/engine && npx vitest run tests/allocation.test.ts`
 Expected: PASS, 16 tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/engine/src/allocation.ts packages/engine/src/types.ts packages/engine/tests/allocation.test.ts
@@ -799,7 +799,7 @@ git commit -m "feat(engine): three integer scalars, the reserve floor filtering 
   ): ModeWinner | null;
   ```
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 describe('pickWinner', () => {
@@ -847,12 +847,12 @@ describe('pickWinner', () => {
 });
 ```
 
-- [ ] **Step 2: Run it and watch it fail**
+- [x] **Step 2: Run it and watch it fail**
 
 Run: `cd packages/engine && npx vitest run tests/allocation.test.ts`
 Expected: FAIL — `pickWinner is not a function`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```ts
 export function pickWinner(
@@ -892,12 +892,12 @@ export function pickWinner(
 }
 ```
 
-- [ ] **Step 4: Run the tests and watch them pass**
+- [x] **Step 4: Run the tests and watch them pass**
 
 Run: `cd packages/engine && npx vitest run tests/allocation.test.ts`
 Expected: PASS, 21 tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/engine/src/allocation.ts packages/engine/src/types.ts packages/engine/tests/allocation.test.ts
@@ -923,7 +923,7 @@ git commit -m "feat(engine): deterministic tie-break, with the tie itself report
   export function placeNothing(input: EngineInput, handoff: RunningBatchHandoff): PlaceNothing;
   ```
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 describe('placeNothing', () => {
@@ -948,12 +948,12 @@ describe('placeNothing', () => {
 });
 ```
 
-- [ ] **Step 2: Run it and watch it fail**
+- [x] **Step 2: Run it and watch it fail**
 
 Run: `cd packages/engine && npx vitest run tests/allocation.test.ts`
 Expected: FAIL — `placeNothing is not a function`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```ts
 /**
@@ -980,12 +980,12 @@ export function placeNothing(input: EngineInput, handoff: RunningBatchHandoff): 
 }
 ```
 
-- [ ] **Step 4: Run the tests and watch them pass**
+- [x] **Step 4: Run the tests and watch them pass**
 
 Run: `cd packages/engine && npx vitest run tests/allocation.test.ts`
 Expected: PASS, 23 tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/engine/src/allocation.ts packages/engine/src/types.ts packages/engine/tests/allocation.test.ts
@@ -1006,8 +1006,14 @@ git commit -m "feat(engine): place_nothing as its own outcome, with its overhead
 > the same quantity. `maxChickCount` needs a real source, and
 > `gate_capacity_per_day` is the only capacity field `Parameters` has.
 >
-> **Tasks 1-7 and 9 are unaffected** — none of them reads the ceiling. Build
-> those; leave this one until OQ-23 is answered.
+> **Tasks 1-7 are unaffected** — none of them reads the ceiling. They are
+> **built and green** (2026-09-11).
+>
+> **Task 9 is NOT unaffected.** This line said "Tasks 1-7 and 9" and was wrong;
+> Task 9's own **Interfaces** block (`Consumes: computeAllocation (Task 8)`)
+> is the accurate statement. Task 9 wires `decision.allocation` to
+> `computeAllocation`, so it cannot be written until Task 8 exists. It is
+> blocked on OQ-23 transitively and lands with Task 8.
 >
 > **`requirePlacementCeiling` in the code below is a deliberate hole, not a
 > function you can go and write.** Its contract, for when OQ-23 lands:

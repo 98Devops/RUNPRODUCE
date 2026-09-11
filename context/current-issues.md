@@ -1112,8 +1112,24 @@ Fast and Build Reserve return `missing_input` for them until **OQ-2's transport
 half** and **OQ-16** land. M5b's scoreable region is a thin gate-only sliver,
 and the old cap made the engine look more capable than it is.
 
-**Handling until answered:** M5b Task 8 does not start. Tasks 1–7 and 9 are
-unaffected — none of them reads the ceiling.
+**Handling until answered:** M5b Task 8 does not start. **Tasks 1–7 are built
+and merged-ready** (2026-09-11) — none of them reads the ceiling.
+
+**Task 9 is blocked too, and the plan said otherwise.** Corrected 2026-09-11
+on discovery during execution. The plan header and this entry both claimed
+`Tasks 1-7 and 9 are unaffected`; Task 9's own **Interfaces** block says
+`Consumes: computeAllocation (Task 8)`, and the Interfaces block is the
+accurate one. Task 9 replaces the `NotImplementedError` getter with a call to
+`computeAllocation` — Task 8's function, gated on `requirePlacementCeiling`,
+which throws until this question is answered. Building it would swap a
+`NotImplementedError` for a ceiling `Error`, which is strictly worse.
+`classifyFixture` (tests/golden/_shared.ts) holds a fixture **only** on
+`NotImplementedError` and classifies every other throw as `fail`. No golden
+fixture targets `decision.allocation` today, so nothing would break there
+yet — but `decision.test.ts` **does** assert that reading `allocation`
+throws `NotImplementedError` ("still holds the module U5 has not built"), and
+that test would fail on the ceiling throw while the getter is no more usable
+than before. Task 9 lands with Task 8, not before it.
 
 ### OQ-22 · `bulk_price_cents_per_bird` is declared and never read 🟡 INTERNAL
 **Status:** Open, documented in place, **behaviour deliberately unchanged**.
@@ -1529,7 +1545,7 @@ recommendation — divergences are the most valuable data available.
 | U5 · bulk net revenue computation | OQ-2 (transport) **and** OQ-16 — both required, neither sufficient alone |
 | U5 · any **bulk-inclusive** candidate score | OQ-2 (transport) **and** OQ-16. The enumeration's SHAPE is buildable today and is spec'd; a candidate routing birds to bulk returns `missing_input` naming both gaps, never a gate-only figure dressed as complete |
 | Calibrated `MaxSafeBatchSize` | OQ-1 (mortality data) |
-| M5b · Task 8, the enumeration ceiling | OQ-23 — what actually caps a placement. Tasks 1-7 and 9 do not read it and are unaffected |
+| M5b · Task 8, the enumeration ceiling | OQ-23 — what actually caps a placement. Tasks 1-7 do not read it and are **built**; **Task 9 is blocked too**, transitively — it wires `decision.allocation` to `computeAllocation`, which is Task 8 |
 | U3 · pricing a **part-bag** draw | OQ-21 — the client question half only. Refusing to crash on one is **not** blocked and should land first |
 | Default strategy selection | ~~OQ-3~~ answered; mode set decided (AD-35) |
 | ~~Gate harvest window past day 32~~ | **Moot.** Built in U4: under the settled flat gate price the window ends at day 31, so there is no "past day 32" to unblock. It reopens only if per-kg gate pricing becomes the default — see OQ-11 |
