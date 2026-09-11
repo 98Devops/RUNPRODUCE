@@ -165,7 +165,22 @@ export function projectCashCalendar(
    * throw in `buildDays`.
    */
   openingCents: Cents,
-  feed: FeedLiability
+  feed: FeedLiability,
+  /**
+   * Dated flows belonging to a DIFFERENT batch that is still running when this
+   * one is placed — its feed draws falling due, its receipts landing.
+   *
+   * A parameter rather than something folded into `openingCents`, because
+   * AD-43's reserve-floor filter reads the day-by-day trough and a lump at day
+   * 1 would misstate it: a draw due on day 25 that dips the balance below the
+   * floor is exactly the fact the filter exists to catch. `EngineInput.batch`
+   * is singular, so there is no way to express a second batch inside `input`.
+   *
+   * Flows dated before this batch's placement still throw. That is deliberate:
+   * anything the other batch settles before this one is placed belongs in
+   * `openingCents`, and the throw is what stops it being counted twice.
+   */
+  carriedFlows: readonly CashFlow[] = []
 ): CashCalendar {
   if (throughDay < 1) {
     throw new Error(`through_day ${throughDay} is before placement day 1`);
@@ -306,6 +321,8 @@ export function projectCashCalendar(
       description: `${sale.bird_count} birds ${sale.channel}`
     });
   }
+
+  flows.push(...carriedFlows);
 
   return buildDays(input, throughDay, openingCents, flows, floor, feed.planned_confidence);
 }

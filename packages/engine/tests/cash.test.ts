@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { cashFlowsMissingInputs, projectCashCalendar } from '../src/cash.js';
+import { addDays } from '../src/day-number.js';
 import { computeFeedLiability } from '../src/feed.js';
 import { projectProduction } from '../src/production.js';
-import type { Cents, EngineInput, Grams, IsoDate, Parameters } from '../src/types.js';
+import type { CashFlow, Cents, EngineInput, Grams, IsoDate, Parameters } from '../src/types.js';
 
 const PLACEMENT = '2026-02-06' as IsoDate;
 
@@ -430,5 +431,49 @@ describe('projectCashCalendar — the reserve floor', () => {
     // Nothing moves after day 1, so days 1-5 all hold the minimum.
     expect(calendar.minimum_cents).toBe(-422200n);
     expect(calendar.minimum_date).toBe('2026-02-06');
+  });
+});
+
+describe('projectCashCalendar — carried flows from another batch', () => {
+  it('books carried flows from another batch alongside its own', () => {
+    const engineInput = input('2026-02-06');
+    const carried: readonly CashFlow[] = [
+      {
+        kind: 'FEED_DRAW_PAYMENT',
+        date: addDays(PLACEMENT, 5),
+        amount_cents: -50_000n as Cents,
+        description: 'running batch draw, due inside this candidate window'
+      }
+    ];
+
+    const withCarried = projectCashCalendar(
+      engineInput,
+      10,
+      0n as Cents,
+      feedFor(engineInput),
+      carried
+    );
+    const without = projectCashCalendar(engineInput, 10, 0n as Cents, feedFor(engineInput));
+
+    expect(withCarried.closing_cents).toBe(without.closing_cents - 50_000n);
+    expect(withCarried.days[5]?.flows.some((f) => f.description.includes('running batch'))).toBe(
+      true
+    );
+  });
+
+  it('still throws when a carried flow predates the candidate placement', () => {
+    const engineInput = input('2026-02-06');
+    const carried: readonly CashFlow[] = [
+      {
+        kind: 'GATE_RECEIPT',
+        date: addDays(PLACEMENT, -1),
+        amount_cents: 10_000n as Cents,
+        description: 'settled before this batch was placed'
+      }
+    ];
+
+    expect(() =>
+      projectCashCalendar(engineInput, 10, 0n as Cents, feedFor(engineInput), carried)
+    ).toThrow(/belongs in openingCents/);
   });
 });
