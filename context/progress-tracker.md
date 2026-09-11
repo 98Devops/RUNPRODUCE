@@ -25,7 +25,34 @@ clean. Report: `.superpowers/sdd/u5-cash-calendar-plan/final-fix-report.md`.
 
 ## Current Goal
 
-**U5 — M5b allocation enumeration, and it is blocked.** Blocked on
+**U5 — M5b allocation enumeration. Planned, not started, still blocked.**
+
+2026-09-11: `u2-production-costing` is **merged to main** (`97612c4`,
+`--no-ff`), carrying U2 through U5's M5a. Both halves of the branch had
+independent code review before the merge, and both found invariant 5
+violations that approval on reported values had not — M5a's
+`feed.planned_draws` double-count (`f3178ac`) and M4's null gate price
+priced at `0n`, plus its calibration erasing the pre-harvest ramp
+(`66bc1da`). **Main is not pushed to origin.**
+
+M5b's implementation plan is written against `projectCashCalendar`'s
+**real** signature: `context/plans/u5-m5b-allocation-enumeration.md`,
+nine tasks. It found one genuine gap the spec could not have seen —
+**`EngineInput.batch` is singular**, so AD-41's requirement to score a
+candidate against the running batch's obligations has nowhere to live.
+Task 1 adds a `carriedFlows` parameter rather than folding them into
+`openingCents`, which would collapse their timing and misstate the
+trough AD-43's reserve-floor filter reads.
+
+**One question blocks Task 8, and it is ours, not Daniel's:**
+`maxChickCount` is derived in the plan as gate capacity × harvest-window
+days. That is the plan's inference from CONTEXT.md calling gate capacity
+"the binding constraint on batch size", not a spec decision — and under
+the settled flat $4.25 the gate window is one day wide, which caps a
+candidate at `gate_capacity_per_day` against a spec that imagined 271
+sizes. Settle it before Task 8 starts.
+
+**The OQ blockers are unchanged.** Blocked on
 **OQ-2's transport half** (the abattoir fee landed, transport did not)
 and **OQ-16** (the bulk-net double-count). Three modes, with Maximum
 Growth reframed as leveraged rollover (AD-35), and enumeration must
