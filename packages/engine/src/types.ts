@@ -236,6 +236,25 @@ export interface RunningBatchHandoff {
   readonly carried_flows: readonly CashFlow[];
 }
 
+/** AD-35. Three modes, and no Auto mode — the client chooses the posture. */
+export type AllocationMode = 'COVER_FAST' | 'MAXIMUM_GROWTH' | 'BUILD_RESERVE';
+
+/**
+ * One candidate, projected once and scored on all three of AD-43's scalars.
+ *
+ * `breaches_reserve_floor` is deliberately NOT one of the scores. The floor
+ * filters; `pickWinner` drops a breaching candidate rather than ranking it low.
+ */
+export interface ScoredCandidate {
+  readonly candidate: Candidate;
+  readonly calendar: CashCalendar;
+  /** Days until receipts repay core credit, or null if they never do. */
+  readonly cover_fast_days: number | null;
+  readonly maximum_growth_birds: number;
+  readonly build_reserve_cents: Cents;
+  readonly breaches_reserve_floor: boolean;
+}
+
 export interface Candidate {
   readonly placement_date: IsoDate;
   readonly chick_count: number;

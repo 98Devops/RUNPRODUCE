@@ -3,7 +3,8 @@ import {
   candidateInput,
   enumerateCandidates,
   handoffAtPlacement,
-  projectCandidate
+  projectCandidate,
+  scoreCandidate
 } from '../src/allocation.js';
 import { projectCashCalendar } from '../src/cash.js';
 import { computeFeedLiability } from '../src/feed.js';
@@ -221,5 +222,59 @@ describe('projectCandidate', () => {
     expect(projectCandidate(baseInput(), late, h2).days.length).toBe(
       projectCandidate(baseInput(), early, h1).days.length
     );
+  });
+});
+
+describe('scoreCandidate', () => {
+  it('scores Maximum Growth on placement size, which needs no bulk net', () => {
+    const c: Candidate = { placement_date: '2026-04-03' as IsoDate, chick_count: 2500 };
+    const handoff = handoffAtPlacement(
+      baseInput(),
+      feedFor(baseInput()),
+      0n as Cents,
+      c.placement_date
+    );
+
+    expect(scoreCandidate(baseInput(), c, handoff).maximum_growth_birds).toBe(2500);
+  });
+
+  it('scores Build Reserve in integer cents, never a float', () => {
+    const c: Candidate = { placement_date: '2026-04-03' as IsoDate, chick_count: 2500 };
+    const handoff = handoffAtPlacement(
+      baseInput(),
+      feedFor(baseInput()),
+      0n as Cents,
+      c.placement_date
+    );
+
+    expect(typeof scoreCandidate(baseInput(), c, handoff).build_reserve_cents).toBe('bigint');
+  });
+
+  it('reports a floor breach rather than scoring it', () => {
+    const c: Candidate = { placement_date: '2026-04-03' as IsoDate, chick_count: 2500 };
+    const withFloor = baseInput({ reserve_floor_cents: 10_000_000n as Cents });
+    const handoff = handoffAtPlacement(withFloor, feedFor(withFloor), 0n as Cents, c.placement_date);
+    const scored = scoreCandidate(withFloor, c, handoff);
+
+    // AD-43. The floor is a filter, so the scalars are unchanged by it and the
+    // breach is a separate fact. Folding it into Build Reserve's score would
+    // both double-count it and let a high scorer buy past a hard constraint.
+    expect(scored.breaches_reserve_floor).toBe(true);
+    expect(scored.maximum_growth_birds).toBe(2500);
+  });
+
+  it('returns null Cover Fast days when receipts never clear core credit', () => {
+    const c: Candidate = { placement_date: '2026-04-03' as IsoDate, chick_count: 2500 };
+    const handoff = handoffAtPlacement(
+      baseInput(),
+      feedFor(baseInput()),
+      0n as Cents,
+      c.placement_date
+    );
+
+    // No sales orders on a synthetic candidate, so nothing ever clears. Null,
+    // not Infinity and not a large sentinel: a sentinel sorts, and sorting a
+    // "never happened" into a ranking is a confident wrong answer.
+    expect(scoreCandidate(baseInput(), c, handoff).cover_fast_days).toBeNull();
   });
 });

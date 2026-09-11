@@ -1,6 +1,7 @@
 import { SEED_BREED_CURVE } from './breed-curve.js';
 import { projectCashCalendar } from './cash.js';
 import { addDays } from './day-number.js';
+import { computeCosting } from './costing.js';
 import { computeFeedLiability } from './feed.js';
 import { projectProduction } from './production.js';
 import type {
@@ -11,7 +12,8 @@ import type {
   EngineInput,
   FeedLiability,
   IsoDate,
-  RunningBatchHandoff
+  RunningBatchHandoff,
+  ScoredCandidate
 } from './types.js';
 
 /**
@@ -141,4 +143,45 @@ export function projectCandidate(
 
   const feed = computeFeedLiability(synthetic, projectProduction(synthetic));
   return projectCashCalendar(synthetic, throughDay, handoff.opening_cents, feed, handoff.carried_flows);
+}
+
+/**
+ * The three integer scalars AD-43 ranks on, plus the floor as a separate fact.
+ *
+ * The floor FILTERS and never scores: a breach is reported on its own field so
+ * `pickWinner` can drop the candidate outright. Folding it into Build Reserve's
+ * cents would both double-count it and let a high scorer buy past what is meant
+ * to be a hard constraint.
+ */
+export function scoreCandidate(
+  input: EngineInput,
+  candidate: Candidate,
+  handoff: RunningBatchHandoff
+): ScoredCandidate {
+  const synthetic = candidateInput(input, candidate);
+  const calendar = projectCandidate(input, candidate, handoff);
+  const production = projectProduction(synthetic);
+  const costing = computeCosting(synthetic, production);
+
+  // Cover Fast is "days until receipts have repaid the core credit". Null when
+  // that never happens inside the horizon — a real state, not a large number.
+  // A sentinel would sort, and sorting a "never happened" into a ranking is
+  // exactly the confident wrong answer invariant 5 forbids.
+  let cumulativeReceipts = 0n;
+  let cover_fast_days: number | null = null;
+  for (const day of calendar.days) {
+    cumulativeReceipts += day.in_cents;
+    if (cover_fast_days === null && cumulativeReceipts >= costing.core_credit_cents) {
+      cover_fast_days = day.day_number;
+    }
+  }
+
+  return {
+    candidate,
+    calendar,
+    cover_fast_days,
+    maximum_growth_birds: candidate.chick_count,
+    build_reserve_cents: calendar.closing_cents,
+    breaches_reserve_floor: calendar.breaches_reserve_floor
+  };
 }
