@@ -162,3 +162,78 @@ describe('the engine surface', () => {
     expect((thrown as Error).message).toMatch(/U6/);
   });
 });
+
+describe('sales quantity validation — 0 < ordered <= birds alive', () => {
+  const gateSale = (bird_count: number, order_date = '2026-03-08'): SalesOrder => ({
+    channel: 'GATE',
+    order_date: order_date as IsoDate,
+    bird_count,
+    avg_live_weight_g: 1770 as Grams,
+    pricing_basis: 'PER_BIRD',
+    price_cents_per_bird: Money.fromCents(430n),
+    price_cents_per_kg: null,
+    terms_days: 0
+  });
+
+  it('refuses an order for more birds than are alive that day', () => {
+    // The exact shape found in the 2026-09-12 due-diligence pass: this returned
+    // `ok`, and every downstream figure would have been revenue on birds that
+    // do not exist.
+    const result = computeDecision(input({ sales: [gateSale(999_999)] }));
+
+    expect(result.kind).toBe('missing_input');
+    if (result.kind !== 'missing_input') throw new Error('unreachable');
+    const entry = result.missing.find((m) => m.key === 'sales_bird_count');
+    expect(entry).toBeDefined();
+    // Actionable: it names the order and both numbers, so a capture screen can
+    // point at the row rather than at the concept.
+    expect(entry?.why).toContain('999999');
+    expect(entry?.why).toContain('2026-03-08');
+  });
+
+  it('refuses a negative bird count', () => {
+    const result = computeDecision(input({ sales: [gateSale(-500)] }));
+
+    expect(result.kind).toBe('missing_input');
+    if (result.kind !== 'missing_input') throw new Error('unreachable');
+    expect(result.missing.map((m) => m.key)).toContain('sales_bird_count');
+  });
+
+  it('refuses a zero bird count — an order for nothing is not an order', () => {
+    const result = computeDecision(input({ sales: [gateSale(0)] }));
+    if (result.kind !== 'missing_input') throw new Error('expected refusal');
+    expect(result.missing.map((m) => m.key)).toContain('sales_bird_count');
+  });
+
+  it('refuses two orders that are individually fine but oversell together', () => {
+    // Production models mortality and NEVER subtracts sold birds, so each of
+    // these passes a per-day check on its own. Their sum does not.
+    const result = computeDecision({
+      ...input(),
+      sales: [gateSale(2000, '2026-03-08'), gateSale(1500, '2026-03-09')]
+    });
+
+    expect(result.kind).toBe('missing_input');
+    if (result.kind !== 'missing_input') throw new Error('unreachable');
+    expect(result.missing.map((m) => m.key)).toContain('sales_bird_count');
+  });
+
+  it('allows a legitimate order and changes nothing about it', () => {
+    const result = computeDecision(input({ sales: [gateSale(2900)] }));
+    expect(result.kind).toBe('ok');
+  });
+
+  it('allows a future-dated order the production series does not reach', () => {
+    // asOf is 2026-03-18 and the series stops there, so there is no day to
+    // check against. The flock-size ceiling still applies — you can never sell
+    // more birds than were ever placed — but a plausible forward order stands.
+    const result = computeDecision(input({ sales: [gateSale(2500, '2026-04-01')] }));
+    expect(result.kind).toBe('ok');
+  });
+
+  it('still refuses a future-dated order that exceeds the whole flock', () => {
+    const result = computeDecision(input({ sales: [gateSale(999_999, '2026-04-01')] }));
+    if (result.kind !== 'missing_input') throw new Error('expected refusal');
+    expect(result.missing.map((m) => m.key)).toContain('sales_bird_count');
+  });
+});

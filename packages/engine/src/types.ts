@@ -366,6 +366,13 @@ export type MissingInputKey =
    * price this".
    */
   | 'feed_draw_bags'
+  /**
+   * A sales order whose `bird_count` cannot be true — zero or negative, or more
+   * birds than the batch has alive. Present-but-impossible rather than absent,
+   * the same shape as `feed_draw_bags`: the engine refuses through the typed
+   * channel instead of computing revenue on birds that do not exist.
+   */
+  | 'sales_bird_count'
   | 'mortality_history';
 
 export interface MissingInput {

@@ -1,6 +1,6 @@
 import type { DecisionResult, EngineInput, HarvestPlan, MissingInput } from './types.js';
 import { NotImplementedError } from './errors.js';
-import { projectProduction } from './production.js';
+import { projectProduction, salesMissingInputs } from './production.js';
 import { computeCosting } from './costing.js';
 import { computeFeedLiability, feedDrawsMissingInputs } from './feed.js';
 import { planHarvest } from './harvest.js';
@@ -10,7 +10,7 @@ export { NotImplementedError, isNotImplemented } from './errors.js';
 export { Money } from './money.js';
 export { SEED_BREED_CURVE, pointForDay, cumulativeFeedG, feedGByPhase } from './breed-curve.js';
 export { dayNumberFor, addDays, daysBetween } from './day-number.js';
-export { projectProduction } from './production.js';
+export { projectProduction, salesMissingInputs } from './production.js';
 export { computeCosting } from './costing.js';
 export { computeFeedLiability, feedDrawsMissingInputs, kgDiscrepancy } from './feed.js';
 export {
@@ -71,6 +71,19 @@ export function computeDecision(input: EngineInput): DecisionResult {
   }
 
   const production = projectProduction(input);
+
+  /**
+   * Sales are validated HERE rather than in `missingInputsFor` because the
+   * check needs the flock, and the flock comes from production. Everything
+   * above this line is cheap and input-only; this is the first check that
+   * needed a computed value, which is why it sits after the projection and
+   * before anything derives money from an order.
+   */
+  const badSales = salesMissingInputs(input, production);
+  if (badSales.length > 0) {
+    return { kind: 'missing_input', missing: badSales };
+  }
+
   const costing = computeCosting(input, production);
   const feed = computeFeedLiability(input, production);
 
