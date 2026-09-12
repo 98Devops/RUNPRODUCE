@@ -220,16 +220,18 @@ and the first three executed on 2026-09-12.
 |---|---|---|
 | **1** | Sales quantity validation | ✅ **DONE** — `salesMissingInputs`, typed `sales_bird_count` refusal, 7 tests. Daniel's robustness request maps directly here: a 999,999-bird order against a 3,000-bird batch returning `ok` is precisely what he asked for protection against. |
 | **2** | Retired $400 in `SEED_OVERHEADS` | ✅ **DONE** — removed, AD-51, 8 assertions updated. Note the error direction was **understatement**, not overstatement — see AD-51. |
-| **3** | `bulkNetCentsPerBird` | ✅ **BUILT, NOT WIRED** — arithmetic settled and tested; reads the order's own price and does not consult the bands. Wiring waits on the pricing question, which is why it is not a grep-returns-nothing gap any more. |
-| 4 | Revenue / profit / margin / break-even | Queued. The largest of the four — nothing of it exists. |
-| 5 | Dressed weight on `SalesOrder` | Queued. |
-| 6 | OQ-22 precedence | Queued — resolves with the pricing question. |
-| 7 | `transport_cents_per_bird` not distinguished by delivery mode | Queued. |
+| **3** | `bulkNetCentsPerBird` | ✅ **BUILT AND WIRED** 2026-09-12 (AD-57) — reads the ORDER's own contract (PER_BIRD, PER_KG or BANDED) and books a NET `BULK_RECEIPT` on order date + terms. |
+| 4 | Revenue / profit / margin / break-even | **Queued — now the largest thing standing between the engine and a bulk number.** Nothing of it exists. |
+| **5** | Dressed weight on `SalesOrder` | ✅ **DONE** — `avg_dressed_weight_g`, required for a BANDED order and refused rather than derived from the assumed yield (AD-57). |
+| **6** | OQ-22 precedence | ✅ **DONE** — closed by DELETING `bulk_price_cents_per_bird`, not by ranking the two sources (AD-57). |
+| 7 | `transport_cents_per_bird` not distinguished by delivery mode | Queued — the value landed (AD-55), the DIRECT-mode distinction did not. Needs question 11. |
 | 8 | Offal fields on `SalesOrder` | Queued. |
 | 9 | `mortality_history` dead key | Queued — wire or delete. |
-| 10 | OQ-28 feed delivery field | Blocked on Daniel's timing answer only. |
-| 11 | OQ-25 cash balance | Blocked on U6. |
+| **10** | OQ-28 feed delivery field | ✅ **DONE** — AD-54, paid on the collection date. |
+| 11 | OQ-25 cash balance | Blocked on U6. **Now the only thing between `computeAllocation` and the `decision.allocation` getter.** |
 | 12 | OQ-26 Cover Fast | Blocked on M6. |
+| 13 | OQ-29 — a 1-bird grid takes 20.8 s | **New 2026-09-12.** Ours. Should land before M5b Task 9. |
+| 14 | OQ-30 — the band schedule extrapolates in planning, refuses in sales | **New 2026-09-12.** Half ours, half question 2 on the Daniel list. |
 
 **On the critical path to a bulk number:**
 
@@ -358,7 +360,29 @@ it. Recording that boundary matters as much as the list — three of the gaps
 found on 2026-09-12 had been sitting behind a client question that would never
 have revealed them.
 
-### OQ-13 · Which feed price set is current? 🟠 BLOCKS NOTHING
+### OQ-13 · Which feed price set is current? ✅ ANSWERED 2026-09-12 — with a THIRD set
+**Answer (Daniel, 2026-09-12):** **$30.60 starter, $29.60 grower, $28.60
+finisher**, per 50 kg bag.
+
+**Neither of the two sets we asked about.** We offered the Record sheet's
+$32.50/$31.00/$30.00 or the Feed Account's $31.60/$29.60/$28.60. He gave a third.
+His data supersedes our question's framing and is used as given — reconciling it
+to our own options would mean arguing with the client about what he pays for
+feed. **OQ-24 is closed by the same answer**; both workbook sets are historical.
+
+**Two consequences, both in AD-52:**
+
+1. **`price_per_kg_cents` could not hold it.** $30.60 over 50 kg is 61.2 cents a
+   kg. Phase pricing is now per BAG, with `bag_kg`, and `costOfFeed` divides the
+   bag price to the gram in one integer expression.
+2. **Fixture 1 no longer reproduces his workbook**, and that is correct — the
+   workbook is priced at what feed used to cost. Feed cost at day 41 drops from
+   $8,079.81 to **$7,698.06**; fixture 7's hold cost from $3,200.71 to
+   **$3,076.16**. The extraction check those fixtures provided is spent.
+
+**Superseded reasoning below, kept because its lesson outlived the question.**
+
+### OQ-13 (superseded) · Which feed price set is current? 🟠 BLOCKS NOTHING
 **Status:** Open, and deliberately not blocking. **Affects:** every money
 figure downstream *if* the answer turns out to be the cheaper set.
 
@@ -694,7 +718,24 @@ recalibrated to land near 5% cumulative, and the "is 100/day a count or
 a rate" reading is settled: **neither — it is a cumulative percentage of
 placement.** Do not act on this before U4; log it against OQ-12.
 
-### OQ-2 · Abattoir fee and transport cost per bird 🟠 HALF ANSWERED 2026-09-10
+### OQ-2 · Abattoir fee and transport cost per bird ✅ ANSWERED 2026-09-12 — both halves
+**Answer, completed:** the abattoir fee is **10 cents a bird** (2026-09-10) and
+the run to the abattoir is **10 cents a bird** (2026-09-12). **20 cents a bird in
+total, and they are two costs, not one** — see AD-55, which also records why
+charging both was a judgement rather than a fact, which direction it errs in
+(conservative: it understates bulk profitability), and where it will be caught
+if wrong.
+
+Bulk net is now computed and booked (AD-57). Both fields stay
+required-and-nullable on `Parameters`, and a null still refuses: a value being
+known is not the same as it being supplied.
+
+**Still open and NOT answered here:** whether a DIRECT delivery to the buyer
+costs the same per bird — question 11 on the Daniel list.
+
+**Superseded detail below, kept for the reasoning.**
+
+### OQ-2 (superseded) · Abattoir fee and transport cost per bird 🟠 HALF ANSWERED 2026-09-10
 **Answer (Daniel):** the abattoir fee is **10 cents per bird in cash,
 and the abattoir keeps the offals.**
 
@@ -1279,7 +1320,19 @@ Note what this does to OQ-11: $4.30/bird at the 1,770 g target implies
 **$2.43/kg**, which is where the plan's unsourced "$2.46/kg" came from.
 The spreadsheet's actual $2.00/kg is a materially different number.
 
-### OQ-18 · What unit does the hatchery invoice chicks in? 🟡
+### OQ-18 · What unit does the hatchery invoice chicks in? ✅ ANSWERED 2026-09-12
+**Answer (Daniel):** **per chick.** So `placement_step_birds` is **1** and
+nothing rounds a recommendation — 8,437 birds is an order he can place.
+
+**It cost something, and that cost is ours: OQ-29.** The enumeration grid is
+sizes x 31 dates, so a stride of 1 multiplies the candidate count by the old
+assumed 100 — `computeAllocation` goes from 0.26 s to 20.8 s at his realistic
+5,000-bird ceiling. The fix is not to default the stride back to 100 (that puts
+a search bound back inside a field carrying a client fact); see AD-53.
+
+**Superseded framing below.**
+
+### OQ-18 (superseded) · What unit does the hatchery invoice chicks in? 🟡
 **Status:** Open, assumed default. **Raised:** 2026-09-10, from the U5
 grilling session. **Affects:** the granularity of every batch-size
 recommendation M5 makes.
@@ -1467,7 +1520,20 @@ already uses, rather than in a comment.
 **Does not block anything today.** `computeAllocation` is reachable only via
 M5b Task 9, blocked on OQ-25. This should land before Task 9 does.
 
-### OQ-28 · Feed transport is $40/tonne and the engine has nowhere to put it 🟠 DESIGN
+### OQ-28 · Feed transport is $40/tonne ✅ ANSWERED AND BUILT 2026-09-12
+**Answer (Daniel):** paid **on the spot when the feed is collected** — not on
+the feed's 30-day terms. Built as AD-54: `delivery_cents_per_tonne` on
+`Parameters` (seeded at his confirmed $40), `delivery_cents` on
+`DrawLiability` BESIDE `total_cents`, `total_delivery_cents` on
+`FeedLiability`, and a `FEED_DELIVERY_PAYMENT` flow on the collection date.
+
+The deferred sub-question — whether planned draws carry delivery — is decided:
+**they do.** Leaving it off understates the projected trough by up to $529 a
+cycle, and the trough is what AD-43's reserve-floor filter reads.
+
+**Superseded design note below.**
+
+### OQ-28 (superseded) · Feed transport is $40/tonne and the engine has nowhere to put it 🟠 DESIGN
 **Status:** **Value confirmed, design undecided, nothing wired.**
 **Confirmed by the client:** 2026-09-12 — **$40 per tonne**, a real feed
 transport cost. **Affects:** the true cost of feed, and therefore core credit,
@@ -1650,7 +1716,14 @@ so it is two sets and not three. Folded into OQ-13; ask it there, once.
 
 **Original entry below, superseded.**
 
-### OQ-24 · The workbook carries TWO feed prices 🟡 NOT YET ASKED
+### OQ-24 · The workbook carries TWO feed prices ✅ CLOSED 2026-09-12 — both are historical
+Asked and answered with OQ-13: Daniel's current prices are **$30.60 / $29.60 /
+$28.60 a bag**, a THIRD set. Neither workbook set is current, so the
+contradiction is no longer a question about which one to believe. See AD-52.
+
+**Superseded framing below.**
+
+### OQ-24 (superseded) · The workbook carries TWO feed prices 🟡 NOT YET ASKED
 **Status:** Open, **deliberately not sent to Daniel yet** (2026-09-11) — it
 blocks nothing currently in progress, and two more urgent questions (OQ-2
 transport, OQ-16) are in front of him. Ask it when those land, or sooner if
@@ -1685,7 +1758,21 @@ golden fixture was built from. **Nothing is switched to $29.60 on a guess** —
 that would move every feed number in the system on an inference from a column
 header. Related: [[OQ-21]], which is the other thing `Feed Account` raises.
 
-### OQ-22 · `bulk_price_cents_per_bird` is declared and never read 🟡 INTERNAL
+### OQ-22 · `bulk_price_cents_per_bird` is declared and never read ✅ CLOSED 2026-09-12 — by deletion
+**Closed by AD-57, and by deleting the field rather than ranking the two
+sources.** Daniel's answer to how bulk is priced — **"depends on the buyer"** —
+moved the contract onto `SalesOrder`, where `pricing_basis` is now
+`PER_BIRD | PER_KG | BANDED` with the buyer's own `bands`. Once the contract
+belongs to the order, a per-batch flat bulk price has nothing left to mean.
+
+`parameters.bulk_bands` SURVIVES with a narrowed job: the PLANNING default for
+a bulk sale that has no buyer yet, which M4 needs and an invoice must never
+borrow. That distinction is now enforced — a BANDED order carrying no schedule
+refuses rather than falling back to it.
+
+**Superseded framing below.**
+
+### OQ-22 (superseded) · `bulk_price_cents_per_bird` is declared and never read 🟡 INTERNAL
 **Status:** Open, documented in place, **behaviour deliberately unchanged**.
 **Raised:** 2026-09-11, from M4's pre-merge code review. **Affects:** whether a
 caller setting a bulk price gets the price they set. **This is ours, not
@@ -1758,7 +1845,26 @@ the wrong real one, which is a silent wrong number rather than a visible double
 count. Inventing that threshold with nothing to calibrate it against is what
 invariant 5 forbids. A visible over-count beats an invisible mis-match.
 
-### OQ-19 · When does the client actually pay overheads? 🟡
+### OQ-19 · When does the client actually pay overheads? 🟠 NARROWED 2026-09-12, still open
+**Answer (Daniel, partial):** *"labour when the batch is done, other expenses we
+pay as when they arise."* Built as AD-56 — vaccines on day 1, labour on harvest
+completion, electricity split across the months the batch spans.
+
+**Still open, and the calendar still says `overhead_timing: 'assumed'`.** He
+gave CADENCES, not DATES. "When the batch is done" does not say which day that
+is; the calendar dates it against the first day the curve reaches the slaughter
+target, which is ours and assumed. The question narrows from "we have no idea
+when he pays" to "we know the cadence, not the day".
+
+**The shape change is not cosmetic.** Day-1 overhead outflow on his own batch
+drops from $822.00 to $145.87 with $640 moving to day 31. That materially
+flattens the early-cycle trough — exactly what this entry predicted — and the
+trough is what M5b's reserve-floor filter reads, so it changes which candidates
+are judged affordable.
+
+**Superseded framing below.**
+
+### OQ-19 (superseded) · When does the client actually pay overheads? 🟡
 **Status:** Open, assumed default. **Raised:** 2026-09-10, from M5a.
 **Affects:** the shape of the cash calendar's early-cycle trough, and
 therefore which candidates M5b's reserve-floor filter judges affordable.

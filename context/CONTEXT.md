@@ -53,7 +53,7 @@ chicks, raises them ~30 days, sells through two channels.
 
 | Term | Meaning | Not |
 |---|---|---|
-| **Draw** | One feed collection taken on credit. Payment falls due 30 days from the collection date. | ~~purchase, order, delivery~~ |
+| **Draw** | One feed collection taken on credit. Payment falls due 30 days from the collection date. **Delivery is paid on the collection date instead**, at $40 a tonne (AD-54) — the feed is on terms, the truck is not. | ~~purchase, order, delivery~~ |
 | **Collection date** | The day a draw is physically taken | |
 | **Due date** | Collection date + terms days. Always derived, never entered. | |
 | **Phase** | `STARTER` (days 1–13), `GROWER` (14–27), `FINISHER` (28+) | ~~feed stage, feed type~~ |
@@ -75,10 +75,10 @@ chicks, raises them ~30 days, sells through two channels.
 | **Abattoir** | Third party performing slaughter. **RunProduce bears this cost.** |
 | **Offal transfer** | The abattoir keeping the offals on top of its cash fee. Real economic value given up, recorded on the sales order as `offal_disposition` with `offal_value_cents` NULL — not valued, which is not the same as zero. | ~~waste, by-product~~ |
 | **Big chest** | Daniel's term for a visually good bird, which sells at the flat gate price whatever it weighs. **The system cannot compute it** — it is a visual judgement about conformation, not a weight. Never presented as derived. | |
-| **Bulk net** | Contract price − abattoir fee − transport to abattoir | ~~bulk price~~ |
+| **Bulk net** | Contract price − abattoir fee − transport to abattoir. Both are 10c a bird and they are SEPARATE costs, so 20c in total (AD-55). | ~~bulk price~~ |
 | **Receivable** | Money owed by the contract buyer, dated 30 days out | |
 | **Receipt** | An actual payment landing | ~~payment~~ (ambiguous — could be outgoing) |
-| **Pricing basis** | `PER_BIRD` or `PER_KG`. Determines whether growth adds revenue. | |
+| **Pricing basis** | `PER_BIRD`, `PER_KG`, or — on a bulk sale only — `BANDED`. Determines whether growth adds revenue. **The contract belongs to the BUYER and travels on the sales order**, because Daniel's bulk pricing "depends on the buyer" (AD-57). | |
 | **Slaughter target** | 1,770 g live weight — the weight that dresses to ~1.1 kg at Daniel's ~62%. First met on **day 31** on his own curve, not day 30. | ~~harvest weight~~ |
 
 ---
@@ -88,7 +88,7 @@ chicks, raises them ~30 days, sells through two channels.
 | Term | Meaning | Not |
 |---|---|---|
 | **Core credit** | Chick cost + feed cost to harvest, and nothing else. What gate sales must cover. The brief's "DOC + feed break-even". | ~~total cost~~ (overheads are not in it) |
-| **Overhead** | A production cost that is neither chicks nor feed: vaccine, electricity and heating, labour, transport and other. Booked in the client's own Final Report. | ~~indirect cost, opex~~ |
+| **Overhead** | A production cost that is neither chicks nor feed: vaccine, electricity and heating, labour. Booked in the client's own Final Report. The "Other/Transport" line was retired by the client (AD-51). Each line carries its own payment cadence (AD-56). | ~~indirect cost, opex~~ |
 | **Overhead basis** | `PER_BIRD` or `PER_BATCH`. The client's brief separates variable from fixed costs and says "do not double-count"; the basis is what keeps that honest. | |
 | **Full production cost** | Core credit + overheads. Drives the brief's "full production break-even", which is shown **beside** the core-credit one, never instead of it. | ~~total cost~~ |
 | **Cashflow days** | Market date − draw due date. Negative means the bill lands before the birds are sellable. **The client's own term — keep it.** | |
@@ -99,7 +99,7 @@ chicks, raises them ~30 days, sells through two channels.
 | **Max safe batch size** | Largest placement that gate capacity can clear before pre-harvest mortality eats the gain | |
 | **Cost of delay** | What one more day of holding costs, per channel | |
 | **Place nothing** | The outcome where the best candidate is to place no next batch at all. A real answer with its own overhead justification, never a zero-bird batch through the standard fields. AD-41. | ~~skip a cycle~~ |
-| **Placement step** | The bird count the allocation enumeration steps batch size by — the hatchery's order unit, so a recommendation is orderable. Assumed 100 pending OQ-18. | ~~increment, granularity~~ |
+| **Placement step** | The bird count the allocation enumeration steps batch size by — the hatchery's order unit, so a recommendation is orderable. **1 bird**: the hatchery invoices per chick (OQ-18, answered 2026-09-12), so nothing rounds a recommendation. A larger value is a SEARCH bound, not a fact about his hatchery — see AD-53 and OQ-29. | ~~increment, granularity~~ |
 
 ---
 
