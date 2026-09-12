@@ -1457,7 +1457,27 @@ throws `NotImplementedError` ("still holds the module U5 has not built"), and
 that test would fail on the ceiling throw while the getter is no more usable
 than before. Task 9 lands with Task 8, not before it.
 
-### OQ-30 · One band schedule, two behaviours past its top band 🟠 OURS, PLUS ONE CLIENT QUESTION
+### OQ-30 · One band schedule, two behaviours past its top band ✅ CLOSED 2026-09-12 — by AD-58
+**Closed the day after it was opened, by making the PLANNING path refuse too.**
+`bandForDressedG` now returns null above the top band as well as below it, so M4
+refuses exactly where a real invoice refuses. Consistency with the sales path was
+chosen over the convenience of the planning path — the convenience being that a
+forecast would rather say something than nothing.
+
+**The deciding argument was direction, not tidiness.** The schedule pays LESS as
+the bird gets heavier, so reusing the top band was optimistic — and on Daniel's
+own curve it kicked in at **day 34**, inside the hold-vs-sell window. It made
+holding to day 35 look like it preserved $462.50 of bulk value the contract never
+promised.
+
+**Cost:** `hold_cost_to_day['35']`'s bulk figures are now null. The gate half
+still answers. **The client question survives**: what a bird over 1.3 kg dressed
+actually pays is question 2 on the Daniel list, unasked. When he answers, both
+paths change together, because there is only one of them now.
+
+**Superseded framing below.**
+
+### OQ-30 (superseded) · One band schedule, two behaviours past its top band 🟠 OURS, PLUS ONE CLIENT QUESTION
 **Status:** Open, deliberate, logged rather than quietly reconciled.
 **Raised:** 2026-09-12, implementing AD-57.
 

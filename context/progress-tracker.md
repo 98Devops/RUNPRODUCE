@@ -641,6 +641,48 @@ Tracked in `current-issues.md`.
 
 ## Architecture Decisions
 
+**AD-58 · The planning path refuses past the top band too. One schedule, one
+policy.**
+Decided 2026-09-12, closing OQ-30 the day after AD-57 opened it.
+`bandForDressedG` now returns null **above** the top band as well as below it,
+so M4's harvest planning refuses exactly where a real invoice refuses.
+
+**Consistency with the sales path was chosen over the convenience of the
+planning path**, and the convenience was real: a forecast has to say something
+about every day, and returning `null` for days 34 to 41 leaves the bulk half of
+the hold-cost table blank across most of the hold-vs-sell window. That is a worse
+UI and a better answer.
+
+**Why convenience lost.**
+
+1. **The extrapolation ran in the OPTIMISTIC direction.** The schedule pays
+   *less* as the bird gets heavier — $3.90, $3.80, $3.70 — so reusing the top
+   band assumes an over-held bird still fetches the top price when the trend of
+   his own schedule says it would fetch less. That is the one direction this
+   engine may not err in, and it is the direction it was erring in.
+2. **It was wrong exactly where it mattered most.** On Daniel's own curve the
+   carcass passes 1.3 kg dressed at **day 34** — inside the hold-vs-sell window
+   M4 exists to inform. It made holding to day 35 look like it preserved $462.50
+   of bulk value the contract never promised.
+3. **Two policies for one schedule cannot both be right.** A forecast that
+   prices a bird the invoice would refuse to price is telling him he will earn
+   money the contract does not contain. Which of the two he saw would have
+   depended on whether he was planning or selling — the least defensible reason
+   for a number to change.
+
+**What it costs, stated plainly.** `hold_cost_to_day['35'].bulk_value_lost_cents`
+and `bulk_total_cents` go from $462.50 and $3,007.41 to **null**. The GATE half
+is untouched and still answers, which is the right shape: a real number for the
+channel we can price and a blank for the one we cannot, never one confident
+blended figure. Both fields were already typed `Cents | null`, so nothing
+downstream needed changing to accommodate the blank — the refusal path existed
+and was simply never reachable.
+
+**This is not a fix for the underlying question.** What a bird over 1.3 kg
+dressed actually pays is question 2 on the Daniel list and stays unasked for now.
+When he answers, both paths change together, because there is only one of them
+now.
+
 **AD-57 · The bulk contract lives on the ORDER. Bulk net is wired. OQ-22 is
 closed by deletion.**
 Decided 2026-09-12. Asked whether the bulk deal is priced per live kg or by his

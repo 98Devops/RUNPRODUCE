@@ -276,12 +276,36 @@ describe('bandForDressedG', () => {
   it('picks the highest band the dressed weight clears', () => {
     expect(bandForDressedG(SEED_BULK_BANDS, 1142)?.price_cents_per_bird).toBe(390n);
     expect(bandForDressedG(SEED_BULK_BANDS, 1250)?.price_cents_per_bird).toBe(380n);
-    expect(bandForDressedG(SEED_BULK_BANDS, 1364)?.price_cents_per_bird).toBe(370n);
+    expect(bandForDressedG(SEED_BULK_BANDS, 1300)?.price_cents_per_bird).toBe(370n);
   });
 
   /** A bird under the lowest band is still taken (AD-34) but cannot be priced. */
   it('returns null below the lowest band rather than guessing a price', () => {
     expect(bandForDressedG(SEED_BULK_BANDS, 1000)).toBeNull();
+  });
+
+  /**
+   * AD-58. This used to return the top band for any weight above it — a 1,364 g
+   * dressed bird priced at $3.70 because that is where the schedule stopped.
+   * The schedule pays LESS as the bird gets heavier, so reusing the top band is
+   * an extrapolation in the OPTIMISTIC direction: it assumes an over-held bird
+   * still fetches the top price when the trend says it would fetch less.
+   */
+  it('returns null ABOVE the top band rather than extrapolating optimistically', () => {
+    expect(bandForDressedG(SEED_BULK_BANDS, 1301)).toBeNull();
+    expect(bandForDressedG(SEED_BULK_BANDS, 1364)).toBeNull();
+    expect(bandForDressedG(SEED_BULK_BANDS, 1782)).toBeNull();
+  });
+
+  it('matches the sales path exactly, which is the whole point of AD-58', () => {
+    // One schedule cannot mean two things depending on who is asking. A
+    // forecast that prices a bird the invoice would refuse to price is telling
+    // Daniel he will earn money the contract does not promise him.
+    for (const dressed of [1000, 1099, 1100, 1250, 1300, 1301, 1782]) {
+      const planningPrices = bandForDressedG(SEED_BULK_BANDS, dressed) !== null;
+      const inContractRange = dressed >= 1100 && dressed <= 1300;
+      expect(planningPrices).toBe(inContractRange);
+    }
   });
 });
 
@@ -306,8 +330,24 @@ describe('planHarvest — hold cost', () => {
     expect(hold.birds_lost).toBe(125);
     expect(hold.gate_value_lost_cents).toBe(53125n);
     expect(hold.gate_total_cents).toBe(307616n);
-    expect(hold.bulk_value_lost_cents).toBe(46250n);
-    expect(hold.bulk_total_cents).toBe(300741n);
+
+    /**
+     * NULL since AD-58, and this is the change with teeth in it.
+     *
+     * These used to be $462.50 and $3,007.41, priced at $3.70 a bird — the top
+     * band, reused for a day-35 carcass of 1,364 g dressed that sits ABOVE the
+     * schedule's stated range. Daniel's bands stop at 1.3 kg and pay LESS as the
+     * bird gets heavier, so that figure was optimistic, and it was optimistic
+     * inside the hold-vs-sell decision this function exists to inform: it made
+     * holding to day 35 look like it preserved bulk value the contract never
+     * promised.
+     *
+     * The gate half is unaffected and still answers, which is the useful shape —
+     * he gets a real number for the channel we can price and a blank for the one
+     * we cannot, rather than one confident blended figure.
+     */
+    expect(hold.bulk_value_lost_cents).toBeNull();
+    expect(hold.bulk_total_cents).toBeNull();
   });
 
   it('grows with every further day held', () => {
