@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  DEFAULT_PLACEMENT_STEP_BIRDS,
   candidateInput,
   enumerateCandidates,
   handoffAtPlacement,
@@ -105,12 +106,34 @@ describe('enumerateCandidates', () => {
     expect(new Set(candidates.map((c) => c.placement_date)).size).toBe(31);
   });
 
-  it('steps size by placement_step_birds and never emits a zero-bird batch', () => {
+  it('steps size one bird at a time by default, since the hatchery invoices per chick', () => {
     const candidates = enumerateCandidates(baseInput(), '2026-03-20' as IsoDate, 300);
     const sizes = [...new Set(candidates.map((c) => c.chick_count))].sort((a, b) => a - b);
 
+    // OQ-18, answered 2026-09-12: per chick, so nothing rounds a recommendation.
+    expect(DEFAULT_PLACEMENT_STEP_BIRDS).toBe(1);
+    expect(sizes).toHaveLength(300);
     // AD-41: size 0 is place_nothing's job, never a candidate.
-    expect(sizes).toEqual([100, 200, 300]);
+    expect(sizes[0]).toBe(1);
+    expect(sizes[299]).toBe(300);
+  });
+
+  /**
+   * The cost of that answer, pinned so nobody discovers it in front of the
+   * client (OQ-29, AD-53). The grid is sizes x 31 dates, so the candidate count
+   * scales inversely with the stride — 20.8 s at Daniel's realistic 5,000-bird
+   * ceiling against 0.26 s at the old assumed 100. This asserts the SHAPE, not
+   * a wall-clock time, which would be a flaky test on someone else's machine.
+   */
+  it('pays for that with a candidate count that scales inversely with the stride', () => {
+    const fine = enumerateCandidates(baseInput(), '2026-03-20' as IsoDate, 5000);
+    const coarse = enumerateCandidates(
+      baseInput({ placement_step_birds: 100 }),
+      '2026-03-20' as IsoDate,
+      5000
+    );
+    expect(fine.length).toBe(coarse.length * 100);
+    expect(fine.length).toBe(5000 * 31);
   });
 
   it('honours an explicit step rather than a literal', () => {
@@ -500,7 +523,9 @@ describe('computeAllocation — a gate-only batch answers everything', () => {
     // and invariant 16's floor is 14 days after that.
     const won = result.maximum_growth as ModeWinner;
     expect(won.winner.candidate.placement_date >= '2026-03-22').toBe(true);
-    expect(result.candidates_considered).toBe(93); // 3 sizes x 31 dates
+    // 300 sizes x 31 dates — one candidate per bird, since the hatchery
+    // invoices per chick (OQ-18). It was 93 at the old assumed 100-bird box.
+    expect(result.candidates_considered).toBe(9300);
   });
 
   it('gives place_nothing a real closing balance', () => {
@@ -516,7 +541,7 @@ describe('computeAllocation — a gate-only batch answers everything', () => {
     expect(broke.maximum_growth).toBeNull();
     expect(broke.build_reserve).toBeNull();
     // The candidates were still enumerated and considered; none survived.
-    expect(broke.candidates_considered).toBe(93);
+    expect(broke.candidates_considered).toBe(9300);
   });
 });
 

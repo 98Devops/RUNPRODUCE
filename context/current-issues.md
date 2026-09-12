@@ -1404,6 +1404,39 @@ throws `NotImplementedError` ("still holds the module U5 has not built"), and
 that test would fail on the ceiling throw while the getter is no more usable
 than before. Task 9 lands with Task 8, not before it.
 
+### OQ-29 · A 1-bird placement step makes the enumeration 80x more expensive 🟠 OURS, NOT DANIEL'S
+**Status:** Open, measured, not yet fixed. **Raised:** 2026-09-12, implementing
+AD-53. **Affects:** `computeAllocation` latency at Daniel's real scale.
+**Nobody asks Daniel about this** — his answer was correct and complete; the
+cost is entirely on our side of the line.
+
+OQ-18's answer (the hatchery invoices per chick) makes the placement step 1.
+The grid is sizes x 31 dates, so the candidate count scales inversely with the
+stride. Measured, not estimated:
+
+| Ceiling | Stride | Candidates | `computeAllocation` |
+|---|---|---|---|
+| 5,000 | 100 | 1,550 | 0.26 s |
+| 5,000 | 25 | 6,200 | 0.80 s |
+| 5,000 | **1** | **155,000** | **20.8 s** |
+| 30,000 | 1 | 930,000 | ~2 min, extrapolated |
+
+**The fix is NOT to default the stride back to 100.** See AD-53: that puts a
+search bound back inside a field that now carries a client fact, which is the
+OQ-22 shape — two meanings, one name, and the wrong one silently winning.
+
+**Recommended approach, not yet built: coarse-then-fine.** Sweep the grid at a
+stride, then re-enumerate at 1 bird across a window of one stride either side of
+the coarse winner, for the winning date and any date tied with it. Cost is
+roughly the coarse sweep plus a few hundred candidates. **It is a heuristic and
+must be reported as one** — scoring across size is not proven unimodal, so the
+refinement finds the best size within one stride of the coarse winner, not the
+global best. That fact belongs on the result, in the shape `tied_candidates`
+already uses, rather than in a comment.
+
+**Does not block anything today.** `computeAllocation` is reachable only via
+M5b Task 9, blocked on OQ-25. This should land before Task 9 does.
+
 ### OQ-28 · Feed transport is $40/tonne and the engine has nowhere to put it 🟠 DESIGN
 **Status:** **Value confirmed, design undecided, nothing wired.**
 **Confirmed by the client:** 2026-09-12 — **$40 per tonne**, a real feed

@@ -605,6 +605,36 @@ Tracked in `current-issues.md`.
 
 ## Architecture Decisions
 
+**AD-53 · The placement step is 1 bird, and the enumeration pays for it.**
+Decided 2026-09-12, on Daniel's answer to OQ-18: **the hatchery invoices per
+chick**. `DEFAULT_PLACEMENT_STEP_BIRDS` goes from an assumed 100 — the
+conventional day-old-chick box — to a measured **1**, and anything it determines
+stops carrying `confidence: 'assumed'` on that ground. A recommendation of 8,437
+birds is now an order he can place, and nothing rounds it.
+
+**The cost, measured rather than estimated.** The grid is sizes x 31 dates, so
+the candidate count scales inversely with the stride:
+
+| Ceiling | Stride | Candidates | `computeAllocation` |
+|---|---|---|---|
+| 5,000 (his realistic scale) | 100 | 1,550 | 0.26 s |
+| 5,000 | 25 | 6,200 | 0.80 s |
+| 5,000 | **1** | **155,000** | **20.8 s** |
+| 30,000 (the brief's target) | 1 | 930,000 | ~2 min, extrapolated |
+
+**Why the fix is not to default it back to 100.** That would be a search bound
+wearing a client fact's name — the same shape as OQ-22's two live price sources,
+and the reason this parameter was ambiguous enough to need OQ-18 in the first
+place. The field means "the unit he can order in", and he has now said what that
+is. A caller may still pass a larger stride, and the type says plainly that doing
+so is a search decision, not a fact about his hatchery.
+
+**What it does not block.** Nothing ships at 20 s today: `computeAllocation` is
+reachable only through M5b Task 9, which is still blocked on OQ-25's opening cash
+balance. The work to make a 1-bird grid tractable is logged as **OQ-29** — ours,
+not his — with coarse-then-fine search written up there as the candidate
+approach. It should land before Task 9 does.
+
 **AD-52 · Feed is priced per BAG, and fixture 1 is regenerated at $7,698.06.**
 Decided 2026-09-12, on Daniel's answer to the feed-price question (OQ-13 / OQ-24,
 both now closed). His current prices are **$30.60 starter, $29.60 grower, $28.60

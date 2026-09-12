@@ -234,9 +234,16 @@ export interface Parameters {
    */
   readonly calibration_trailing_days_min?: number;
   /**
-   * The bird count the allocation enumeration steps by. Omitted means
-   * `DEFAULT_PLACEMENT_STEP_BIRDS` — an assumed 100, pending OQ-18.
-   */
+    * The bird count the allocation enumeration steps by — the hatchery's order
+    * unit, so a recommendation is orderable. Omitted means
+    * `DEFAULT_PLACEMENT_STEP_BIRDS`, which is **1**: Daniel's hatchery invoices
+    * per chick (OQ-18, answered 2026-09-12), so no size needs rounding to be
+    * orderable.
+    *
+    * Setting it higher is a SEARCH bound, not a fact about his hatchery — it
+    * makes the enumeration cheaper and the winner coarser. AD-53 and OQ-29
+    * record what a stride of 1 costs and why the fix is not to default it back.
+    */
   readonly placement_step_birds?: number;
   /**
    * The largest placement the allocation enumeration may consider.

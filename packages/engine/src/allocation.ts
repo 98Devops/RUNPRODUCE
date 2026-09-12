@@ -25,12 +25,22 @@ import type {
 
 /**
  * The bird count the enumeration steps by — the hatchery's order unit, so a
- * recommendation is orderable. 100 is the conventional day-old-chick box and
- * divides both 3,000 and 30,000 exactly. It is NOT a client figure: OQ-18 asks
- * Daniel what his hatchery actually invoices in, and anything this determines
- * carries `confidence: 'assumed'` until he answers.
+ * recommendation is orderable.
+ *
+ * **ONE, and it is now a client figure** (OQ-18, answered 2026-09-12: the
+ * hatchery invoices **per chick**). It was an assumed 100 — the conventional
+ * day-old-chick box — and anything it determined carried `confidence:
+ * 'assumed'` for that reason. It no longer does: a recommendation of 8,437
+ * birds is an order Daniel can actually place, and nothing rounds it.
+ *
+ * **What this costs, measured rather than estimated (OQ-29).** The grid is
+ * sizes x 31 dates, so a stride of 1 multiplies the candidate count by the
+ * old stride: at his realistic 5,000-bird ceiling `computeAllocation` goes
+ * from 0.26 s to **20.8 s**, and the brief's 30,000 target is ~6x that again.
+ * That is ours to fix, not his to answer, and it is not fixed by putting 100
+ * back — that would be a search bound wearing a client fact's name. See AD-53.
  */
-export const DEFAULT_PLACEMENT_STEP_BIRDS = 100;
+export const DEFAULT_PLACEMENT_STEP_BIRDS = 1;
 
 /** Invariant 16 / AD-31. Harvest completion, not first sale. Never tradeable. */
 const INTER_BATCH_GAP_DAYS = 14;
