@@ -1537,8 +1537,33 @@ refinement finds the best size within one stride of the coarse winner, not the
 global best. That fact belongs on the result, in the shape `tied_candidates`
 already uses, rather than in a comment.
 
-**Does not block anything today.** `computeAllocation` is reachable only via
-M5b Task 9, blocked on OQ-25. This should land before Task 9 does.
+**It blocks nothing TODAY and it is a hard blocker on U9.** Both are true and
+the second is the one to act on. `computeAllocation` is reachable only via M5b
+Task 9 (blocked on OQ-25), so nothing ships at 20 s right now — but **U9 is the
+screen where Daniel types a batch and presses a button**, and 20.8 s at his real
+scale, ~2 min at 30,000, is not a slow screen. It is a screen he will assume has
+crashed.
+
+### This must be designed, not noted
+
+**U9 does not start without a chosen answer to this.** "Consider performance" in
+a U9 plan does not clear this entry. Three candidates, none yet chosen, each with
+a real cost:
+
+| Option | What it does | What it costs |
+|---|---|---|
+| **A · Coarse-then-fine** | Sweep at a stride, then re-enumerate at 1 bird within one stride of the coarse winner, for the winning date and any date tied with it | **A heuristic.** Scoring across size is not proven unimodal, so it finds the best size within one stride of the coarse winner, not the global best. **That must be reported on the result**, in the shape `tied_candidates` already uses — never implied to be exhaustive |
+| **B · Incremental / memoised scoring** | The handoff is already memoised per DATE. Most of the per-candidate cost is a full cash projection that differs from its neighbour by one bird | Real work, and the honest one: it makes the exact answer cheap rather than approximating it. Unknown until someone profiles where the 20.8 s actually goes |
+| **C · Coarse default, fine on request** | Default the UI to a 100-bird stride and offer "refine" | **Pushes the trade onto Daniel**, who has no basis to choose. And a 100-bird default silently reintroduces exactly what AD-53 removed — a search bound wearing a client fact's name |
+
+**Recommended starting point: profile before choosing.** Nobody has measured
+where the 20.8 s goes; B may be cheap and exact, which would make A's heuristic
+unnecessary. **Do not pick A because it is the easiest to describe.**
+
+**Whatever is chosen, one rule holds:** if the search stops being exhaustive, the
+result says so. A recommendation that is "the best of what we looked at" must not
+be rendered as "the best" — the same rule AD-43 applies to a null and AD-44 to a
+tie.
 
 ### OQ-28 · Feed transport is $40/tonne ✅ ANSWERED AND BUILT 2026-09-12
 **Answer (Daniel):** paid **on the spot when the feed is collected** — not on
@@ -2228,6 +2253,7 @@ recommendation — divergences are the most valuable data available.
 | ~~M5b · Task 8, the enumeration ceiling~~ | **UNBLOCKED 2026-09-11.** ~~OQ-23~~ answered: the ceiling is an operator-entered `max_placement_birds`, no derived cap. Tasks 1-7 built; Tasks 8 and 9 now proceed, with **bulk scoring still refused** on OQ-2/OQ-16 |
 | M5b · the Cover Fast mode | **OQ-26** — structurally cannot answer: a candidate has no forecast sales, so receipts never clear core credit. Needs M6 |
 | M5b · Task 9, wiring `decision.allocation` | **OQ-25** — the engine holds no cash balance to pass as `openingCents`, and the plan passed `reserve_floor_cents`, a different quantity. Recommendation: leave the getter throwing until U6 |
+| **U9 · the mode-selector / recommendation screen** | **OQ-29 — HARD BLOCKER, not an optimisation.** `computeAllocation` takes **20.8 s** at Daniel's realistic 5,000-bird ceiling and ~2 min at the brief's 30,000. U9 is a click-and-see screen; two minutes is not usable and no spinner makes it so. **U9 planning must produce a real design answer** — see OQ-29 for the three candidates and what each costs. A plan that says "consider performance" does not clear this |
 | M5b · scoring any **bulk-inclusive** candidate | OQ-2 transport **and** OQ-16. Verified in code 2026-09-11: supplying both OQ-2 values still leaves `bulk_price`, because OQ-16 gates the formula independently. Gate-only candidates score today |
 | U3 · pricing a **part-bag** draw | OQ-21 — the client question half only. **The crash half landed 2026-09-11**: a part-bag draw now returns a typed `feed_draw_bags` refusal instead of a `RangeError` |
 | Default strategy selection | ~~OQ-3~~ answered; mode set decided (AD-35) |

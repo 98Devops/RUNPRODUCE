@@ -235,6 +235,33 @@ zeroed bar or an empty chart slot.
 it out and the answer is nothing"* are different statements, and the second one
 is alarming. Collapsing the first into the second manufactures bad news.
 
+### Allocation latency — U9 CANNOT BE PLANNED WITHOUT ANSWERING THIS
+
+**`computeAllocation` takes 20.8 seconds at Daniel's realistic 5,000-bird
+ceiling, and roughly two minutes at the brief's 30,000.** Measured 2026-09-12,
+not estimated. See **OQ-29** and **AD-53**.
+
+This is written into the UI context, beside the Cover Fast rule and for the same
+reason: **it is cheaper to require now than to rediscover as a UX bug after U9
+ships.** The mode-selector screen is the one where Daniel types a batch size and
+presses a button. Twenty seconds of nothing is not a slow screen — it is a screen
+he concludes has crashed, on the single interaction the whole product exists for.
+
+**This is a HARD BLOCKER on U9, not a performance note.** A U9 plan that says
+"consider performance" does not clear it. OQ-29 carries three candidate designs —
+coarse-then-fine search, incremental/memoised scoring, or a coarse default with
+opt-in refinement — with the trade-offs of each, and the recommendation to
+**profile before choosing**, since nobody has yet measured where the 20.8 s goes.
+One of them must be chosen, built and verified before the screen is built on top
+of it.
+
+**And the rule that survives whichever is chosen:** if the search stops being
+exhaustive, the UI must say so. A recommendation that is "the best of what we
+looked at" must never be rendered as "the best" — the same distinction this
+document already draws between *"we could not work this out"* and *"we worked it
+out and the answer is nothing"*. A spinner does not fix a two-minute wait, and a
+confident label does not fix a heuristic.
+
 ### Cover Fast specifically — U9 MUST handle this
 
 `decision.allocation.cover_fast` is `null` for every input today, and this is
