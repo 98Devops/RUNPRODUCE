@@ -173,6 +173,58 @@ bulk net — every bulk-inclusive candidate refuses — so there is no calculati
 for a precedence rule to govern. Verified: the field is still read nowhere
 outside `types.ts`. It moves to whichever unit first computes bulk net.
 
+## OQ-28 · Where $40/tonne feed transport should live — proposed, not built
+
+**Confirmed 2026-09-12: $40 per tonne, real.** Nothing wired; this is the design
+decision that has to be made first, because the three options charge different
+amounts and guessing silently moves every feed-derived number.
+
+| Option | Charge | Breaks when |
+|---|---|---|
+| **A · per draw** | a flat delivery fee each collection | the fee is stated **per tonne**, so a flat per-draw charge is only right if every draw is the same size. They are not — the real batch drew 26.64, 36.36, 57.36 and 73.8 bags. |
+| **B · per tonne collected** | `kg / 1000 x $40`, on the draw | nothing structural. It is what the client said, applied to the quantity he said it about. |
+| **C · fold into feed price** | raise `price_per_kg_cents` by 4c/kg | immediately — see below. |
+
+**Recommended: B, as a separate cost on the draw.** It is the only option that
+charges what the client stated, in the unit he stated it in. `FeedDraw` already
+carries `kg`, so the quantity needs no new input, and a part-tonne multiplies
+out the way `costOfFeed` already handles a part-kg — no new rounding convention.
+
+**Why C is wrong even though it is the smallest diff.** $40/tonne is exactly
+4c/kg, so folding it into `price_per_kg_cents` gives identical totals today.
+Still wrong:
+
+1. **It destroys a distinction the client draws himself.** He named delivery as
+   its own cost. Burying it inside "what feed costs" makes the two impossible to
+   separate later — the KB-3 shape, and the same trap as OQ-24's two prices.
+2. **The two vary independently.** A feed price rise and a haulage rise are
+   different events needing different responses. Blended, neither is visible.
+3. **It would silently break fixture 1.** `feed_cost_cents` is asserted at
+   $8,079.81 against the client's own `Record`!N, which does not include
+   delivery. Folding it in makes a passing golden fixture fail — correctly. The
+   fixture is telling us these are different quantities.
+4. **It cannot answer "what did delivery cost me this cycle?"** — a fair
+   question to ask of a system built to explain its numbers.
+
+**Why not A.** A per-draw fee would be right if he were quoted per delivery. He
+was quoted per tonne, and A misallocates across the real batch's four unequal
+draws even where the cycle total happens to match.
+
+**What B needs:** a `delivery_cents_per_tonne` parameter (client-supplied,
+`measured`, absent means refuse rather than zero), and a derived
+`delivery_cents` on `DrawLiability` kept BESIDE `total_cents` rather than added
+into it, so both stay readable.
+
+**The sub-question that stops this being implemented today:** does delivery fall
+due on the same 30-day terms as the feed, or is it paid on collection? That
+changes the cash calendar, not just the total, and nobody has asked him. It
+should go out with the OQ-2 transport question rather than as a third message.
+Until then **the total is knowable and the cash timing is not.**
+
+**Deliberately not bundled:** whether `planned_draws` should carry projected
+delivery. They are an idealised schedule at a flat flock, so adding delivery
+makes an assumed number more assumed. Decide after B lands for real draws.
+
 ## Previous Goal
 
 **U5 — M5b Tasks 8 and 9. Both blocked on OQ-23.**

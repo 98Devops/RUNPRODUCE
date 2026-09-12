@@ -297,7 +297,7 @@ describe('projectCashCalendar — receipts', () => {
     expect(cashFlowsMissingInputs(input('2026-03-10', { sales: [gateOrder] }))).toEqual([]);
   });
 
-  it('keeps reporting a BULK candidate once abattoir fee and transport are both supplied — OQ-16 is a formula question, not a values one (finding 4)', () => {
+  it('keeps refusing a BULK candidate once abattoir fee and transport are both supplied — having the VALUES is not having the CODE', () => {
     const engineInput = input('2026-03-10', {
       parameters: parameters({
         abattoir_fee_cents: 5000n as Cents,
@@ -307,9 +307,19 @@ describe('projectCashCalendar — receipts', () => {
     });
     const missing = cashFlowsMissingInputs(engineInput);
 
+    // The BEHAVIOUR this pins has not changed, but its reason has. It used to
+    // be OQ-16 — whether transport belonged in bulk net at all. The client
+    // retired the $400 line on 2026-09-12, so that formula question is gone.
+    //
+    // The refusal must survive that retirement anyway, because nothing has
+    // ever COMPUTED a bulk net: receiptCents returns gross, and the BULK branch
+    // throws. Without this entry cashFlowsMissingInputs would return [] the
+    // moment both values are supplied, and the throw below would fire as a raw
+    // Error where invariant 5 promises a typed blank.
     expect(missing.map((m) => m.key)).toEqual(['bulk_price']);
-    expect(missing[0]?.why).toMatch(/OQ-16/);
-    expect(missing[0]?.why).toMatch(/does not release|not release/);
+    expect(missing[0]?.why).toMatch(/not implemented/);
+    // And it must not still be citing the retired question as the blocker.
+    expect(missing[0]?.why).not.toMatch(/OQ-16 asks/);
   });
 
   it('throws rather than returning a calendar missing a bulk receipt', () => {

@@ -310,11 +310,40 @@ scenario is modelled the overhead lines are editable — the brief says
 "Make this editable" — and anything the user changes stops being
 `measured`.
 
-### OQ-16 · Is the $400 "Other/Transport" the abattoir run? 🔴 BLOCKS BULK NET
-**Status:** Open, and a **hard precondition on the U5 task that computes
-bulk net revenue** — listed in the blocked-work table below, not only in
-a code comment, so that answering OQ-2 cannot silently unblock bulk
-allocation while this is still open. **Affects:** whether bulk economics
+### OQ-16 · Is the $400 "Other/Transport" the abattoir run? ✅ RETIRED 2026-09-12
+**Resolution: RETIRED — the input is no longer part of the client's business
+logic.** Daniel removed the $400 "Other Expenses/Transport" line. He did **not**
+tell us what it was composed of.
+
+**Record this precisely, because two wrong summaries are available and both
+would be load-bearing:**
+
+| Wrong summary | Why it misrepresents him |
+|---|---|
+| "Answered yes — it WAS the abattoir run" | He never said so. Recording it this way would let a future reader treat `transport_cents_per_bird` as already covered by a retired overhead, and under-charge bulk. |
+| "Answered no — it was feed and chick collection" | He never said this either. It would license charging transport twice if the line ever came back, and it invents a composition for a number nobody analysed. |
+
+**What is actually true:** the question asked how to split a line that no longer
+exists. It is moot, not resolved. **No fact about transport composition was
+established** — we know less about what the $400 was than the question assumed
+we would by now, and that is fine, because nothing depends on it any more.
+
+**What this DOES unblock.** The double-count risk is gone: there is no longer an
+overhead line that might duplicate `transport_cents_per_bird`, so transport,
+once we know its value, can be charged into bulk net cleanly. The formula
+question OQ-16 existed to answer is closed by the removal of one of its terms.
+
+**What this does NOT unblock — read this before declaring bulk net ready.**
+Retiring a cost line is not the same as supplying a different cost's value.
+**OQ-2's transport half is still unanswered**: nobody has told us what the run
+to the abattoir costs. Setting it to `0n` because an unrelated overhead was
+retired would be inventing the number, which is exactly what invariant 5
+forbids. See OQ-2 and the blocked-work table.
+
+**Superseded analysis below, kept because it is why the question was asked.**
+
+**Status (before retirement):** Open, and a **hard precondition on the U5 task
+that computes bulk net revenue**. **Affects:** whether bulk economics
 double-counts transport.
 
 `overhead_lines.transport_other` is the Final Report's $400.
@@ -525,6 +554,30 @@ stays `null` and the engine keeps returning `missing_input` for it, so
 bulk net is still not computable. Do not read "OQ-2 answered" anywhere
 and assume both halves landed — **the bulk recommendation remains
 blocked**, now on transport alone.
+
+**Re-confirmed 2026-09-12, against two events that each looked like they
+closed it and did not.**
+
+1. **OQ-16 was RETIRED, not answered.** The client removed the $400
+   Other/Transport line. That removes the double-count RISK, so transport can
+   now be charged cleanly — but removing one cost does not price a different
+   one. `transport_cents_per_bird` is still `null`, and **it is not zero by
+   default**: nobody has said the truck to the abattoir is free.
+2. **The $40/tonne figure is FEED transport, not this.** Confirmed by the
+   client 2026-09-12 as the cost of getting FEED delivered. It is real data and
+   it is tracked as OQ-28 — it is not the abattoir run and must never be
+   substituted for it.
+
+**Verified by running it, not by reading:** with the abattoir fee supplied and
+transport `null`, `computeDecision` on the client's own batch returns
+`missing_input` keyed `transport_cents_per_bird`. With a hypothetical transport
+value supplied, `projectCashCalendar` still throws — because bulk net was never
+implemented (see OQ-16's retirement note and the `bulk_price` refusal). **Two
+independent gaps, and answering this question closes only one of them.**
+
+**The one-line question that closes this:** *"What does it cost you to get one
+load of birds to the abattoir — per bird, or per truckload and how many birds
+fit?"*
 
 **Only the 10 cents flows through the financial model.** The offals are
 recorded, not costed: `offal_disposition = RETAINED_BY_ABATTOIR` with
@@ -1200,6 +1253,47 @@ yet — but `decision.test.ts` **does** assert that reading `allocation`
 throws `NotImplementedError` ("still holds the module U5 has not built"), and
 that test would fail on the ceiling throw while the getter is no more usable
 than before. Task 9 lands with Task 8, not before it.
+
+### OQ-28 · Feed transport is $40/tonne and the engine has nowhere to put it 🟠 DESIGN
+**Status:** **Value confirmed, design undecided, nothing wired.**
+**Confirmed by the client:** 2026-09-12 — **$40 per tonne**, a real feed
+transport cost. **Affects:** the true cost of feed, and therefore core credit,
+break-even and every allocation scalar derived from them.
+
+**This is NOT the OQ-16 answer, and must never be recorded as one.** OQ-16 was
+about the $400 Other/Transport line and was RETIRED without its composition
+ever being established. This is separate, new, and about FEED delivery — not
+the run to the abattoir (that is OQ-2's transport half, still open). Three
+different transport costs have now been in play in this project; conflating any
+two of them produces a double-count or a hole.
+
+| Cost | Status | Field |
+|---|---|---|
+| Feed delivery | **$40/tonne, confirmed 2026-09-12** | none yet — this entry |
+| Run to the abattoir | unanswered (OQ-2) | `transport_cents_per_bird` |
+| The $400 "Other/Transport" overhead | retired 2026-09-12 (OQ-16) | was `overhead_lines.transport_other` |
+
+**Why it has nowhere to go.** Nothing in the engine separates feed DELIVERY cost
+from feed PRICE. `PhasePricing.price_per_kg_cents` is a single blended rate, and
+`FeedDraw.price_per_bag_cents` is what the supplier invoiced per bag. Neither
+has a delivery component, and there is no field for one.
+
+**The design question, unresolved:** does $40/tonne apply **per draw**, **per
+tonne collected**, or does it **fold into the existing feed liability**? These
+are not notational variants — they charge different amounts in different months
+and they interact differently with `planned_draws`. Written up with a
+recommendation in `progress-tracker.md`; **nothing is implemented until that is
+chosen**, because guessing wrong here silently moves every feed number.
+
+**Do not fold it into `price_per_kg_cents` as a convenience.** That would bury a
+separately-confirmed, separately-variable cost inside a rate the client reads as
+"what feed costs", and make the two impossible to tell apart later — the shape
+of KB-3 and of OQ-24's two-prices problem.
+
+**Related:** [[OQ-24]] — the workbook already carries two different feed prices
+($29.60/bag in `Feed Account` vs $32.50 implied by `Record`). Whichever is the
+real invoiced price, delivery is a THIRD component and the two questions should
+be answered together.
 
 ### OQ-27 · A whole module was unreachable and every test passed ✅ CLOSED 2026-09-11
 **Status:** Closed by a permanent test the same day it was found.
