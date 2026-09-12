@@ -11,15 +11,18 @@ const REFERENCE_FLOCK = 3000;
 
 describe('SEED_OVERHEADS', () => {
   it("totals $1,222.00 at Daniel's own 3,000-bird scale (Final Report)", () => {
-    expect(overheadCostCents(SEED_OVERHEADS, REFERENCE_FLOCK)).toBe(122200n);
+    // $400 transport_other retired by the client 2026-09-12 (AD-51).
+    expect(overheadCostCents(SEED_OVERHEADS, REFERENCE_FLOCK)).toBe(82200n);
   });
 
-  it('carries the four Final Report line items and nothing else', () => {
+  it('carries the three live Final Report line items and nothing else', () => {
+    // Was four. `transport_other` ($400) was retired by the client on
+    // 2026-09-12 and removed — see AD-51. The key stays in `OverheadKey` so a
+    // historical parameter set carrying it still typechecks.
     expect(SEED_OVERHEADS.lines.map((l) => l.key)).toEqual([
       'vaccine',
       'electricity_heating',
-      'labour',
-      'transport_other'
+      'labour'
     ]);
   });
 
@@ -39,7 +42,6 @@ describe('SEED_OVERHEADS', () => {
     const basisByKey = Object.fromEntries(SEED_OVERHEADS.lines.map((l) => [l.key, l.basis]));
     expect(basisByKey).toEqual({
       vaccine: 'PER_BIRD',
-      transport_other: 'PER_BIRD',
       labour: 'PER_BATCH',
       electricity_heating: 'PER_BATCH'
     });
@@ -58,22 +60,21 @@ describe('SEED_OVERHEADS', () => {
     expect(centsByKey).toEqual({
       vaccine: 4200n,
       electricity_heating: 14000n,
-      labour: 64000n,
-      transport_other: 40000n
+      labour: 64000n
     });
   });
 });
 
 describe('overheadCostCents', () => {
   it('scales PER_BIRD lines with the flock and leaves PER_BATCH lines alone', () => {
-    // 6,000 birds: vaccine and transport double, labour and electricity do not.
-    // 8,400 + 80,000 + 64,000 + 14,000 = 166,400
-    expect(overheadCostCents(SEED_OVERHEADS, 6000)).toBe(166400n);
+    // 6,000 birds: vaccine doubles, labour and electricity do not.
+    // 8,400 + 64,000 + 14,000 = 86,400
+    expect(overheadCostCents(SEED_OVERHEADS, 6000)).toBe(86400n);
   });
 
   it('includes extra chicks, because they are in the flock (fixture 12)', () => {
-    // 3,100 birds: vaccine 4,340; transport ceil(41,333.33) = 41,334; fixed 78,000
-    expect(overheadCostCents(SEED_OVERHEADS, 3100)).toBe(123674n);
+    // 3,100 birds: vaccine ceil(4,340) = 4,340; fixed 78,000
+    expect(overheadCostCents(SEED_OVERHEADS, 3100)).toBe(82340n);
   });
 
   it('rounds a scaled PER_BIRD line up, never down', () => {

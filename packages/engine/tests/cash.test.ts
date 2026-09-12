@@ -89,8 +89,8 @@ describe('projectCashCalendar — dated outflows', () => {
     const day1 = calendar.days[0];
 
     // 3,000 birds x $1.00 chicks + $1,222.00 of overheads, both on placement.
-    expect(day1?.out_cents).toBe(422200n);
-    expect(day1?.closing_cents).toBe(-422200n);
+    expect(day1?.out_cents).toBe(382200n);
+    expect(day1?.closing_cents).toBe(-382200n);
     expect(day1?.flows.map((f) => f.kind)).toContain('CHICK_COST');
   });
 
@@ -122,7 +122,7 @@ describe('projectCashCalendar — dated outflows', () => {
     // projection — and M5b ranks strategies by exactly this minimum, so it
     // needs a test proving the minimum can resolve mid-series, not just day 1.
     expect(calendar.minimum_date).toBe('2026-03-08');
-    expect(calendar.minimum_cents).toBe(-454700n);
+    expect(calendar.minimum_cents).toBe(-414700n);
   });
 
   it('ignores a draw whose due date falls past the horizon', () => {
@@ -337,8 +337,9 @@ describe('projectCashCalendar — overheads', () => {
     const day1 = calendar.days[0];
 
     // $3,000 chicks + $1,222 of overheads at his 3,000-bird scale.
-    expect(day1?.out_cents).toBe(300000n + 122200n);
-    expect(day1?.flows.filter((f) => f.kind === 'OVERHEAD')).toHaveLength(4);
+    expect(day1?.out_cents).toBe(300000n + 82200n);
+    // Three, not four, since transport_other was retired (AD-51).
+    expect(day1?.flows.filter((f) => f.kind === 'OVERHEAD')).toHaveLength(3);
     expect(calendar.overhead_timing).toBe('assumed');
   });
 
@@ -355,8 +356,10 @@ describe('projectCashCalendar — overheads', () => {
     const overheads = calendar.days[0]?.flows.filter((f) => f.kind === 'OVERHEAD') ?? [];
     const total = overheads.reduce((sum, f) => sum - f.amount_cents, 0n);
 
-    // Vaccine $42 and transport $400 double; labour $640 and electricity $140 do not.
-    expect(total).toBe(8400n + 80000n + 64000n + 14000n);
+    // Vaccine $42 doubles; labour $640 and electricity $140 do not.
+    // Transport $400 was retired by the client on 2026-09-12 (AD-51), which is
+    // why this total dropped by $800 at 6,000 birds rather than $400.
+    expect(total).toBe(8400n + 64000n + 14000n);
   });
 
   it('scales chick cost and PER_BIRD overheads off chick_count + extra_chick_count, not chick_count alone — invariant 9', () => {
@@ -387,8 +390,8 @@ describe('projectCashCalendar — overheads', () => {
       (sum, f) => sum - f.amount_cents,
       0n
     );
-    expect(overheadTotal).toBe(123674n);
-    expect(day1?.out_cents).toBe(310000n + 123674n);
+    expect(overheadTotal).toBe(82340n);
+    expect(day1?.out_cents).toBe(310000n + 82340n);
   });
 
   it('treats an omitted overheads parameter as the measured default, distinct from an explicit empty model', () => {
@@ -399,7 +402,7 @@ describe('projectCashCalendar — overheads', () => {
     ).reduce((sum, f) => sum - f.amount_cents, 0n);
     // $1,222.00 — SEED_OVERHEADS at 3,000 birds, absent means "use the
     // client's measured default", per Parameters.overheads.
-    expect(defaultTotal).toBe(122200n);
+    expect(defaultTotal).toBe(82200n);
 
     const explicitEmpty = input('2026-02-06', {
       parameters: parameters({ overheads: { lines: [] } })
@@ -421,7 +424,7 @@ describe('projectCashCalendar — the reserve floor', () => {
     expect(calendar.breaches_reserve_floor).toBe(true);
     expect(calendar.first_breach_date).toBe('2026-02-06');
     // The floor REPORTS; it never clamps. AD-43: filtering is M5b's job.
-    expect(calendar.days[0]?.closing_cents).toBe(-422200n);
+    expect(calendar.days[0]?.closing_cents).toBe(-382200n);
   });
 
   it('reports no breach when every closing balance clears the floor', () => {
@@ -439,7 +442,7 @@ describe('projectCashCalendar — the reserve floor', () => {
     const calendar = projectCashCalendar(engineInput, 5, 0n as Cents, feedFor(engineInput));
 
     // Nothing moves after day 1, so days 1-5 all hold the minimum.
-    expect(calendar.minimum_cents).toBe(-422200n);
+    expect(calendar.minimum_cents).toBe(-382200n);
     expect(calendar.minimum_date).toBe('2026-02-06');
   });
 });

@@ -605,6 +605,33 @@ Tracked in `current-issues.md`.
 
 ## Architecture Decisions
 
+**AD-51 · The $400 "Other/Transport" overhead line is removed.**
+Decided 2026-09-12, on the client retiring it. `SEED_OVERHEADS` carried it as
+`transport_other`, PER_BIRD, $400 measured at 3,000 birds. It is now false data
+— he has stopped incurring it — so it is gone rather than zeroed, and the
+`OverheadKey` member stays so a historical parameter set carrying the line still
+typechecks.
+
+**Two consequences, recorded because neither is obvious from the diff.**
+
+**A historical baseline discontinuity.** His Final Report totals $12,301.81 of
+expenditure including this $400, against $4,948.19 net profit. Seed overheads
+drop from $1,222 to $822 at 3,000 birds, and from $5,200 to $1,200 at 30,000 — a
+77% fall at scale, because the retired line was PER_BIRD while labour and
+electricity are PER_BATCH. **Batches costed after this change are not
+like-for-like with his own historical batch**, and any trend drawn across the
+boundary is an artefact of the change rather than a fact about the business.
+
+**The error direction is UNDERSTATEMENT, and it already was.** This change was
+approved on the reasoning that a retired cost still charged OVERSTATES, which is
+the safe direction. That is wrong once the $40/tonne feed delivery confirmed the
+same day (OQ-28) is accounted for: $528.96 on this batch's 13,224 kg, which
+nothing books. Before the removal the retired $400 partly offset it and costs ran
+~$129 light; after, they run ~$529 light. **Removing false data widened the gap
+instead of closing it.** That is not an argument for keeping false data — it is
+why OQ-28 is the next overhead work, and why the improved margin in the meantime
+must not be read as real.
+
 **AD-48 · Calibration replaces the BASE mortality rate; the pre-harvest
 uplift survives it.**
 M4 returned one flat calibrated number for every day, which deleted the

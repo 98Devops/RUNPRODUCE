@@ -70,12 +70,12 @@ describe('computeCosting — the client’s own Final Report', () => {
   });
 
   it('charges his four measured overheads — $1,222.00 at 3,000 birds (AD-26)', () => {
-    expect(costingFor().overhead_cost_cents).toBe(122200n);
+    // $400 transport_other retired by the client 2026-09-12 (AD-51).
+    expect(costingFor().overhead_cost_cents).toBe(82200n);
     expect(costingFor().overhead_lines.map((l) => l.key)).toEqual([
       'vaccine',
       'electricity_heating',
-      'labour',
-      'transport_other'
+      'labour'
     ]);
   });
 
@@ -84,7 +84,7 @@ describe('computeCosting — the client’s own Final Report', () => {
     expect(costing.full_production_cost_cents).toBe(
       costing.core_credit_cents + costing.overhead_cost_cents
     );
-    expect(costing.full_production_cost_cents).toBe(1230181n);
+    expect(costing.full_production_cost_cents).toBe(1190181n);
   });
 });
 
@@ -137,6 +137,6 @@ describe('computeCosting — overheads', () => {
     });
     // Vaccine and transport are PER_BIRD and double; labour and electricity
     // are PER_BATCH and do not (OQ-15 is the open question about that).
-    expect(bigger.overhead_cost_cents).toBe(122200n + 4200n + 40000n);
+    expect(bigger.overhead_cost_cents).toBe(82200n + 4200n);
   });
 });
