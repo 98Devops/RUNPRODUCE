@@ -11,6 +11,7 @@ import type {
   EngineInput,
   FeedLiability,
   MissingInput,
+  Parameters,
   Phase,
   SalesOrder
 } from './types.js';
@@ -126,6 +127,66 @@ function pricePlannedDrawSpan(
     cents += costOfFeed(gramsByPhase[phase.phase], phase.price_per_kg_cents);
   }
   return cents as Cents;
+}
+
+
+/**
+ * Bulk net per bird — gross, minus the abattoir fee, minus transport.
+ *
+ * **Built and deliberately NOT yet wired into the calendar.** The arithmetic is
+ * settled; the PRICE SOURCE is not. This function reads the ORDER's own price,
+ * which is the least-invented choice — it is what the client entered for that
+ * order — and it does NOT consult `parameters.bulk_bands`. Whether the contract
+ * bands override an order's stated price is an open client question (the bands
+ * top out at $3.70 for a 1.3 kg dressed bird, while his one recorded sale was
+ * $2.00/kg = $5.75/bird at 2.875 kg live — two incompatible structures), and
+ * OQ-22 tracks the same conflict from the code side. Wiring this into the BULK
+ * branch waits on that answer, which is why `cashFlowsMissingInputs` still
+ * refuses a bulk candidate.
+ *
+ * **Per-bird truncation is not the same as truncating the order total.** A
+ * PER_KG gross truncates once per bird here, where `receiptCents` truncates
+ * once across the whole order. They can differ by up to one cent per bird, and
+ * that is correct for each: a per-bird net is a per-bird figure.
+ *
+ * **Offals are not netted.** AD-32 — the abattoir keeps them on top of the 10c
+ * cash fee, which is real value given up, and nobody has priced it. Subtracting
+ * zero would assert it is worthless; `SalesOrder` carries no offal field at all
+ * yet, which is its own gap.
+ */
+export function bulkNetCentsPerBird(sale: SalesOrder, parameters: Parameters): Cents {
+  const { abattoir_fee_cents, transport_cents_per_bird, delivery_mode } = parameters;
+
+  // The programming-error guard, matching this module's precedent: callers
+  // check cashFlowsMissingInputs() and report a typed refusal; this catches one
+  // that skipped it. Transport is NOT zero by default — nobody has said the
+  // truck is free, and the retired $400 overhead did not price it (OQ-16 was
+  // retired, not answered).
+  if (transport_cents_per_bird === null) {
+    throw new Error(
+      'Cannot net a BULK sale: transport per bird is unavailable (OQ-2). ' +
+        'Call cashFlowsMissingInputs() first and return missing_input.'
+    );
+  }
+
+  let gross: bigint;
+  if (sale.pricing_basis === 'PER_KG') {
+    const rate = sale.price_cents_per_kg;
+    if (rate === null) throw new Error('A PER_KG BULK order has no price_cents_per_kg');
+    // Truncating, per bird — a receipt must never round up in our favour.
+    gross = (rate * BigInt(sale.avg_live_weight_g)) / 1000n;
+  } else {
+    const rate = sale.price_cents_per_bird;
+    if (rate === null) throw new Error('A PER_BIRD BULK order has no price_cents_per_bird');
+    gross = rate;
+  }
+
+  // The fee is the abattoir's. A DIRECT delivery to the buyer does not incur
+  // it — though whether transport costs the same per bird on that route is
+  // unanswered, and this charges the one figure we have either way.
+  const fee = delivery_mode === 'ABATTOIR' ? (abattoir_fee_cents ?? 0n) : 0n;
+
+  return (gross - fee - transport_cents_per_bird) as Cents;
 }
 
 /**

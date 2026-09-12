@@ -213,6 +213,24 @@ one. See AD-26, and OQ-14 below, which this closes.
 **Daniel is never asked about any of this.** Same trace as the Daniel list;
 these are the gaps where the missing thing is code, not information.
 
+**Ordered by real priority, not by the order they were found.** Reprioritised
+and the first three executed on 2026-09-12.
+
+| Rank | Item | State |
+|---|---|---|
+| **1** | Sales quantity validation | ✅ **DONE** — `salesMissingInputs`, typed `sales_bird_count` refusal, 7 tests. Daniel's robustness request maps directly here: a 999,999-bird order against a 3,000-bird batch returning `ok` is precisely what he asked for protection against. |
+| **2** | Retired $400 in `SEED_OVERHEADS` | ✅ **DONE** — removed, AD-51, 8 assertions updated. Note the error direction was **understatement**, not overstatement — see AD-51. |
+| **3** | `bulkNetCentsPerBird` | ✅ **BUILT, NOT WIRED** — arithmetic settled and tested; reads the order's own price and does not consult the bands. Wiring waits on the pricing question, which is why it is not a grep-returns-nothing gap any more. |
+| 4 | Revenue / profit / margin / break-even | Queued. The largest of the four — nothing of it exists. |
+| 5 | Dressed weight on `SalesOrder` | Queued. |
+| 6 | OQ-22 precedence | Queued — resolves with the pricing question. |
+| 7 | `transport_cents_per_bird` not distinguished by delivery mode | Queued. |
+| 8 | Offal fields on `SalesOrder` | Queued. |
+| 9 | `mortality_history` dead key | Queued — wire or delete. |
+| 10 | OQ-28 feed delivery field | Blocked on Daniel's timing answer only. |
+| 11 | OQ-25 cash balance | Blocked on U6. |
+| 12 | OQ-26 Cover Fast | Blocked on M6. |
+
 **On the critical path to a bulk number:**
 
 1. **Bulk net is not implemented at all.** `grep bulk_net src/` returns nothing.
@@ -277,6 +295,28 @@ this topic as evidence this pass missed something**, and check here first.
 
 ## THE DANIEL LIST — bulk revenue, complete, 2026-09-12
 
+### SEND FIRST, ALONE — the pricing question
+
+> **Is the bulk deal priced per bird or per kg?** Your contract bands say
+> $3.90 at 1.1 kg dressed, $3.80 at 1.2, $3.70 at 1.3. But your record shows
+> one sale at $2.00/kg — $5.75 a bird at 2.875 kg. Which one governs a new
+> sale?
+
+**Why it goes alone and first.** It is the only question whose answer changes
+the SHAPE of the calculation rather than a number inside it. Per-bird bands and
+per-kg pricing are incompatible structures: one caps at $3.70 for a heavy bird,
+the other pays more the heavier it gets. Until it is settled, `bulkNetCentsPerBird`
+cannot be wired to the cash calendar, OQ-22 cannot be closed, and the bands may
+be modelling a `band_overshoot_loss` that does not exist. Bundling it with
+twelve other questions risks it being answered last or in passing.
+
+**Then ask him which he prefers:** answer this one first and take the rest after,
+or take all thirteen at once. **Do not send the bundle until he chooses.**
+
+---
+
+### THE REMAINING TWELVE — bundled, held until he chooses
+
 **This is the whole of what only Daniel can answer on this topic.** Produced by
 a full end-to-end trace of the bulk-revenue path on 2026-09-12, after two
 earlier rounds each found a gap hiding behind the last. Every item was verified
@@ -290,7 +330,7 @@ pass missed something and that is worth knowing.**
 |---|---|---|---|
 | 1 | What does it cost to get one load of birds to the abattoir — per bird, or per truckload and how many birds fit? | `transport_cents_per_bird` is the last unknown term in gross − fee − transport | OQ-2 |
 | 2 | The contract pays $3.90 at 1.1 kg dressed, $3.80 at 1.2, $3.70 at 1.3. What does it pay above 1.3 kg dressed? | `bandForDressedG` silently reuses the top band past 1.3 kg — an extrapolation past the contract's stated range | new |
-| 3 | Is the bulk deal per bird (the bands) or per kg? Your record shows one sale at $2.00/kg — $5.75/bird at 2.875 kg, against a top band of $3.70. | Two incompatible pricing structures; the engine cannot choose | new, relates OQ-22 |
+| ~~3~~ | **MOVED — sent first and alone, see above.** | | |
 
 **Changes the number materially:**
 

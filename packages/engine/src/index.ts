@@ -23,7 +23,7 @@ export {
   preharvestUpliftBp,
   planHarvest
 } from './harvest.js';
-export { projectCashCalendar, cashFlowsMissingInputs } from './cash.js';
+export { projectCashCalendar, cashFlowsMissingInputs, bulkNetCentsPerBird } from './cash.js';
 export {
   DEFAULT_PLACEMENT_STEP_BIRDS,
   candidateInput,

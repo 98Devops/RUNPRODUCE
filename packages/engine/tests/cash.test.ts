@@ -1,9 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { cashFlowsMissingInputs, projectCashCalendar } from '../src/cash.js';
+import { bulkNetCentsPerBird, cashFlowsMissingInputs, projectCashCalendar } from '../src/cash.js';
 import { addDays } from '../src/day-number.js';
 import { computeFeedLiability } from '../src/feed.js';
 import { projectProduction } from '../src/production.js';
-import type { CashFlow, Cents, EngineInput, Grams, IsoDate, Parameters } from '../src/types.js';
+import type {
+  CashFlow,
+  Cents,
+  EngineInput,
+  Grams,
+  IsoDate,
+  Parameters,
+  SalesOrder
+} from '../src/types.js';
 
 const PLACEMENT = '2026-02-06' as IsoDate;
 
@@ -488,5 +496,70 @@ describe('projectCashCalendar — carried flows from another batch', () => {
     expect(() =>
       projectCashCalendar(engineInput, 10, 0n as Cents, feedFor(engineInput), carried)
     ).toThrow(/belongs in openingCents/);
+  });
+});
+
+describe('bulkNetCentsPerBird — the arithmetic, ready for the pricing answer', () => {
+  const bulkPerBird: SalesOrder = {
+    channel: 'BULK',
+    order_date: '2026-03-18' as IsoDate,
+    bird_count: 3000,
+    avg_live_weight_g: 1770 as Grams,
+    pricing_basis: 'PER_BIRD',
+    price_cents_per_bird: 390n as Cents,
+    price_cents_per_kg: null,
+    terms_days: 30
+  };
+  const bulkPerKg: SalesOrder = {
+    ...bulkPerBird,
+    avg_live_weight_g: 2875 as Grams,
+    pricing_basis: 'PER_KG',
+    price_cents_per_bird: null,
+    price_cents_per_kg: 200n as Cents
+  };
+  const params = (transport: bigint | null) =>
+    parameters({
+      abattoir_fee_cents: 10n as Cents,
+      transport_cents_per_bird: transport === null ? null : (transport as Cents)
+    });
+
+  it('nets a PER_BIRD order: gross minus fee minus transport', () => {
+    // $3.90 − $0.10 − $0.13 = $3.67
+    expect(bulkNetCentsPerBird(bulkPerBird, params(13n))).toBe(367n);
+  });
+
+  it("nets a PER_KG order off the order's own weight", () => {
+    // 2.875 kg x $2.00 = $5.75 gross, − $0.10 − $0.13 = $5.52
+    expect(bulkNetCentsPerBird(bulkPerKg, params(13n))).toBe(552n);
+  });
+
+  it('truncates a PER_KG gross rather than rounding up in our favour', () => {
+    const odd = { ...bulkPerKg, avg_live_weight_g: 1777 as Grams, price_cents_per_kg: 199n as Cents };
+    // 1777 x 199 / 1000 = 353.62 -> 353, then − 10 − 13 = 330
+    expect(bulkNetCentsPerBird(odd, params(13n))).toBe(330n);
+  });
+
+  it('charges no abattoir fee on a DIRECT delivery', () => {
+    const direct = parameters({
+      abattoir_fee_cents: 10n as Cents,
+      transport_cents_per_bird: 13n as Cents,
+      delivery_mode: 'DIRECT'
+    });
+    // The fee is the abattoir's. Delivering straight to the buyer does not
+    // incur it — though whether transport is the SAME per bird is unanswered.
+    expect(bulkNetCentsPerBird(bulkPerBird, direct)).toBe(377n);
+  });
+
+  it('refuses to guess when transport is unknown', () => {
+    // The programming-error guard, matching this module's own precedent: the
+    // caller reports the refusal, and this only catches one that skipped it.
+    expect(() => bulkNetCentsPerBird(bulkPerBird, params(null))).toThrow(/transport/i);
+  });
+
+  it('values no offals — null is not zero', () => {
+    // AD-32: the abattoir keeps the offals on top of the 10c cash fee. That is
+    // real value given up, and it is NOT netted here, because nobody has priced
+    // it. Subtracting zero would assert it is worthless.
+    expect(bulkNetCentsPerBird(bulkPerBird, params(13n))).toBe(390n - 10n - 13n);
   });
 });

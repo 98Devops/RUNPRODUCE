@@ -160,6 +160,51 @@ this small.
 - Engine branch coverage target: 95%. Elsewhere: whatever the flows
   naturally cover.
 
+### Due-diligence passes must RUN the engine, not only read it
+
+**Standing practice, adopted 2026-09-12.** Any gap-finding or due-diligence pass
+over the engine must execute it against realistic inputs. Reading the source is
+necessary and is not sufficient.
+
+**The evidence it was adopted on.** The bulk-revenue due-diligence pass found
+ten gaps. Two of the most serious were invisible to source-reading and surfaced
+only by execution:
+
+- **`SEED_OVERHEADS` still charged the $400 line the client had retired.** In
+  source it reads as valid, well-sourced, `confidence: 'measured'` client data,
+  with a comment explaining exactly why each line belongs. Nothing about it looks
+  wrong. Running it showed overheads at $5,200 for a 30,000-bird flock against a
+  true $1,200.
+- **Sales were never reconciled against live birds.** The code path is short and
+  reads as complete. Running it accepted an order for **999,999 birds from a
+  3,000-bird batch**, and one for **−500**, both returning `ok`.
+
+A third instance, from the same week: M5b's whole module was unreachable from
+`index.ts` while 35 tests passed, because every test imported the module
+directly (OQ-27).
+
+**Why this is the same doctrine as invariant 5, not a new one.** Invariant 5
+says a confident wrong number is worse than a blank. Applied to gap-finding:
+**reading tells you what the code INTENDS; running tells you what it DOES**, and
+a due-diligence report built only on reading is itself a confident wrong answer
+— it asserts completeness it has not tested for. A pass that says "I read every
+function on the path" is making a claim of the exact kind this engine refuses to
+make about money.
+
+**What a pass must therefore include:**
+
+1. Execute the path end to end on a realistic input, not a minimal one. Use the
+   client's own figures where they exist.
+2. Probe the boundaries deliberately — absurd quantities, negatives, zero,
+   dates outside the projection window. Each of those found a real gap.
+3. Check what a CONSUMER reaches, not only what a test reaches (OQ-27).
+4. Re-run the pass after acting on it. The bulk-revenue pass was run twice and
+   the second run found four gaps the first missed, including a duplicate
+   question the first run had itself created.
+
+**Treat a new question arising on an already-audited topic as evidence the pass
+was incomplete**, and check the audit's own record before asking anyone else.
+
 ### Passing tests do not prove a module is reachable
 
 **Every test in this repo imports a module directly** — `../src/feed.js`,
