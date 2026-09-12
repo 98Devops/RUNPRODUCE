@@ -299,6 +299,22 @@ export function projectCashCalendar(
       amount_cents: -draw.total_cents as Cents,
       description: `${draw.bags} bags ${draw.phase} drawn ${draw.collection_date}`
     });
+    /**
+     * Delivery lands on the COLLECTION date, not the due date — "on the spot
+     * when the feed is collected" (client, 2026-09-12, closing OQ-28's timing
+     * half). Its own flow rather than part of the payment above, because the
+     * two fall on different days: the feed is on 30-day terms and the truck is
+     * not. Folding them together would move up to $529 a cycle a month early
+     * or a month late, and the trough is what the reserve-floor filter reads.
+     */
+    if (draw.delivery_cents > 0n) {
+      flows.push({
+        kind: 'FEED_DELIVERY_PAYMENT',
+        date: draw.collection_date,
+        amount_cents: -draw.delivery_cents as Cents,
+        description: `Delivery of ${draw.kg} kg, paid on collection`
+      });
+    }
   }
 
   /**
@@ -327,6 +343,22 @@ export function projectCashCalendar(
   const collectedDates = new Set(feed.draws.map((draw) => draw.collection_date));
   for (const planned of feed.planned_draws) {
     if (collectedDates.has(planned.collection_date)) continue;
+    /**
+     * Delivery on feed not yet collected, on the planned COLLECTION date. An
+     * upper bound like the `kg` it comes from, and carried for the AD-54
+     * reason: leaving it off understates the projected trough by up to $529 a
+     * cycle, and understatement is the flattering direction this engine must
+     * not err in. It is deduped by the same collection-date key as the draw
+     * payment above.
+     */
+    if (planned.delivery_cents > 0n) {
+      flows.push({
+        kind: 'PLANNED_FEED_DELIVERY_PAYMENT',
+        date: planned.collection_date,
+        amount_cents: -planned.delivery_cents as Cents,
+        description: `Delivery of ${planned.kg} kg planned, paid on collection`
+      });
+    }
     flows.push({
       kind: 'PLANNED_FEED_DRAW_PAYMENT',
       date: planned.due_date,

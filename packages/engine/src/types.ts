@@ -225,6 +225,17 @@ export interface Parameters {
   /** Omitted means `SEED_BULK_BANDS` — the client's own contract bands. */
   readonly bulk_bands?: readonly BulkBand[];
   /**
+   * What the feed supplier charges to deliver, per tonne collected. Omitted
+   * means `SEED_DELIVERY_CENTS_PER_TONNE` — the client's own confirmed $40
+   * (OQ-28, 2026-09-12), seeded the way `overheads` and `bulk_bands` are
+   * (AD-23): measured client data no fixture should have to restate.
+   *
+   * Charged per TONNE COLLECTED, not per draw (AD-54): he was quoted per tonne,
+   * and his real draws are unequal — 26.64, 36.36, 57.36 and 73.8 bags — so a
+   * flat per-draw fee would misallocate across them.
+   */
+  readonly delivery_cents_per_tonne?: Cents;
+  /**
    * Recorded own-batch days required before the calibrated mortality rate
    * overrides the assumed fallback ramp. Omitted means
    * `DEFAULT_CALIBRATION_TRAILING_DAYS_MIN`.
@@ -502,8 +513,22 @@ export interface DrawLiability {
   readonly phase: Phase;
   readonly bags: number;
   readonly kg: number;
-  /** bags x price_per_bag_cents. */
+  /** bags x price_per_bag_cents. Delivery is NOT in here — see delivery_cents. */
   readonly total_cents: Cents;
+  /**
+   * What it cost to get this draw delivered: `kg / 1000 x delivery_cents_per_tonne`,
+   * rounded up. $40 a tonne, the client's own confirmed figure (OQ-28).
+   *
+   * **Beside `total_cents`, never inside it** (AD-54). $40/tonne is exactly
+   * 4c/kg, so folding it into the feed price would give identical totals today
+   * and still be wrong: the client names delivery as its own cost, the two vary
+   * independently, and blended neither is visible — the KB-3 shape. It also
+   * keeps `feed_cost_cents` comparable with his own Record sheet, which
+   * excludes delivery.
+   *
+   * Paid on the COLLECTION date, not the draw's 30-day terms (client, 2026-09-12).
+   */
+  readonly delivery_cents: Cents;
   /** The DRAW's own terms, which beat `parameters.feed_terms_days`. */
   readonly terms_days: number;
   /**
@@ -542,6 +567,13 @@ export interface PlannedDraw {
   readonly covers_last_day: number;
   readonly bags: number;
   readonly kg: number;
+  /**
+   * Delivery on feed not yet collected. An upper bound like the `kg` it is
+   * derived from, and carried for the reason AD-54 gives: leaving it off
+   * understates the projected cash trough, and the trough is exactly what
+   * AD-43's reserve-floor filter reads.
+   */
+  readonly delivery_cents: Cents;
 }
 
 /**
@@ -554,6 +586,12 @@ export interface FeedLiability {
   readonly due_dates: readonly IsoDate[];
   readonly total_drawn_kg: number;
   readonly total_drawn_cents: Cents;
+  /**
+   * Delivery across every collected draw, so "what did delivery cost me this
+   * cycle?" is answerable of a system built to explain its numbers. Excludes
+   * planned draws, which are not costs yet.
+   */
+  readonly total_delivery_cents: Cents;
   /**
    * Fixture 5: 26.64 bags for 3,000 birds — the client's own `Feed!C2 =
    * Record!M16/50`.
@@ -719,6 +757,14 @@ export type CashFlowKind =
   | 'CHICK_COST'
   | 'FEED_DRAW_PAYMENT'
   | 'PLANNED_FEED_DRAW_PAYMENT'
+  /**
+   * Feed delivery, paid on the COLLECTION date — "on the spot when the feed is
+   * collected" (client, 2026-09-12). Its own kind rather than folded into
+   * FEED_DRAW_PAYMENT because it lands on a different day: the feed itself is
+   * on 30-day terms, the truck is not.
+   */
+  | 'FEED_DELIVERY_PAYMENT'
+  | 'PLANNED_FEED_DELIVERY_PAYMENT'
   | 'OVERHEAD'
   | 'GATE_RECEIPT'
   | 'BULK_RECEIPT';

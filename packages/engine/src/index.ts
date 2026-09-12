@@ -12,7 +12,13 @@ export { SEED_BREED_CURVE, pointForDay, cumulativeFeedG, feedGByPhase } from './
 export { dayNumberFor, addDays, daysBetween } from './day-number.js';
 export { projectProduction, salesMissingInputs } from './production.js';
 export { computeCosting } from './costing.js';
-export { computeFeedLiability, feedDrawsMissingInputs, kgDiscrepancy } from './feed.js';
+export {
+  SEED_DELIVERY_CENTS_PER_TONNE,
+  computeFeedLiability,
+  deliveryCents,
+  feedDrawsMissingInputs,
+  kgDiscrepancy
+} from './feed.js';
 export {
   SEED_BULK_BANDS,
   SEED_DRESSING_YIELD_PCT,

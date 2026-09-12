@@ -341,3 +341,57 @@ describe('OQ-21 secondary — kg_discrepancy no longer reports a float artefact'
     expect(kgDiscrepancy(draw)).toBe(true);
   });
 });
+
+describe('feed delivery — $40 a tonne, paid on collection (OQ-28, AD-54)', () => {
+  it("charges the client's confirmed rate against the draw's own kg", () => {
+    const input = baseInput({ draws: drawsOf({ bags: 26, kg: 1300 }) });
+    // 1.3 tonnes x $40 = $52.00.
+    expect(feedFor(input).draws[0]?.delivery_cents).toBe(5200n);
+  });
+
+  it('keeps delivery BESIDE the feed total, never added into it', () => {
+    const input = baseInput({ draws: drawsOf({ bags: 27, kg: 1350 }) });
+    const draw = feedFor(input).draws[0];
+    // The two costs vary independently and the client names them separately;
+    // blended, neither is visible (AD-54, and the KB-3 shape).
+    expect(draw?.total_cents).toBe(27n * 3250n);
+    expect(draw?.delivery_cents).toBe(5400n);
+  });
+
+  it('totals delivery across the cycle so "what did delivery cost me" is answerable', () => {
+    const input = baseInput({
+      asOf: '2026-03-01' as IsoDate,
+      draws: drawsOf(
+        { collection_date: '2026-02-06' as IsoDate, bags: 27, kg: 1350 },
+        { collection_date: '2026-02-20' as IsoDate, bags: 36, kg: 1800 }
+      )
+    });
+    expect(feedFor(input).total_delivery_cents).toBe(5400n + 7200n);
+  });
+
+  it('rounds a part-cent UP, never in our favour', () => {
+    // One 50 kg bag at $40.01 a tonne is 200.05 cents. Rounded down it would
+    // flatter the break-even, which is the one direction this engine must not
+    // err in — the same rule costOfFeed follows.
+    const input = baseInput({
+      parameters: { ...baseInput().parameters, delivery_cents_per_tonne: Money.fromCents(4001n) },
+      draws: drawsOf({ bags: 1, kg: 50 })
+    });
+    expect(feedFor(input).draws[0]?.delivery_cents).toBe(201n);
+  });
+
+  it('honours an explicit rate over the seeded one', () => {
+    const input = baseInput({
+      parameters: { ...baseInput().parameters, delivery_cents_per_tonne: Money.fromCents(5000n) },
+      draws: drawsOf({ bags: 27, kg: 1350 })
+    });
+    expect(feedFor(input).draws[0]?.delivery_cents).toBe(6750n);
+  });
+
+  it('charges delivery on a planned draw too, since its kg is an upper bound', () => {
+    // Excluding it would understate the projected trough, and the trough is
+    // what AD-43's reserve-floor filter reads. AD-54.
+    const planned = feedFor(baseInput()).planned_draws[0];
+    expect(planned?.delivery_cents).toBeGreaterThan(0n);
+  });
+});

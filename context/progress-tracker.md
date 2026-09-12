@@ -605,6 +605,44 @@ Tracked in `current-issues.md`.
 
 ## Architecture Decisions
 
+**AD-54 · Feed delivery is $40 a tonne, charged per tonne collected and paid on
+the collection date.**
+Decided 2026-09-12. OQ-28's design half was already recommended (option B, a
+separate cost on the draw); Daniel answered the timing half — **"on the spot
+when the feed is collected"** — so it is now built.
+
+**Three properties, each load-bearing:**
+
+1. **Per TONNE COLLECTED, not per draw.** He was quoted per tonne and his real
+   draws are unequal — 26.64, 36.36, 57.36 and 73.8 bags — so a flat per-draw
+   fee would misallocate across them even where the cycle total matched.
+2. **Beside `total_cents`, never inside it.** $40/tonne is exactly 4c/kg, so
+   folding it into the feed price gives identical totals today and is still
+   wrong: he names delivery as its own cost, the two vary independently, and
+   blended neither is visible. It also keeps `feed_cost_cents` comparable with
+   his own Record sheet, which excludes delivery.
+3. **Paid on the COLLECTION date, on its own flow kind.** The feed is on 30-day
+   terms; the truck is not. One `FEED_DRAW_PAYMENT` carrying both would move up
+   to $529 a cycle a month early or a month late, and the trough is what AD-43's
+   reserve-floor filter reads.
+
+**Planned draws carry delivery too — the sub-question OQ-28 deferred, now
+decided.** A planned draw's `kg` is an upper bound at a flat flock, so its
+delivery is an upper bound of the same kind: no new species of assumption. The
+argument that settles it is direction — leaving it off understates the projected
+trough by up to $529 a cycle, and understatement is the flattering direction
+this engine is not allowed to err in. It is deduped against a real collection by
+the same `collection_date` key the draw payment uses.
+
+**The rate is seeded, not required.** `SEED_DELIVERY_CENTS_PER_TONNE` is his own
+confirmed $40, seeded the way `SEED_OVERHEADS` and `SEED_BULK_BANDS` are
+(AD-23) so no fixture restates client data it does not assert on.
+
+**This closes the transport understatement AD-51 widened.** Overheads ran ~$529
+light on this batch after the retired $400 came out; the feed-delivery half of
+that is now charged. The abattoir run (OQ-2's transport half) is the remainder,
+and AD-55 charges it.
+
 **AD-53 · The placement step is 1 bird, and the enumeration pays for it.**
 Decided 2026-09-12, on Daniel's answer to OQ-18: **the hatchery invoices per
 chick**. `DEFAULT_PLACEMENT_STEP_BIRDS` goes from an assumed 100 — the

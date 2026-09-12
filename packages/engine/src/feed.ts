@@ -16,6 +16,51 @@ import type {
 const KG_PER_BAG = 50;
 
 /**
+ * What the supplier charges to deliver feed: **$40 a tonne**, confirmed by the
+ * client 2026-09-12 (OQ-28). Measured, not estimated.
+ *
+ * Seeded here rather than required on every `Parameters` for the AD-23 reason
+ * `SEED_OVERHEADS` and `SEED_BULK_BANDS` are: it is his own figure, and no
+ * fixture should have to carry a literal copy of client data it does not assert
+ * on. A caller may override it; absent, this is what the client said.
+ *
+ * **Not to be confused with the two other transport costs this project has had
+ * in play.** This is FEED delivery. `transport_cents_per_bird` is the run to the
+ * abattoir (OQ-2), and the retired $400 "Other/Transport" overhead was a third
+ * thing (OQ-16, retired without its composition ever being established).
+ * Conflating any two of them produces a double-count or a hole.
+ */
+export const SEED_DELIVERY_CENTS_PER_TONNE = 4000n as Cents;
+
+/** One tonne, in grams — the unit `deliveryCents` divides by. */
+const GRAMS_PER_TONNE = 1_000_000n;
+
+/**
+ * Delivery on a quantity of feed: `kg / 1000 x rate`, rounded **up**.
+ *
+ * `kg` is a decimal on the client's own sheet (26.64 bags is 1,332 kg, and a
+ * part-bag draw can be a part-kg), so it is taken to GRAMS first — the
+ * project's own weight unit, invariant 2 — and every step after that is
+ * `bigint`. No float touches the money path.
+ *
+ * Rounds up for the same reason `costOfFeed` does: a cost rounded down flatters
+ * a break-even, which is the one direction this engine must not err in. At most
+ * one cent per draw.
+ */
+export function deliveryCents(kg: number, rate_cents_per_tonne: Cents): Cents {
+  if (!Number.isFinite(kg) || kg < 0) {
+    throw new Error(`feed: cannot charge delivery on ${kg} kg`);
+  }
+  if (rate_cents_per_tonne < 0n) {
+    throw new Error(`feed: delivery rate ${rate_cents_per_tonne} must not be negative`);
+  }
+  const grams = BigInt(Math.round(kg * 1000));
+  const product = grams * rate_cents_per_tonne;
+  const whole = product / GRAMS_PER_TONNE;
+  return ((product % GRAMS_PER_TONNE === 0n ? whole : whole + 1n) as Cents);
+}
+
+/**
  * The first draw covers days 1-14; every later draw covers the next 7.
  *
  * Read off the client's own Feed Account, not chosen by us:
@@ -125,6 +170,8 @@ export function computeFeedLiability(
     );
   }
 
+  const delivery_rate = parameters.delivery_cents_per_tonne ?? SEED_DELIVERY_CENTS_PER_TONNE;
+
   const draws: DrawLiability[] = collected.map((draw) => {
     const due_date = addDays(draw.collection_date, draw.terms_days);
     return {
@@ -135,6 +182,9 @@ export function computeFeedLiability(
       kg: draw.kg,
       // Money from bags, always. `kg` never prices anything.
       total_cents: (BigInt(draw.bags) * draw.price_per_bag_cents) as Cents,
+      // Beside the feed total, never inside it (AD-54), and paid on the
+      // COLLECTION date rather than the draw's terms (client, 2026-09-12).
+      delivery_cents: deliveryCents(draw.kg, delivery_rate),
       terms_days: draw.terms_days,
       days_until_due: daysBetween(asOf, due_date),
       kg_discrepancy: kgDiscrepancy(draw)
@@ -176,7 +226,8 @@ export function computeFeedLiability(
       covers_first_day: firstDay,
       covers_last_day: lastDay,
       bags: bagsFromKg(kg),
-      kg
+      kg,
+      delivery_cents: deliveryCents(kg, delivery_rate)
     });
 
     // Chained off the PREVIOUS collection date, not off placement, so a late
@@ -191,6 +242,7 @@ export function computeFeedLiability(
     due_dates: draws.map((draw) => draw.due_date),
     total_drawn_kg: collected.reduce((sum, draw) => sum + draw.kg, 0),
     total_drawn_cents: draws.reduce((sum, draw) => sum + draw.total_cents, 0n) as Cents,
+    total_delivery_cents: draws.reduce((sum, draw) => sum + draw.delivery_cents, 0n) as Cents,
     first_draw_bags_to_day_14: bagsFromKg(kgForDays(1, FIRST_DRAW_LAST_DAY)),
     planned_draws,
     planned_confidence: 'assumed'

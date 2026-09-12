@@ -96,9 +96,11 @@ describe('projectCashCalendar — dated outflows', () => {
     const calendar = projectCashCalendar(engineInput, 5, 0n as Cents, feedFor(engineInput));
     const day1 = calendar.days[0];
 
-    // 3,000 birds x $1.00 chicks + $1,222.00 of overheads, both on placement.
-    expect(day1?.out_cents).toBe(382200n);
-    expect(day1?.closing_cents).toBe(-382200n);
+    // 3,000 birds x $1.00 chicks + $822.00 of overheads, both on placement,
+    // plus $53.28 delivery on the first planned draw — 1,332 kg collected on
+    // placement day, paid on the spot (AD-54).
+    expect(day1?.out_cents).toBe(387528n);
+    expect(day1?.closing_cents).toBe(-387528n);
     expect(day1?.flows.map((f) => f.kind)).toContain('CHICK_COST');
   });
 
@@ -125,12 +127,16 @@ describe('projectCashCalendar — dated outflows', () => {
     const collectionDay = calendar.days[0];
     expect(collectionDay?.flows.map((f) => f.kind)).not.toContain('FEED_DRAW_PAYMENT');
 
-    // The chick cost lands day 1 and the draw payment lands day 31; nothing
-    // else moves after that, so day 31 is the low point for the rest of the
-    // projection — and M5b ranks strategies by exactly this minimum, so it
-    // needs a test proving the minimum can resolve mid-series, not just day 1.
-    expect(calendar.minimum_date).toBe('2026-03-08');
-    expect(calendar.minimum_cents).toBe(-414700n);
+    // M5b ranks strategies by this minimum, so the test exists to prove it can
+    // resolve mid-series rather than always at day 1. The low point is day 36
+    // rather than day 31 since AD-54: planned deliveries land on their own
+    // COLLECTION dates, the last of which inside this 40-day horizon is
+    // 2026-03-13, after the draw payment on 2026-03-08.
+    expect(calendar.minimum_date).toBe('2026-03-13');
+    // $3,000 chicks + $822 overheads + $325 draw payment + $20 delivery on the
+    // real 500 kg draw + $475.68 on the four planned collections inside the
+    // horizon (11,892 kg — everything the curve eats after day 14).
+    expect(calendar.minimum_cents).toBe(-464268n);
   });
 
   it('ignores a draw whose due date falls past the horizon', () => {
@@ -344,8 +350,9 @@ describe('projectCashCalendar — overheads', () => {
     const calendar = projectCashCalendar(engineInput, 5, 0n as Cents, feedFor(engineInput));
     const day1 = calendar.days[0];
 
-    // $3,000 chicks + $1,222 of overheads at his 3,000-bird scale.
-    expect(day1?.out_cents).toBe(300000n + 82200n);
+    // $3,000 chicks + $822 of overheads at his 3,000-bird scale, plus $53.28
+    // of delivery on the 1,332 kg collected that day (AD-54).
+    expect(day1?.out_cents).toBe(300000n + 82200n + 5328n);
     // Three, not four, since transport_other was retired (AD-51).
     expect(day1?.flows.filter((f) => f.kind === 'OVERHEAD')).toHaveLength(3);
     expect(calendar.overhead_timing).toBe('assumed');
@@ -386,11 +393,9 @@ describe('projectCashCalendar — overheads', () => {
     //
     // Vaccine (PER_BIRD, $42.00 measured at 3,000): 4200 x 3100 / 3000 =
     // 4,340 cents exactly (13,020,000 / 3,000 divides evenly).
-    // Transport/other (PER_BIRD, $400.00 measured at 3,000): 40000 x 3100 /
-    // 3000 = 41,333.33..., rounds UP to 41,334 cents (a cost never rounds
-    // down — overheadLineCents).
     // Electricity ($140.00) and labour ($640.00) are PER_BATCH: unchanged.
-    // Overhead total: 4,340 + 41,334 + 14,000 + 64,000 = 123,674 cents.
+    // Overhead total: 4,340 + 14,000 + 64,000 = 82,340 cents. Transport/other
+    // was retired by the client (AD-51).
     const chickFlow = day1?.flows.find((f) => f.kind === 'CHICK_COST');
     expect(chickFlow?.amount_cents).toBe(-310000n);
 
@@ -399,7 +404,9 @@ describe('projectCashCalendar — overheads', () => {
       0n
     );
     expect(overheadTotal).toBe(82340n);
-    expect(day1?.out_cents).toBe(310000n + 82340n);
+    // Plus delivery on the first planned draw, which scales with the flock too:
+    // 1,376.4 kg at $40 a tonne = $55.06.
+    expect(day1?.out_cents).toBe(310000n + 82340n + 5506n);
   });
 
   it('treats an omitted overheads parameter as the measured default, distinct from an explicit empty model', () => {
@@ -418,7 +425,9 @@ describe('projectCashCalendar — overheads', () => {
     const withEmpty = projectCashCalendar(explicitEmpty, 1, 0n as Cents, feedFor(explicitEmpty));
     // {lines: []} means "charge nothing" — deliberately, not "use the default".
     expect(withEmpty.days[0]?.flows.filter((f) => f.kind === 'OVERHEAD')).toHaveLength(0);
-    expect(withEmpty.days[0]?.out_cents).toBe(300000n); // chick cost only
+    // Chick cost plus the first planned draw's delivery, which is feed rather
+    // than an overhead and so is unaffected by an empty overhead model.
+    expect(withEmpty.days[0]?.out_cents).toBe(305328n);
   });
 });
 
@@ -432,7 +441,7 @@ describe('projectCashCalendar — the reserve floor', () => {
     expect(calendar.breaches_reserve_floor).toBe(true);
     expect(calendar.first_breach_date).toBe('2026-02-06');
     // The floor REPORTS; it never clamps. AD-43: filtering is M5b's job.
-    expect(calendar.days[0]?.closing_cents).toBe(-382200n);
+    expect(calendar.days[0]?.closing_cents).toBe(-387528n);
   });
 
   it('reports no breach when every closing balance clears the floor', () => {
@@ -449,8 +458,9 @@ describe('projectCashCalendar — the reserve floor', () => {
     const engineInput = input('2026-02-06');
     const calendar = projectCashCalendar(engineInput, 5, 0n as Cents, feedFor(engineInput));
 
-    // Nothing moves after day 1, so days 1-5 all hold the minimum.
-    expect(calendar.minimum_cents).toBe(-382200n);
+    // Nothing moves after day 1 inside a 5-day horizon, so days 1-5 all hold
+    // the minimum.
+    expect(calendar.minimum_cents).toBe(-387528n);
     expect(calendar.minimum_date).toBe('2026-02-06');
   });
 });
@@ -561,5 +571,47 @@ describe('bulkNetCentsPerBird — the arithmetic, ready for the pricing answer',
     // real value given up, and it is NOT netted here, because nobody has priced
     // it. Subtracting zero would assert it is worthless.
     expect(bulkNetCentsPerBird(bulkPerBird, params(13n))).toBe(390n - 10n - 13n);
+  });
+});
+
+describe('projectCashCalendar — feed delivery lands on collection day (AD-54)', () => {
+  it("pays delivery on the collection date, not on the feed's 30-day terms", () => {
+    // "On the spot when the feed is collected" — Daniel, 2026-09-12. The feed
+    // itself is on 30-day terms; the truck is not, so the two are different
+    // flows on different days rather than one payment.
+    const engineInput = input('2026-02-06', {
+      draws: [
+        {
+          collection_date: '2026-02-06' as IsoDate,
+          phase: 'STARTER' as const,
+          bags: 27,
+          kg: 1350,
+          price_per_bag_cents: 3060n as Cents,
+          terms_days: 30
+        }
+      ]
+    });
+    const calendar = projectCashCalendar(engineInput, 45, 0n as Cents, feedFor(engineInput));
+
+    const collectionDay = calendar.days.find((d) => d.date === '2026-02-06');
+    const kinds = collectionDay?.flows.map((f) => f.kind) ?? [];
+    expect(kinds).toContain('FEED_DELIVERY_PAYMENT');
+    expect(kinds).not.toContain('FEED_DRAW_PAYMENT');
+
+    const delivery = collectionDay?.flows.find((f) => f.kind === 'FEED_DELIVERY_PAYMENT');
+    expect(delivery?.amount_cents).toBe(-5400n); // 1.35 t x $40
+
+    const dueDay = calendar.days.find((d) => d.date === '2026-03-08');
+    expect(dueDay?.flows.map((f) => f.kind)).toContain('FEED_DRAW_PAYMENT');
+    expect(dueDay?.flows.map((f) => f.kind)).not.toContain('FEED_DELIVERY_PAYMENT');
+  });
+
+  it('charges delivery on a planned draw on ITS collection date too', () => {
+    const engineInput = input('2026-02-06');
+    const calendar = projectCashCalendar(engineInput, 45, 0n as Cents, feedFor(engineInput));
+    const planned = feedFor(engineInput).planned_draws[0]!;
+    const day = calendar.days.find((d) => d.date === planned.collection_date);
+    const flow = day?.flows.find((f) => f.kind === 'PLANNED_FEED_DELIVERY_PAYMENT');
+    expect(flow?.amount_cents).toBe(-planned.delivery_cents);
   });
 });
