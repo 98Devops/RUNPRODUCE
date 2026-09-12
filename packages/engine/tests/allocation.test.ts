@@ -43,7 +43,6 @@ function parameters(overrides: Partial<Parameters> = {}): Parameters {
     gate_price_cents_per_kg: null,
     gate_pricing_basis: 'PER_BIRD',
     gate_capacity_per_day: 750,
-    bulk_price_cents_per_bird: 390n as Cents,
     abattoir_fee_cents: null,
     transport_cents_per_bird: null,
     delivery_mode: 'ABATTOIR',
@@ -426,6 +425,8 @@ describe('computeAllocation — the two-blocked-one-working asymmetry', () => {
       order_date: '2026-03-10' as IsoDate,
       bird_count: 500,
       avg_live_weight_g: 1800 as Grams,
+      avg_dressed_weight_g: null,
+      bands: null,
       pricing_basis: 'PER_BIRD',
       price_cents_per_bird: 390n as Cents,
       price_cents_per_kg: null,
@@ -444,12 +445,15 @@ describe('computeAllocation — the two-blocked-one-working asymmetry', () => {
     expect(() => runBulk()).not.toThrow();
   });
 
-  it('refuses Cover Fast and Build Reserve, naming OQ-2 and OQ-16', () => {
+  it('refuses Cover Fast and Build Reserve while transport is unsupplied', () => {
     const result = runBulk();
     const keys = (result.cover_fast as MissingInput[]).map((m) => m.key);
 
+    // 'bulk_price' is no longer among these. It used to stand unconditionally
+    // because no code computed a bulk net; AD-57 wrote it, so the only thing
+    // blocking this input now is that it carries no transport value of its own.
     expect(keys).toContain('transport_cents_per_bird');
-    expect(keys).toContain('bulk_price');
+    expect(keys).not.toContain('bulk_price');
     expect(Array.isArray(result.build_reserve)).toBe(true);
   });
 
@@ -554,6 +558,8 @@ describe('Cover Fast cannot currently answer — pinned, not accepted', () => {
           order_date: '2026-03-08' as IsoDate,
           bird_count: 2900,
           avg_live_weight_g: 1770 as Grams,
+          avg_dressed_weight_g: null,
+          bands: null,
           pricing_basis: 'PER_BIRD',
           price_cents_per_bird: 425n as Cents,
           price_cents_per_kg: null,

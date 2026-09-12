@@ -34,7 +34,6 @@ function parameters(overrides: Partial<Parameters> = {}): Parameters {
     gate_price_cents_per_kg: null,
     gate_pricing_basis: 'PER_BIRD',
     gate_capacity_per_day: 750,
-    bulk_price_cents_per_bird: 390n as Cents,
     abattoir_fee_cents: null,
     transport_cents_per_bird: null,
     delivery_mode: 'ABATTOIR',
@@ -245,6 +244,8 @@ const bulkOrder = {
   order_date: '2026-03-08' as IsoDate,
   bird_count: 1000,
   avg_live_weight_g: 1843 as Grams,
+  avg_dressed_weight_g: null,
+  bands: null,
   pricing_basis: 'PER_BIRD' as const,
   price_cents_per_bird: 390n as Cents,
   price_cents_per_kg: null,
@@ -256,6 +257,8 @@ const gateOrder = {
   order_date: '2026-03-08' as IsoDate,
   bird_count: 500,
   avg_live_weight_g: 1843 as Grams,
+  avg_dressed_weight_g: null,
+  bands: null,
   pricing_basis: 'PER_BIRD' as const,
   price_cents_per_bird: 425n as Cents,
   price_cents_per_kg: null,
@@ -309,13 +312,16 @@ describe('projectCashCalendar — receipts', () => {
    * minus transport, and transport is null pending OQ-2 while OQ-16 gates the
    * double-count question independently.
    */
-  it('reports both value gaps and the formula gap for a BULK order rather than guessing bulk net', () => {
+  it('reports the missing values for a BULK order rather than guessing bulk net', () => {
     const missing = cashFlowsMissingInputs(input('2026-03-10', { sales: [bulkOrder] }));
     const keys = missing.map((m) => m.key);
 
     expect(keys).toContain('transport_cents_per_bird');
     expect(keys).toContain('abattoir_fee');
-    expect(keys).toContain('bulk_price');
+    // No 'bulk_price' any more: this order states its own price, and the net
+    // that consumes it exists since AD-57. What is missing is the two costs
+    // deducted from it, which are parameters rather than contract terms.
+    expect(keys).not.toContain('bulk_price');
 
     /**
      * The transport entry's wording is pinned, not just its presence. It used
@@ -334,7 +340,7 @@ describe('projectCashCalendar — receipts', () => {
     expect(cashFlowsMissingInputs(input('2026-03-10', { sales: [gateOrder] }))).toEqual([]);
   });
 
-  it('keeps refusing a BULK candidate once abattoir fee and transport are both supplied — having the VALUES is not having the CODE', () => {
+  it('prices a BULK candidate once abattoir fee and transport are both supplied', () => {
     const engineInput = input('2026-03-10', {
       parameters: parameters({
         abattoir_fee_cents: 5000n as Cents,
@@ -342,21 +348,34 @@ describe('projectCashCalendar — receipts', () => {
       }),
       sales: [bulkOrder]
     });
+
+    /**
+     * This test is the inverse of what it was, and the inversion is the point.
+     * It used to pin a blanket "bulk net is not implemented" refusal that stood
+     * whatever the inputs said — having the VALUES was not having the CODE.
+     * Since AD-57 the code exists and the price source is settled (the ORDER's
+     * own contract), so a fully-specified bulk order is priced rather than
+     * refused. What survives is the per-ORDER check below: an order whose own
+     * contract cannot price it still refuses, and its neighbour still does not.
+     */
+    expect(cashFlowsMissingInputs(engineInput)).toEqual([]);
+  });
+
+  it('refuses one unpriceable order without refusing the batch', () => {
+    const priceless = { ...bulkOrder, price_cents_per_bird: null };
+    const engineInput = input('2026-03-10', {
+      parameters: parameters({
+        abattoir_fee_cents: 5000n as Cents,
+        transport_cents_per_bird: 1000n as Cents
+      }),
+      sales: [bulkOrder, priceless]
+    });
     const missing = cashFlowsMissingInputs(engineInput);
 
-    // The BEHAVIOUR this pins has not changed, but its reason has. It used to
-    // be OQ-16 — whether transport belonged in bulk net at all. The client
-    // retired the $400 line on 2026-09-12, so that formula question is gone.
-    //
-    // The refusal must survive that retirement anyway, because nothing has
-    // ever COMPUTED a bulk net: receiptCents returns gross, and the BULK branch
-    // throws. Without this entry cashFlowsMissingInputs would return [] the
-    // moment both values are supplied, and the throw below would fire as a raw
-    // Error where invariant 5 promises a typed blank.
+    // One buyer's deal being unpriceable says nothing about another's, which is
+    // why the check moved onto the order (AD-57).
     expect(missing.map((m) => m.key)).toEqual(['bulk_price']);
-    expect(missing[0]?.why).toMatch(/not implemented/);
-    // And it must not still be citing the retired question as the blocker.
-    expect(missing[0]?.why).not.toMatch(/OQ-16 asks/);
+    expect(missing[0]?.why).toMatch(/PER_BIRD and carries no such price/);
   });
 
   it('throws rather than returning a calendar missing a bulk receipt', () => {
@@ -553,6 +572,8 @@ describe('bulkNetCentsPerBird — the arithmetic, ready for the pricing answer',
     order_date: '2026-03-18' as IsoDate,
     bird_count: 3000,
     avg_live_weight_g: 1770 as Grams,
+    avg_dressed_weight_g: null,
+    bands: null,
     pricing_basis: 'PER_BIRD',
     price_cents_per_bird: 390n as Cents,
     price_cents_per_kg: null,
@@ -561,6 +582,8 @@ describe('bulkNetCentsPerBird — the arithmetic, ready for the pricing answer',
   const bulkPerKg: SalesOrder = {
     ...bulkPerBird,
     avg_live_weight_g: 2875 as Grams,
+    avg_dressed_weight_g: null,
+    bands: null,
     pricing_basis: 'PER_KG',
     price_cents_per_bird: null,
     price_cents_per_kg: 200n as Cents
@@ -660,6 +683,8 @@ describe('the abattoir run and the abattoir fee are two costs (AD-55)', () => {
     order_date: '2026-03-18' as IsoDate,
     bird_count: 3000,
     avg_live_weight_g: 1770 as Grams,
+    avg_dressed_weight_g: null,
+    bands: null,
     pricing_basis: 'PER_BIRD',
     price_cents_per_bird: 390n as Cents,
     price_cents_per_kg: null,
@@ -752,5 +777,129 @@ describe('overhead cadences — when Daniel actually pays (AD-56)', () => {
     // dates are ours (OQ-19).
     expect(total).toBe(82200n);
     expect(calendar.overhead_timing).toBe('assumed');
+  });
+});
+
+describe("bulk pricing is the buyer's own contract, not ours (AD-57)", () => {
+  const order = (overrides: Partial<SalesOrder> = {}): SalesOrder => ({
+    channel: 'BULK',
+    order_date: '2026-03-08' as IsoDate,
+    bird_count: 1000,
+    avg_live_weight_g: 1843 as Grams,
+    avg_dressed_weight_g: null,
+    pricing_basis: 'PER_BIRD',
+    price_cents_per_bird: 390n as Cents,
+    price_cents_per_kg: null,
+    bands: null,
+    terms_days: 30,
+    ...overrides
+  });
+  const settled = () =>
+    parameters({
+      abattoir_fee_cents: SEED_ABATTOIR_FEE_CENTS,
+      transport_cents_per_bird: SEED_TRANSPORT_CENTS_PER_BIRD
+    });
+
+  const BUYER_BANDS = [
+    { dressed_floor_g: 1100 as Grams, price_cents_per_bird: 390n as Cents },
+    { dressed_floor_g: 1200 as Grams, price_cents_per_bird: 380n as Cents },
+    { dressed_floor_g: 1300 as Grams, price_cents_per_bird: 370n as Cents }
+  ];
+
+  it('holds a PER_LIVE_KG contract — the structure of his one recorded sale', () => {
+    const perKg = order({
+      avg_live_weight_g: 2875 as Grams,
+      pricing_basis: 'PER_KG',
+      price_cents_per_bird: null,
+      price_cents_per_kg: 200n as Cents
+    });
+    // 2.875 kg x $2.00 = $5.75 gross, less 20c of abattoir costs = $5.55.
+    expect(bulkNetCentsPerBird(perKg, settled())).toBe(555n);
+  });
+
+  it("holds a BANDED contract, priced off the buyer's OWN schedule", () => {
+    const banded = order({
+      avg_dressed_weight_g: 1250 as Grams,
+      pricing_basis: 'BANDED',
+      price_cents_per_bird: null,
+      bands: BUYER_BANDS
+    });
+    // 1,250 g dressed clears the 1,200 band: $3.80 less 20c = $3.60.
+    expect(bulkNetCentsPerBird(banded, settled())).toBe(360n);
+  });
+
+  it('prices two buyers on one batch by two different contracts', () => {
+    const engineInput = input('2026-03-08', {
+      parameters: settled(),
+      sales: [
+        order({ bird_count: 600 }),
+        order({
+          bird_count: 400,
+          avg_live_weight_g: 2875 as Grams,
+          pricing_basis: 'PER_KG',
+          price_cents_per_bird: null,
+          price_cents_per_kg: 200n as Cents
+        })
+      ]
+    });
+    expect(cashFlowsMissingInputs(engineInput)).toEqual([]);
+
+    const calendar = projectCashCalendar(engineInput, 70, 0n as Cents, feedFor(engineInput));
+    const receipts = calendar.days.flatMap((d) =>
+      d.flows.filter((f) => f.kind === 'BULK_RECEIPT')
+    );
+    // "Depends on the buyer" means both contracts are live at once.
+    expect(receipts.map((f) => f.amount_cents)).toEqual([600n * 370n, 400n * 555n]);
+  });
+
+  it('books the receipt NET and 30 days out, never gross on the day', () => {
+    const engineInput = input('2026-03-08', { parameters: settled(), sales: [order()] });
+    const calendar = projectCashCalendar(engineInput, 70, 0n as Cents, feedFor(engineInput));
+
+    const onTheDay = calendar.days.find((d) => d.date === '2026-03-08');
+    expect(onTheDay?.flows.some((f) => f.kind === 'BULK_RECEIPT')).toBe(false);
+
+    const paid = calendar.days.find((d) => d.date === '2026-04-07');
+    const receipt = paid?.flows.find((f) => f.kind === 'BULK_RECEIPT');
+    // $3.90 gross less the 10c fee and the 10c run (AD-55) = $3.70 a bird.
+    // Booking the $3,900 gross would overstate the balance by $200.
+    expect(receipt?.amount_cents).toBe(370000n);
+  });
+
+  it('refuses a BANDED order with no dressed weight rather than deriving one', () => {
+    const banded = order({ pricing_basis: 'BANDED', price_cents_per_bird: null, bands: BUYER_BANDS });
+    const missing = cashFlowsMissingInputs(
+      input('2026-03-08', { parameters: settled(), sales: [banded] })
+    );
+    // 1,843 g live x the assumed 62% would give 1,142 g and a $3.90 band. That
+    // is a real invoice priced off an estimate OQ-17 exists to replace.
+    expect(missing.map((m) => m.key)).toEqual(['dressed_weight']);
+  });
+
+  it('refuses a bird heavier than the contract rather than reusing the top band', () => {
+    const heavy = order({
+      avg_dressed_weight_g: 1780 as Grams,
+      pricing_basis: 'BANDED',
+      price_cents_per_bird: null,
+      bands: BUYER_BANDS
+    });
+    const missing = cashFlowsMissingInputs(
+      input('2026-03-08', { parameters: settled(), sales: [heavy] })
+    );
+    // The schedule stops at 1.3 kg and pays LESS as the bird gets heavier, so
+    // reusing the top band is an extrapolation that is not even conservative.
+    expect(missing.map((m) => m.key)).toEqual(['bulk_price']);
+    expect(missing[0]?.why).toMatch(/above this contract's top band/i);
+  });
+
+  it('refuses a BANDED order carrying no schedule, rather than borrowing the planning default', () => {
+    const naked = order({ pricing_basis: 'BANDED', price_cents_per_bird: null, avg_dressed_weight_g: 1250 as Grams });
+    const missing = cashFlowsMissingInputs(
+      input('2026-03-08', { parameters: settled(), sales: [naked] })
+    );
+    // parameters.bulk_bands is what an UNCONTRACTED future sale is planned
+    // against. Substituting it here would invent this buyer's terms.
+    expect(missing.map((m) => m.key)).toEqual(['bulk_price']);
+    expect(missing[0]?.why).toMatch(/planning default/);
   });
 });

@@ -605,6 +605,54 @@ Tracked in `current-issues.md`.
 
 ## Architecture Decisions
 
+**AD-57 · The bulk contract lives on the ORDER. Bulk net is wired. OQ-22 is
+closed by deletion.**
+Decided 2026-09-12. Asked whether the bulk deal is priced per live kg or by his
+dressed-weight bands, Daniel answered **"depends on the buyer"** — so the
+question had no single answer to find, and the structure has to hold both.
+
+**Three things landed together, and the order matters.**
+
+**1. The contract moved onto `SalesOrder`.** `pricing_basis` is now
+`SalePricingBasis` — `PER_BIRD | PER_KG | BANDED` — with `bands` and
+`avg_dressed_weight_g` beside it. Gate pricing stays `PricingBasis`, so a banded
+gate sale is unrepresentable rather than merely unlikely. Two buyers on one
+batch can now be priced by two different contracts, which is what his answer
+describes.
+
+**2. OQ-22 is closed by DELETING the loser, not by ranking the two.**
+`Parameters.bulk_price_cents_per_bird` is gone. It was declared, read nowhere,
+and stood as a second live source for a price the bands also claimed — the KB-3
+shape. Once the contract belongs to the order, a per-batch flat bulk price has
+nothing left to mean. `parameters.bulk_bands` SURVIVES, with a narrowed job: it
+is the PLANNING default for a bulk sale that has no buyer yet, which M4 needs
+and an invoice must never borrow.
+
+**3. Bulk net is wired into the cash calendar.** `BULK_RECEIPT` books
+`bulkNetCentsPerBird x bird_count` on order date + terms. Booking the gross
+contract price would overstate the balance by 20c a bird — $200 on a
+1,000-bird order — which is exactly the flattering direction this engine may not
+err in. The blanket "bulk net is not implemented" refusal is gone, replaced by a
+PER-ORDER check: one buyer's deal being unpriceable says nothing about
+another's.
+
+**What the engine now refuses, and why each refusal is a refusal rather than an
+estimate:**
+
+| Case | Refusal | Why not estimate |
+|---|---|---|
+| BANDED order, no dressed weight | `dressed_weight` | The ~62% yield is an estimate OQ-17 exists to replace. A forecast may use it; an invoice may not. |
+| BANDED order, no schedule | `bulk_price` | Substituting `parameters.bulk_bands` would invent this buyer's terms from another sale's planning default. |
+| Dressed weight above the top band | `bulk_price` | The schedule stops at 1.3 kg. It pays LESS as the bird gets heavier, so reusing the top band is an extrapolation that is not even conservative. |
+| Dressed weight below the lowest band | `bulk_price` | The contract does not say what it pays. |
+
+**A known inconsistency, logged rather than quietly fixed: OQ-30.**
+`bandForDressedG` still silently reuses the top band past 1.3 kg for M4's
+harvest PLANNING, while this sales path refuses. Both behaviours are defensible
+in their own context — a forecast has to produce a number, an invoice does not —
+but they are not obviously so, and the underlying question (what does a bird over
+1.3 kg dressed actually pay?) is question 2 on the Daniel list and unanswered.
+
 **AD-56 · Each overhead line is paid on its own cadence, and a monthly line is
 SPLIT rather than repeated.**
 Decided 2026-09-12, on Daniel's answer: *"labour when the batch is done, other

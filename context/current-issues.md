@@ -1404,6 +1404,36 @@ throws `NotImplementedError` ("still holds the module U5 has not built"), and
 that test would fail on the ceiling throw while the getter is no more usable
 than before. Task 9 lands with Task 8, not before it.
 
+### OQ-30 · One band schedule, two behaviours past its top band 🟠 OURS, PLUS ONE CLIENT QUESTION
+**Status:** Open, deliberate, logged rather than quietly reconciled.
+**Raised:** 2026-09-12, implementing AD-57.
+
+The bulk bands stop at 1.3 kg dressed. Above that the engine now does two
+different things:
+
+| Path | Above 1.3 kg dressed | |
+|---|---|---|
+| `bandForDressedG` (M4 harvest planning) | silently reuses the top band, $3.70 | unchanged |
+| `bulkContractProblems` (a real sale, AD-57) | refuses with `bulk_price` | new |
+
+**Each is defensible in its own context and the pair is not obviously so.** A
+forecast has to produce a number or say nothing at all about a day; an invoice
+has a real carcass and a real contract, and the contract is silent. But a reader
+finding both will reasonably ask which one the engine believes.
+
+**The client half:** *what does the contract pay for a bird over 1.3 kg
+dressed?* — question 2 on the Daniel list, unanswered. It is NOT in the six he
+answered on 2026-09-12. Once answered, both paths collapse to one rule.
+
+**Why it matters more than it looks.** The schedule pays LESS as the bird gets
+heavier, so reusing the top band is an extrapolation in the OPTIMISTIC direction
+— it assumes an over-held bird still fetches $3.70 when the trend of the
+schedule says it would fetch less. That is the direction this engine is not
+allowed to err in, and it currently does err in it on the planning path.
+
+**Do not fix by making the sales path extrapolate too.** That propagates the
+optimistic guess into real money.
+
 ### OQ-29 · A 1-bird placement step makes the enumeration 80x more expensive 🟠 OURS, NOT DANIEL'S
 **Status:** Open, measured, not yet fixed. **Raised:** 2026-09-12, implementing
 AD-53. **Affects:** `computeAllocation` latency at Daniel's real scale.

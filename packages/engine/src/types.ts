@@ -12,6 +12,22 @@ export type IsoDate = string & { readonly __brand: 'IsoDate' };
 export type Phase = 'STARTER' | 'GROWER' | 'FINISHER';
 export type Channel = 'GATE' | 'BULK';
 export type PricingBasis = 'PER_BIRD' | 'PER_KG';
+
+/**
+ * How ONE SALE is priced. A superset of `PricingBasis`, because a bulk contract
+ * can also be BANDED — a dressed-weight schedule of its own.
+ *
+ * **Per sale, not per parameter set** (AD-57). Asked whether the bulk deal is
+ * priced per live kg or by his dressed-weight bands, Daniel's answer was
+ * "depends on the buyer": both structures are real and they coexist. So the
+ * contract travels with the ORDER, which is the only place that knows which
+ * buyer it is for. `Parameters` holds no per-bird bulk price at all any more —
+ * see AD-57 on OQ-22.
+ *
+ * `BANDED` is meaningful only on a BULK order. Gate pricing stays
+ * `PricingBasis`, so the type makes a banded gate sale unrepresentable.
+ */
+export type SalePricingBasis = PricingBasis | 'BANDED';
 export type Confidence = 'measured' | 'calibrated' | 'assumed';
 export type DeliveryMode = 'ABATTOIR' | 'DIRECT';
 
@@ -110,9 +126,30 @@ export interface SalesOrder {
   readonly order_date: IsoDate;
   readonly bird_count: number;
   readonly avg_live_weight_g: Grams;
-  readonly pricing_basis: PricingBasis;
+  /**
+   * DRESSED weight, when it is known. Null means nobody weighed the carcass.
+   *
+   * Required for a `BANDED` order and for nothing else: the bands key on
+   * dressed weight, and deriving it from live weight would route a real invoice
+   * through the assumed ~62% yield that OQ-17 exists to replace. A forecast may
+   * use that yield — M4's harvest plan does, and says so — but a sale that has
+   * already happened has a real number, and the engine asks for it rather than
+   * estimating one (AD-57).
+   */
+  readonly avg_dressed_weight_g: Grams | null;
+  readonly pricing_basis: SalePricingBasis;
   readonly price_cents_per_bird: Cents | null;
   readonly price_cents_per_kg: Cents | null;
+  /**
+   * THIS buyer's dressed-weight schedule, for a `BANDED` order. Null otherwise.
+   *
+   * On the order rather than on `Parameters` because the contract is the
+   * buyer's, and Daniel sells to more than one (AD-57).
+   * `Parameters.bulk_bands` survives as the PLANNING default — what M4 assumes a
+   * future, uncontracted bulk sale would fetch — which is a different question
+   * from what this invoice says.
+   */
+  readonly bands: readonly BulkBand[] | null;
   readonly terms_days: number;
 }
 
@@ -204,18 +241,6 @@ export interface Parameters {
   readonly gate_price_cents_per_kg: Cents | null;
   readonly gate_pricing_basis: PricingBasis;
   readonly gate_capacity_per_day: number;
-  /**
-   * NOT READ BY THE ENGINE TODAY. M4 prices bulk from the contract's dressed-
-   * weight bands (`bulk_bands` / `SEED_BULK_BANDS`), which is the client's own
-   * schedule; this flat per-bird figure is reserved for M5b's bulk-net
-   * computation, which is blocked on OQ-2's transport half and OQ-16.
-   *
-   * Flagged rather than deleted, and flagged rather than quietly honoured:
-   * two live sources for one price is exactly the shape of KB-3, and setting
-   * this field today changes nothing. Which source wins is M5b's decision to
-   * make once OQ-16 lands, not one to pre-empt here. See OQ-22.
-   */
-  readonly bulk_price_cents_per_bird: Cents | null;
   /** null until the client answers OQ-2. Never estimate. */
   readonly abattoir_fee_cents: Cents | null;
   /** null until the client answers OQ-2. Never estimate. */
@@ -242,7 +267,16 @@ export interface Parameters {
    * top of an approximate 62% (AD-33).
    */
   readonly dressing_yield_pct?: number;
-  /** Omitted means `SEED_BULK_BANDS` — the client's own contract bands. */
+  /**
+   * The PLANNING default bulk schedule — what M4 assumes an uncontracted future
+   * bulk sale would fetch. Omitted means `SEED_BULK_BANDS`, the client's own
+   * bands.
+   *
+   * **Not a price source for an actual order** (AD-57). A real BULK sale carries
+   * its own contract on `SalesOrder`, because Daniel's answer to how bulk is
+   * priced was "depends on the buyer". A forecast has no buyer to ask, which is
+   * why this still exists.
+   */
   readonly bulk_bands?: readonly BulkBand[];
   /**
    * What the feed supplier charges to deliver, per tonne collected. Omitted
@@ -406,6 +440,13 @@ export interface EngineInput {
 }
 
 export type MissingInputKey =
+  /**
+   * A BANDED order with no dressed weight on it. Present-but-unusable in the
+   * same sense `feed_draw_bags` is: the bands key on a carcass weight nobody
+   * recorded, and the ~62% yield that would fill the gap is an estimate OQ-17
+   * exists to replace. A real invoice does not get priced off an estimate.
+   */
+  | 'dressed_weight'
   | 'abattoir_fee'
   | 'transport_cents_per_bird'
   | 'gate_price'

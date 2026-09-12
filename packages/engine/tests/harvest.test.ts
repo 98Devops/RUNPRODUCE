@@ -42,7 +42,6 @@ function parameters(overrides: Partial<Parameters> = {}): Parameters {
     gate_price_cents_per_kg: null,
     gate_pricing_basis: 'PER_BIRD' as PricingBasis,
     gate_capacity_per_day: 750,
-    bulk_price_cents_per_bird: 390n as Cents,
     abattoir_fee_cents: null,
     transport_cents_per_bird: null,
     delivery_mode: 'ABATTOIR',
