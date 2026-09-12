@@ -208,6 +208,116 @@ one. See AD-26, and OQ-14 below, which this closes.
 
 ---
 
+## FOR US TO BUILD — bulk revenue, complete, 2026-09-12
+
+**Daniel is never asked about any of this.** Same trace as the Daniel list;
+these are the gaps where the missing thing is code, not information.
+
+**On the critical path to a bulk number:**
+
+1. **Bulk net is not implemented at all.** `grep bulk_net src/` returns nothing.
+   `receiptCents` computes a GROSS amount and the BULK branch in
+   `projectCashCalendar` refuses rather than booking it. Verified 2026-09-12:
+   supplying a hypothetical transport value still throws. **Answering OQ-2
+   closes one gap of two.**
+2. **No revenue, profit, margin or break-even exists anywhere in the engine.**
+   `CostingResult` is costs only. The brief asks outright for break-even
+   quantity ("how many birds must be sold to recover...") and profit, and none
+   of it is built. "Bulk profitability end to end" needs this, not just a net
+   per bird.
+3. **`SalesOrder` carries no dressed weight.** Bands key on `dressed_floor_g`;
+   orders carry `avg_live_weight_g` only, so every band lookup routes through
+   the assumed 62% yield even when a real dressed weight is known.
+4. **OQ-22 is still undecided** — `bulk_price_cents_per_bird` is declared and
+   read nowhere, while M4 prices bulk off the bands. Two live sources for one
+   price. It moved out of M5b because M5b never computes a bulk net; it lands
+   with whichever unit does.
+
+**Correctness, found by this pass:**
+
+5. **`SEED_OVERHEADS` still charges the retired $400.** `transport_other`,
+   `amount_cents: 40000n`, PER_BIRD at 3,000 birds. Daniel retired this line on
+   2026-09-12, so every `overhead_cost_cents`,
+   `full_production_cost_cents` and day-1 cash lump is now overstated by
+   13.3c/bird. **No golden fixture asserts an overhead-inclusive figure**
+   (checked: fixtures assert feed cost, feed kg, FCR, cumulative feed, draw
+   bags, hold cost, due dates, harvest day, gate window, flock size, and one
+   refusal), so removing it is contained — but it must be a deliberate AD, not
+   a quiet edit, because it changes the client's own historical baseline.
+6. **Sales are not reconciled against live birds.** Verified 2026-09-12:
+   `computeDecision` returns `ok` for a GATE order of **999,999 birds from a
+   3,000-bird batch**, and `ok` for a bird count of **−500**. Revenue would be
+   computed on birds that do not exist. This is the most direct gap against
+   Daniel's robustness request, and it is entirely ours to close.
+7. **`transport_cents_per_bird` is required in both delivery modes**, with no
+   distinction between the run to the abattoir and a direct delivery to the
+   buyer — which the client explicitly asked to be supported as an edge case.
+   Only the abattoir FEE is gated on `delivery_mode`.
+8. **`SalesOrder` has no offal fields.** `architecture.md` and AD-32 specify
+   `offal_disposition` and `offal_value_cents` (null meaning "not valued", which
+   is not zero); the engine type has neither, so a future deal that pays for
+   offals cannot be compared against this one.
+9. **`mortality_history` is a declared `MissingInputKey` emitted nowhere** —
+   the same dead-slot shape as OQ-22, and worth either wiring or deleting.
+10. **OQ-28 has no field yet** — `delivery_cents_per_tonne` on `Parameters` plus
+    a derived `delivery_cents` beside `total_cents` on `DrawLiability`. Design
+    chosen; blocked only on Daniel's timing answer (item 6 on his list).
+
+**Already logged, still open, on the path to a usable answer:**
+
+11. **OQ-25** — no cash balance in `EngineInput`, so M5b Task 9 cannot wire
+    `decision.allocation`. Needs U6.
+12. **OQ-26** — Cover Fast structurally cannot answer; needs M6's channel split.
+
+**Was there anything behind these?** The pass was run twice. The second run
+found items 5, 6, 8 and 9, and found that OQ-24 duplicated OQ-13 — i.e. the
+first pass was itself incomplete. Items 5 and 6 were only visible by executing
+the engine rather than reading it. **Treat any NEW client question arising on
+this topic as evidence this pass missed something**, and check here first.
+
+## THE DANIEL LIST — bulk revenue, complete, 2026-09-12
+
+**This is the whole of what only Daniel can answer on this topic.** Produced by
+a full end-to-end trace of the bulk-revenue path on 2026-09-12, after two
+earlier rounds each found a gap hiding behind the last. Every item was verified
+against code or client files, not recalled. **Nothing further should be sent to
+him about bulk revenue after this — if a new question appears, it means this
+pass missed something and that is worth knowing.**
+
+**Blocks a bulk number outright:**
+
+| # | Question | Why it blocks | Ref |
+|---|---|---|---|
+| 1 | What does it cost to get one load of birds to the abattoir — per bird, or per truckload and how many birds fit? | `transport_cents_per_bird` is the last unknown term in gross − fee − transport | OQ-2 |
+| 2 | The contract pays $3.90 at 1.1 kg dressed, $3.80 at 1.2, $3.70 at 1.3. What does it pay above 1.3 kg dressed? | `bandForDressedG` silently reuses the top band past 1.3 kg — an extrapolation past the contract's stated range | new |
+| 3 | Is the bulk deal per bird (the bands) or per kg? Your record shows one sale at $2.00/kg — $5.75/bird at 2.875 kg, against a top band of $3.70. | Two incompatible pricing structures; the engine cannot choose | new, relates OQ-22 |
+
+**Changes the number materially:**
+
+| # | Question | Why | Ref |
+|---|---|---|---|
+| 4 | Roughly 20 paired live/dressed weights, or your measured dressing percentage | Bulk price is banded on DRESSED weight; every bulk figure currently rests on an assumed 62% | OQ-17 |
+| 5 | Two feed prices appear in your file — $32.50 a starter bag on the daily sheet, $31.60 on the feed account. Which is current? | 3-5% on the largest single cost; no cross-check exists | OQ-13 |
+| 6 | Is the $40/tonne feed transport paid on collection, or on the same 30 days as the feed? | Changes the cash calendar, not just the total | OQ-28 |
+| 7 | Do labour and electricity stay flat at 30,000 birds, or scale? | Measured at 3,000 only | OQ-15 |
+| 8 | Does the bulk buyer cap how many birds he will take? | "Guaranteed outlet" with no stated ceiling; decides whether bulk can absorb a whole flock | new |
+| 9 | Does the feed supplier ever invoice a part bag, or do you always collect whole 50 kg bags? | Feed cost feeds core credit and break-even | OQ-21 |
+| 10 | Day 40 shows 2,789 g — a jump of +227 g against about 90 g/day. Typo or real? | Weight → dressed weight → band → price | OQ-6 |
+
+**Smaller, but ask now rather than later:**
+
+| # | Question | Ref |
+|---|---|---|
+| 11 | If you ever deliver straight to the buyer instead of the abattoir, is transport the same per bird? | new |
+| 12 | When do you actually pay labour and electricity — per batch, monthly, or on some other date? | OQ-19 |
+| 13 | What unit does the hatchery invoice chicks in — boxes of 100, or something else? | OQ-18 |
+
+**Deliberately NOT on this list:** anything the engine can settle itself.
+Everything in "for us to build" below is ours and Daniel is never asked about
+it. Recording that boundary matters as much as the list — three of the gaps
+found on 2026-09-12 had been sitting behind a client question that would never
+have revealed them.
+
 ### OQ-13 · Which feed price set is current? 🟠 BLOCKS NOTHING
 **Status:** Open, and deliberately not blocking. **Affects:** every money
 figure downstream *if* the answer turns out to be the cheaper set.
@@ -1425,6 +1535,17 @@ guess and no new API surface, and it preserves the CI property that a fixture
 targeting `decision.allocation` stays *held* rather than failing. Options 1 and
 3 are both reasonable once there is a real balance to carry; picking between
 them before U6 exists is deciding in the dark.
+
+### OQ-24 · ~~The workbook carries TWO feed prices~~ 🔁 DUPLICATE OF OQ-13
+**Closed as a duplicate 2026-09-12**, found by the full bulk-path trace.
+**OQ-13 already covers this and covers it better** — it records that the
+Record-vs-Feed-Account split is KB-8, that reconciling to the Final Report is
+circular (`Final!C4 = Record!N93`, a re-presentation not a cross-check), and
+that only Daniel can settle it. The brief adds a third statement of the same
+prices ($31.60 / $29.60 / $28.60 per bag) which AGREES with the Feed Account,
+so it is two sets and not three. Folded into OQ-13; ask it there, once.
+
+**Original entry below, superseded.**
 
 ### OQ-24 · The workbook carries TWO feed prices 🟡 NOT YET ASKED
 **Status:** Open, **deliberately not sent to Daniel yet** (2026-09-11) — it
