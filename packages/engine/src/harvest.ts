@@ -1,4 +1,5 @@
 import { SEED_BREED_CURVE, pointForDay } from './breed-curve.js';
+import { costOfFeed } from './costing.js';
 import type {
   BreedCurve,
   BulkBand,
@@ -9,6 +10,7 @@ import type {
   HoldCost,
   MortalityModel,
   Parameters,
+  PhasePricing,
   ProductionProjection,
   YieldSensitivity
 } from './types.js';
@@ -176,9 +178,9 @@ export function bandForDressedG(bands: readonly BulkBand[], dressed_g: number): 
 }
 
 /** Grams at a per-kg rate, rounding UP — a cost must never round in our favour. */
-function feedCostCents(grams: bigint, price_per_kg_cents: Cents): bigint {
-  return (grams * price_per_kg_cents + 999n) / 1000n;
-}
+// Feed is priced by `costOfFeed` (costing.ts) — this module carried its own
+// copy of the rounding rule until AD-52, which is exactly the shape of
+// duplication that lets two feed figures in one engine disagree.
 
 /** First day the curve's weight reaches `target_g`, or null if it never does. */
 function firstDayAtWeight(curve: BreedCurve, target_g: number): number | null {
@@ -301,14 +303,14 @@ export function planHarvest(input: EngineInput, production: ProductionProjection
   const dressedG = (day: number): number =>
     Math.floor((pointForDay(curve, day).weight_g * yield_pct) / 100);
 
-  const phaseRate = (day: number): Cents => {
+  const phasePricing = (day: number): PhasePricing => {
     const phase = curve.phases.find((p) => p.phase === pointForDay(curve, day).phase);
     if (phase === undefined) throw new Error(`No phase pricing for day ${day}`);
-    return phase.price_per_kg_cents;
+    return phase;
   };
 
   const feedCentsForBirds = (day: number, birds: number): bigint =>
-    feedCostCents(BigInt(birds) * BigInt(pointForDay(curve, day).feed_g), phaseRate(day));
+    costOfFeed(BigInt(birds) * BigInt(pointForDay(curve, day).feed_g), phasePricing(day));
 
   /**
    * Invariant 5, in its sharpest form. This returned `0n` for a null gate

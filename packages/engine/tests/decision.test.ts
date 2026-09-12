@@ -54,7 +54,7 @@ describe('computeDecision', () => {
     expect(result.kind).toBe('ok');
     if (result.kind !== 'ok') return;
     expect(result.decision.production.total_feed_kg).toBe(13224);
-    expect(result.decision.costing.feed_cost_cents).toBe(807981n);
+    expect(result.decision.costing.feed_cost_cents).toBe(769806n);
   });
 
   it('refuses to price a BULK sale with no abattoir fee, naming both gaps (fixture 13)', () => {

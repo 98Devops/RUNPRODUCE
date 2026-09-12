@@ -29,11 +29,25 @@ export interface BreedCurvePoint {
   readonly phase: Phase;
 }
 
+/**
+ * What a phase's feed costs, in the unit the supplier actually invoices: a bag.
+ *
+ * NOT cents per kg (AD-52). Daniel's current prices are $30.60 / $29.60 /
+ * $28.60 a 50 kg bag, which are 61.2 / 59.2 / 57.2 cents a kg — rates `Cents`
+ * cannot hold. Rounding to whole cents per kg would bend the largest single
+ * cost in the business, and rounding it DOWN (61c) would under-charge it,
+ * which is the flattering direction this engine must never err in.
+ *
+ * `bag_kg` travels with the price rather than being a module constant because
+ * the price is meaningless without it, and `FeedDraw.price_per_bag_cents`
+ * already prices real draws the same way.
+ */
 export interface PhasePricing {
   readonly phase: Phase;
   readonly first_day: DayNumber;
   readonly last_day: DayNumber;
-  readonly price_per_kg_cents: Cents;
+  readonly price_per_bag_cents: Cents;
+  readonly bag_kg: number;
 }
 
 export interface BreedCurve {

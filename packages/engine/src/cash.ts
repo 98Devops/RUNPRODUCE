@@ -124,7 +124,7 @@ function pricePlannedDrawSpan(
   }
   let cents = 0n;
   for (const phase of curve.phases) {
-    cents += costOfFeed(gramsByPhase[phase.phase], phase.price_per_kg_cents);
+    cents += costOfFeed(gramsByPhase[phase.phase], phase);
   }
   return cents as Cents;
 }

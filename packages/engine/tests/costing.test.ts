@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computeCosting } from '../src/costing.js';
+import { computeCosting, costOfFeed } from '../src/costing.js';
 import { projectProduction } from '../src/production.js';
 import { Money } from '../src/money.js';
 import type {
@@ -54,8 +54,8 @@ const costingFor = (overrides: Partial<EngineInput> = {}) => {
 const NO_OVERHEADS: OverheadModel = { lines: [] };
 
 describe('computeCosting — the client’s own Final Report', () => {
-  it('reproduces the $8,079.81 feed cost at day 41 (fixture 1)', () => {
-    expect(costingFor().feed_cost_cents).toBe(807981n);
+  it('reproduces the $7,698.06 feed cost at day 41 (fixture 1, AD-52 prices)', () => {
+    expect(costingFor().feed_cost_cents).toBe(769806n);
   });
 
   it('charges every placed chick, extras included (KB-1)', () => {
@@ -66,7 +66,7 @@ describe('computeCosting — the client’s own Final Report', () => {
   });
 
   it('makes core credit chicks + feed and nothing else (invariant 15)', () => {
-    expect(costingFor().core_credit_cents).toBe(300000n + 807981n);
+    expect(costingFor().core_credit_cents).toBe(300000n + 769806n);
   });
 
   it('charges his four measured overheads — $1,222.00 at 3,000 birds (AD-26)', () => {
@@ -84,20 +84,21 @@ describe('computeCosting — the client’s own Final Report', () => {
     expect(costing.full_production_cost_cents).toBe(
       costing.core_credit_cents + costing.overhead_cost_cents
     );
-    expect(costing.full_production_cost_cents).toBe(1190181n);
+    expect(costing.full_production_cost_cents).toBe(1152006n);
   });
 });
 
 describe('computeCosting — feed is priced by phase', () => {
   it('prices each phase at its own rate, not one blended rate', () => {
-    // STARTER 1,149 kg @ $0.65, GROWER 4,398 @ $0.62, FINISHER 7,677 @ $0.60.
-    expect(costingFor().feed_cost_cents).toBe(74685n + 272676n + 460620n);
+    // STARTER 1,149 kg @ $30.60/bag, GROWER 4,398 @ $29.60, FINISHER 7,677 @ $28.60.
+    // Each phase rounds UP on its own: 70,318.8 / 260,361.6 / 439,124.4 cents.
+    expect(costingFor().feed_cost_cents).toBe(70319n + 260362n + 439125n);
   });
 
   it('charges only the phases reached so far', () => {
-    // Day 13 is the last STARTER day: 383 g/bird over 3,000 birds @ $0.65.
+    // Day 13 is the last STARTER day: 383 g/bird over 3,000 birds @ $30.60/50 kg.
     const day13 = costingFor({ asOf: '2026-02-18' as IsoDate });
-    expect(day13.feed_cost_cents).toBe(74685n);
+    expect(day13.feed_cost_cents).toBe(70319n);
   });
 
   it('prices feed against opening birds, so a dead bird’s feed is still paid for', () => {
@@ -116,8 +117,8 @@ describe('computeCosting — feed is priced by phase', () => {
         }
       ]
     });
-    // 3,000 birds eat on both days: 90 kg @ $0.65 = $58.50.
-    expect(withDeaths.feed_cost_cents).toBe(5850n);
+    // 3,000 birds eat on both days: 90 kg @ $30.60/50 kg = $55.08, exact.
+    expect(withDeaths.feed_cost_cents).toBe(5508n);
   });
 });
 
@@ -138,5 +139,24 @@ describe('computeCosting — overheads', () => {
     // Vaccine and transport are PER_BIRD and double; labour and electricity
     // are PER_BATCH and do not (OQ-15 is the open question about that).
     expect(bigger.overhead_cost_cents).toBe(82200n + 4200n);
+  });
+});
+
+describe('costOfFeed — bag pricing (AD-52)', () => {
+  const starter = { phase: 'STARTER' as const, first_day: 1 as DayNumber, last_day: 13 as DayNumber, price_per_bag_cents: Money.fromCents(3060n), bag_kg: 50 };
+
+  it('prices a whole bag exactly', () => {
+    expect(costOfFeed(50_000n, starter)).toBe(3060n);
+  });
+
+  it('prices a sub-cent-per-kg rate without inventing a whole-cent rate', () => {
+    // 1,149,000 g is 61.2c/kg x 1,149 kg = 70,318.8c. A 61c/kg rate would
+    // charge 70,089c — $2.30 light on one phase of one batch.
+    expect(costOfFeed(1_149_000n, starter)).toBe(70319n);
+    expect(costOfFeed(1_149_000n, starter)).toBeGreaterThan(1_149_000n * 61n / 1000n);
+  });
+
+  it('rounds UP, never in our favour', () => {
+    expect(costOfFeed(1n, starter)).toBe(1n);
   });
 });

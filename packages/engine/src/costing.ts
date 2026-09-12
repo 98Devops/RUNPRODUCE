@@ -5,6 +5,7 @@ import type {
   CostingResult,
   EngineInput,
   Phase,
+  PhasePricing,
   ProductionProjection
 } from './types.js';
 
@@ -45,7 +46,7 @@ export function computeCosting(
 
   let feed_cost_cents = 0n;
   for (const phase of curve.phases) {
-    feed_cost_cents += costOfFeed(feedGByPhase[phase.phase], phase.price_per_kg_cents);
+    feed_cost_cents += costOfFeed(feedGByPhase[phase.phase], phase);
   }
 
   const core_credit_cents = (chick_cost_cents + feed_cost_cents) as Cents;
@@ -65,17 +66,31 @@ export function computeCosting(
 }
 
 /**
- * Grams at a per-kg rate, in `bigint`, rounding **up**. The division is exact
- * on whole kilograms; elsewhere a cost rounded down would flatter a break-even,
- * which is the one direction this engine must never err in (AD-26). At most one
- * cent per phase.
+ * Grams at a phase's BAG price, in `bigint`, rounding **up**.
  *
- * Exported so `cash.ts` can price a `PlannedDraw`'s span with the identical
- * rounding rule rather than a second copy of it — a planned draw's money is
- * derived the same way every other feed cost in the engine is.
+ * `grams x bag_cents / (bag_kg x 1000)` — the bag price divided down to the
+ * gram in one integer expression, never through an intermediate per-kg rate
+ * (AD-52). Daniel's $30.60 over a 50 kg bag is 61.2 cents a kg, and any whole-
+ * cent per-kg rate is a different price from the one he pays: 61c under-charges
+ * this batch's starter phase by $2.30, 62c over-charges it by $9.19.
+ *
+ * The division is exact on a whole bag and on many other quantities; elsewhere
+ * it rounds UP, because a cost rounded down flatters a break-even, which is the
+ * one direction this engine must never err in (AD-26). At most one cent per
+ * phase.
+ *
+ * Exported so `cash.ts` and `harvest.ts` price feed with the identical
+ * rounding rule rather than three copies of it — `harvest.ts` carried its own
+ * duplicate until AD-52 removed it.
  */
-export function costOfFeed(grams: bigint, price_per_kg_cents: Cents): bigint {
-  const product = grams * price_per_kg_cents;
-  const whole = product / 1000n;
-  return product % 1000n === 0n ? whole : whole + 1n;
+export function costOfFeed(grams: bigint, pricing: PhasePricing): bigint {
+  if (!Number.isInteger(pricing.bag_kg) || pricing.bag_kg <= 0) {
+    throw new Error(
+      `costOfFeed: ${pricing.phase} has a bag size of ${pricing.bag_kg} kg, which cannot price feed`
+    );
+  }
+  const perBagGrams = BigInt(pricing.bag_kg) * 1000n;
+  const product = grams * pricing.price_per_bag_cents;
+  const whole = product / perBagGrams;
+  return product % perBagGrams === 0n ? whole : whole + 1n;
 }

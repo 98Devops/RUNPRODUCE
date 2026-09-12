@@ -182,11 +182,11 @@ describe('projectCashCalendar — planned feed draws (finding 1)', () => {
 
     // Planned draw 2 (feed.test.ts: collection 2026-02-20, days 15-21) is
     // entirely GROWER: 67+73+80+86+93+100+107 = 606 g/bird x 3,000 birds =
-    // 1,818,000 g, at GROWER's 62 cents/kg = 112,716 cents exactly (no
-    // rounding needed — divides evenly). Due 30 days later: 2026-03-22.
+    // 1,818,000 g, at GROWER's $29.60 a 50 kg bag = 107,625.6 cents, rounded
+    // UP to 107,626 (AD-52). Due 30 days later: 2026-03-22.
     const dueDay = calendar.days.find((d) => d.date === '2026-03-22');
     expect(dueDay?.flows.map((f) => f.kind)).toContain('PLANNED_FEED_DRAW_PAYMENT');
-    expect(dueDay?.out_cents).toBe(112716n);
+    expect(dueDay?.out_cents).toBe(107626n);
 
     expect(calendar.planned_feed_confidence).toBe('assumed');
   });

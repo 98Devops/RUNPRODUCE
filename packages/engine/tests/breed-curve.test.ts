@@ -9,13 +9,27 @@ describe('SEED_BREED_CURVE', () => {
     expect(SEED_BREED_CURVE.points[40]?.day_number).toBe(41);
   });
 
-  it('carries the client phase prices as cents per kg', () => {
+  it("carries Daniel's current bag prices, in the 50 kg unit he is invoiced in", () => {
     const byPhase = Object.fromEntries(
-      SEED_BREED_CURVE.phases.map((p) => [p.phase, p.price_per_kg_cents])
+      SEED_BREED_CURVE.phases.map((p) => [p.phase, p.price_per_bag_cents])
     );
-    expect(byPhase['STARTER']).toBe(Money.fromDollars(0.65));
-    expect(byPhase['GROWER']).toBe(Money.fromDollars(0.62));
-    expect(byPhase['FINISHER']).toBe(Money.fromDollars(0.6));
+    expect(byPhase['STARTER']).toBe(Money.fromDollars(30.6));
+    expect(byPhase['GROWER']).toBe(Money.fromDollars(29.6));
+    expect(byPhase['FINISHER']).toBe(Money.fromDollars(28.6));
+    for (const phase of SEED_BREED_CURVE.phases) {
+      expect(phase.bag_kg).toBe(50);
+    }
+  });
+
+  /**
+   * The reason phase pricing is expressed per BAG at all (AD-52). $30.60 over a
+   * 50 kg bag is 61.2 cents a kg, which `Cents` cannot hold, and rounding it to
+   * 61c would under-charge the largest single cost in the business.
+   */
+  it('carries a bag price that is not expressible as whole cents per kg', () => {
+    const starter = SEED_BREED_CURVE.phases.find((p) => p.phase === 'STARTER');
+    expect(starter).toBeDefined();
+    expect(starter!.price_per_bag_cents % BigInt(starter!.bag_kg)).not.toBe(0n);
   });
 
   it('assigns phases by day range', () => {

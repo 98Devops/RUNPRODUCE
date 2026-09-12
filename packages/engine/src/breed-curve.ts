@@ -34,7 +34,8 @@ const phases: PhasePricing[] = PHASE_NAMES.map((phase) => {
     phase,
     first_day: first as DayNumber,
     last_day: last as DayNumber,
-    price_per_kg_cents: Money.fromDollars(entry.price_per_kg)
+    price_per_bag_cents: Money.fromDollars(entry.price_per_bag),
+    bag_kg: entry.bag_kg
   };
 });
 

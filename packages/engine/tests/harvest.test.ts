@@ -303,12 +303,12 @@ describe('planHarvest — hold cost', () => {
     if (hold === undefined) throw new Error('no hold cost through day 35');
 
     expect(hold.through_day).toBe(35);
-    expect(hold.feed_cents).toBe(266946n);
+    expect(hold.feed_cents).toBe(254491n);
     expect(hold.birds_lost).toBe(125);
     expect(hold.gate_value_lost_cents).toBe(53125n);
-    expect(hold.gate_total_cents).toBe(320071n);
+    expect(hold.gate_total_cents).toBe(307616n);
     expect(hold.bulk_value_lost_cents).toBe(46250n);
-    expect(hold.bulk_total_cents).toBe(313196n);
+    expect(hold.bulk_total_cents).toBe(300741n);
   });
 
   it('grows with every further day held', () => {
@@ -328,9 +328,9 @@ describe('planHarvest — hold cost', () => {
 describe('planHarvest — cost of delay per day', () => {
   it('prices the marginal day past each channel target against the live flock', () => {
     const { cost_of_delay_per_day } = plan(41, 3000);
-    // Day 32 feed is 176 g a bird at $0.60/kg over 3,000 birds, plus 15 birds.
-    expect(cost_of_delay_per_day.gate).toBe(31680n + 6375n);
-    expect(cost_of_delay_per_day.bulk).toBe(31680n + 5850n);
+    // Day 32 feed is 176 g a bird at $28.60 a 50 kg bag over 3,000 birds, plus 15 birds.
+    expect(cost_of_delay_per_day.gate).toBe(30202n + 6375n);
+    expect(cost_of_delay_per_day.bulk).toBe(30202n + 5850n);
   });
 });
 
