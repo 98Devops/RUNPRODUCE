@@ -4,8 +4,44 @@ Update this file after every meaningful implementation change.
 
 ## Current Phase
 
-**U5 — M5b allocation enumeration. Tasks 1-7 built; Tasks 8 and 9 blocked
-on OQ-23.** Branch `u5-m5b-allocation-enumeration`, started 2026-09-11,
+**U5 — Daniel's six answers wired, 2026-09-12.** Branch
+`u5-m5b-allocation-enumeration`. Six client answers landed in one session and
+became **AD-52 to AD-57**, one commit each, plus a context sync. **330 unit tests
+green** (was 302), golden 11 written / 11 passing / 1 held, lint and typecheck
+clean.
+
+| Answer | What landed | AD | Commit |
+|---|---|---|---|
+| Feed prices — a THIRD set, $30.60/$29.60/$28.60 a bag | Phase pricing moved to per-BAG, since 61.2c/kg is not expressible in `Cents`. Fixtures 1 and 7 regenerated: **$7,698.06** and **$3,076.16** | AD-52 | `b57590a` |
+| Chicks invoiced per chick | `placement_step_birds` = 1; nothing rounds a recommendation | AD-53 | `f3249f7` |
+| Feed delivery paid on collection | `delivery_cents` per tonne collected, beside the feed total, on its own flow kind | AD-54 | `7eda533` |
+| Abattoir run 10c/bird | Separate from the 10c fee — 20c in total; bulk net now computable | AD-55 | `ec80c2c` |
+| "Labour when the batch is done, others as they arise" | Per-line `timing`; a MONTHLY line is SPLIT, never repeated | AD-56 | `8af6112` |
+| Bulk pricing "depends on the buyer" | The contract moved onto `SalesOrder`; bulk net wired into the calendar; OQ-22 closed by deletion | AD-57 | `7a10cb3` |
+
+**Six open questions closed** — OQ-2, OQ-13, OQ-18, OQ-22, OQ-24, OQ-28 — and
+OQ-19 narrowed. **Two new ones opened, both ours rather than Daniel's:**
+**OQ-29** (a 1-bird grid takes 20.8 s at his real scale) and **OQ-30** (the band
+schedule extrapolates in planning while refusing in sales).
+
+**Two figures that moved and are worth knowing before anyone reads a total:**
+feed cost at day 41 fell 4.7% to $7,698.06, and day-1 overhead outflow fell from
+$822.00 to $145.87 with $640 of labour moving to day 31 — which flattens the
+early-cycle trough the reserve-floor filter reads.
+
+**One process note, recorded honestly.** AD-52 to AD-56 were built test-first —
+test written, watched fail, then implementation. **AD-57 was not**: the types and
+`cash.ts` changes were written before its tests, and the tests were then checked
+against a deliberate mutation (booking gross instead of net) to confirm they
+bite. That is weaker than TDD and it is recorded rather than smoothed over.
+
+**Still blocked, unchanged by any of this:** M5b Tasks 8 and 9 wait on **OQ-25**
+(no opening cash balance in `EngineInput`, needs U6).
+
+---
+
+**Previous phase — U5 M5b allocation enumeration. Tasks 1-7 built; Tasks 8 and 9
+were blocked on OQ-23.** Branch `u5-m5b-allocation-enumeration`, started 2026-09-11,
 TDD throughout — test written and watched fail, then implementation, then
 the suite green, one commit per task.
 
