@@ -17,6 +17,41 @@ import type {
 } from './types.js';
 
 /**
+ * The abattoir's cash fee per bird — **10 cents**, answered by the client
+ * 2026-09-10 (OQ-2, first half). The abattoir also keeps the offals, which is
+ * real value given up and is recorded rather than costed (AD-32).
+ */
+export const SEED_ABATTOIR_FEE_CENTS = 10n as Cents;
+
+/**
+ * What the run to the abattoir costs per bird — **10 cents**, answered by the
+ * client 2026-09-12 (OQ-2, second half, closing it).
+ *
+ * **A SEPARATE cost from the fee above, which happens to be the same number**
+ * (AD-55). One is what the abattoir charges to slaughter; the other is the
+ * truck that gets the birds there. They were answered two days apart, they can
+ * move independently, and one shared 10c constant would make today's
+ * coincidence permanent and untraceable. Three different transport costs have
+ * been in play on this project and conflating any two produces a double-count
+ * or a hole — see `SEED_DELIVERY_CENTS_PER_TONNE` (feed delivery) and the
+ * retired $400 "Other/Transport" overhead (OQ-16).
+ *
+ * **Charged on both delivery modes.** Whether a DIRECT run to the buyer costs
+ * the same per bird is unanswered; this charges the one figure we have either
+ * way, which is the conservative direction. The abattoir FEE, by contrast, is
+ * correctly dropped on a DIRECT delivery — no abattoir, no fee.
+ */
+export const SEED_TRANSPORT_CENTS_PER_BIRD = 10n as Cents;
+
+/**
+ * Everything abattoir-related, per bird: **20 cents**. Named so the total is
+ * derived from its two parts in one place rather than typed as a literal
+ * anywhere, and so a change to either part cannot leave the total stale.
+ */
+export const SEED_ABATTOIR_COST_CENTS_PER_BIRD = (SEED_ABATTOIR_FEE_CENTS +
+  SEED_TRANSPORT_CENTS_PER_BIRD) as Cents;
+
+/**
  * What the calendar cannot compute, and why — checked BEFORE projecting.
  *
  * M5b calls this first: a candidate that cannot be scored must return
@@ -43,12 +78,12 @@ export function cashFlowsMissingInputs(input: EngineInput): MissingInput[] {
     missing.push({
       key: 'transport_cents_per_bird',
       why:
-        'Bulk net needs the cost of the run to the abattoir, and nobody has supplied it ' +
-        '(OQ-2, transport half — the abattoir FEE was answered 2026-09-10 at 10c/bird, the ' +
-        'RUN was not). OQ-16 no longer gates this: the client retired the $400 ' +
-        'Other/Transport line on 2026-09-12, so there is no overhead left for this to ' +
-        'double-count against. Retiring that line did NOT supply this value, and it is not ' +
-        'zero by default — nobody has said the truck is free.'
+        'Bulk net needs the cost of the run to the abattoir. The client answered it on ' +
+        '2026-09-12 — 10 cents a bird, SEED_TRANSPORT_CENTS_PER_BIRD, separate from the ' +
+        '10c abattoir fee answered 2026-09-10, so 20c a bird in total — but this input ' +
+        'does not carry it. A value being known is not the same as it being supplied, and ' +
+        'nothing reads the seed behind the back of a caller: the seed is what an app-level ' +
+        'default should be built from, not a silent fallback here.'
     });
   }
   // OQ-16 is a question about the FORMULA — whether transport belongs in bulk

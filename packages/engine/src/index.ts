@@ -29,7 +29,14 @@ export {
   preharvestUpliftBp,
   planHarvest
 } from './harvest.js';
-export { projectCashCalendar, cashFlowsMissingInputs, bulkNetCentsPerBird } from './cash.js';
+export {
+  SEED_ABATTOIR_COST_CENTS_PER_BIRD,
+  SEED_ABATTOIR_FEE_CENTS,
+  SEED_TRANSPORT_CENTS_PER_BIRD,
+  bulkNetCentsPerBird,
+  cashFlowsMissingInputs,
+  projectCashCalendar
+} from './cash.js';
 export {
   DEFAULT_PLACEMENT_STEP_BIRDS,
   candidateInput,

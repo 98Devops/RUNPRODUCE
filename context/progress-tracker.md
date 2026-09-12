@@ -605,6 +605,48 @@ Tracked in `current-issues.md`.
 
 ## Architecture Decisions
 
+**AD-55 · The run to the abattoir is 10c a bird, SEPARATE from the 10c abattoir
+fee. 20c a bird in total.**
+Decided 2026-09-12, on Daniel's answer to the transport question — closing OQ-2,
+which has been half-answered since 2026-09-10.
+
+**They are two costs that happen to be the same number, and the code says so.**
+`SEED_ABATTOIR_FEE_CENTS` (10c, answered 2026-09-10) is what the abattoir
+charges to slaughter; `SEED_TRANSPORT_CENTS_PER_BIRD` (10c, answered 2026-09-12)
+is the truck that gets the birds there. One shared constant would make today's
+coincidence permanent and untraceable — and this project has already had
+**three** different transport costs in play (this one, feed delivery at $40/tonne
+per AD-54, and the retired $400 "Other/Transport" overhead per AD-51), where
+conflating any two produces a double-count or a hole.
+`SEED_ABATTOIR_COST_CENTS_PER_BIRD` derives the 20c total from its two parts so
+no literal can go stale.
+
+**The reasoning, recorded because it was a judgement rather than a fact.**
+
+- **Direction: conservative.** Charging both understates bulk profitability
+  rather than overstating it. If it turns out the 10c he quoted already covered
+  the run, bulk looks better than we said — never worse. That is the only
+  direction this engine is allowed to be wrong in.
+- **Chosen over asking a fourth question.** He had just answered three, and the
+  cost of being wrong here is a known 10c a bird that a cash calendar review
+  will surface immediately. Asking again buys precision we can get for free
+  later at the cost of the one thing we cannot get back, which is his patience.
+- **Correctable at a known moment.** When a real cash calendar is reviewed with
+  him, a double-charged 10c shows up as a $300 gap on a 3,000-bird batch against
+  his own bank. This decision is designed to be caught there, and this entry is
+  what will tell the next reader where to look.
+
+**Seeded, not defaulted.** Both fields stay required-and-nullable on
+`Parameters`, and a null still refuses. A value being known is not the same as
+it being supplied: the seeds are what an app-level default should be built from,
+not a silent fallback inside the engine. Fixture 13's refusal is unchanged.
+
+**Still open, deliberately.** Whether a DIRECT delivery to the buyer costs the
+same per bird is question 11 on the Daniel list and is not answered here. The
+engine charges the one figure it has on both modes — again the conservative
+direction — while correctly dropping the abattoir FEE on a DIRECT run, since
+there is no abattoir in it.
+
 **AD-54 · Feed delivery is $40 a tonne, charged per tonne collected and paid on
 the collection date.**
 Decided 2026-09-12. OQ-28's design half was already recommended (option B, a

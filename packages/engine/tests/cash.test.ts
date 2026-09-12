@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { bulkNetCentsPerBird, cashFlowsMissingInputs, projectCashCalendar } from '../src/cash.js';
+import {
+  SEED_ABATTOIR_COST_CENTS_PER_BIRD,
+  SEED_ABATTOIR_FEE_CENTS,
+  SEED_TRANSPORT_CENTS_PER_BIRD,
+  bulkNetCentsPerBird,
+  cashFlowsMissingInputs,
+  projectCashCalendar
+} from '../src/cash.js';
 import { addDays } from '../src/day-number.js';
 import { computeFeedLiability } from '../src/feed.js';
 import { projectProduction } from '../src/production.js';
@@ -299,12 +306,18 @@ describe('projectCashCalendar — receipts', () => {
     expect(keys).toContain('transport_cents_per_bird');
     expect(keys).toContain('abattoir_fee');
     expect(keys).toContain('bulk_price');
-    expect(missing.every((m) => /OQ-2|OQ-16/.test(m.why))).toBe(true);
 
-    // OQ-16 gates transport independently of OQ-2 (finding 6) — pin the
-    // specific entry's wording, not just the property across every entry.
+    /**
+     * The transport entry's wording is pinned, not just its presence. It used
+     * to say nobody had priced the run to the abattoir; since 2026-09-12 they
+     * have (10c a bird, AD-55), and the refusal now stands on a different and
+     * narrower ground — this INPUT does not carry the value. A refusal that
+     * describes an answered question as open sends the reader back to Daniel
+     * for something he has already told us.
+     */
     const transportEntry = missing.find((m) => m.key === 'transport_cents_per_bird');
-    expect(transportEntry?.why).toMatch(/OQ-16/);
+    expect(transportEntry?.why).toMatch(/2026-09-12/);
+    expect(transportEntry?.why).not.toMatch(/nobody has supplied it|nobody has said the truck/);
   });
 
   it('reports nothing missing when there is no bulk order', () => {
@@ -613,5 +626,46 @@ describe('projectCashCalendar — feed delivery lands on collection day (AD-54)'
     const day = calendar.days.find((d) => d.date === planned.collection_date);
     const flow = day?.flows.find((f) => f.kind === 'PLANNED_FEED_DELIVERY_PAYMENT');
     expect(flow?.amount_cents).toBe(-planned.delivery_cents);
+  });
+});
+
+describe('the abattoir run and the abattoir fee are two costs (AD-55)', () => {
+  const bulk: SalesOrder = {
+    channel: 'BULK',
+    order_date: '2026-03-18' as IsoDate,
+    bird_count: 3000,
+    avg_live_weight_g: 1770 as Grams,
+    pricing_basis: 'PER_BIRD',
+    price_cents_per_bird: 390n as Cents,
+    price_cents_per_kg: null,
+    terms_days: 30
+  };
+
+  it('seeds them as separate 10c figures answered on separate dates', () => {
+    // The fee (2026-09-10) and the run to the abattoir (2026-09-12) happen to
+    // be the same number. They are not the same cost, and a single 10c
+    // constant would make the coincidence permanent.
+    expect(SEED_ABATTOIR_FEE_CENTS).toBe(10n);
+    expect(SEED_TRANSPORT_CENTS_PER_BIRD).toBe(10n);
+    expect(SEED_ABATTOIR_COST_CENTS_PER_BIRD).toBe(
+      SEED_ABATTOIR_FEE_CENTS + SEED_TRANSPORT_CENTS_PER_BIRD
+    );
+  });
+
+  it('deducts BOTH from a bulk net — 20c a bird in total', () => {
+    const params = parameters({
+      abattoir_fee_cents: SEED_ABATTOIR_FEE_CENTS,
+      transport_cents_per_bird: SEED_TRANSPORT_CENTS_PER_BIRD
+    });
+    // $3.90 − $0.10 fee − $0.10 run = $3.70.
+    expect(bulkNetCentsPerBird(bulk, params)).toBe(390n - SEED_ABATTOIR_COST_CENTS_PER_BIRD);
+    expect(bulkNetCentsPerBird(bulk, params)).toBe(370n);
+  });
+
+  it('still refuses a null transport rather than defaulting to the seeded 10c', () => {
+    // The value being KNOWN is not the same as it being SUPPLIED. Nothing reads
+    // the seed behind a caller's back — a null is a refusal, as it always was.
+    const missing = cashFlowsMissingInputs(input('2026-03-18', { sales: [bulk] }));
+    expect(missing.map((m) => m.key)).toContain('transport_cents_per_bird');
   });
 });
