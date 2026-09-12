@@ -129,6 +129,23 @@ export type OverheadKey = 'vaccine' | 'electricity_heating' | 'labour' | 'transp
 export type OverheadBasis = 'PER_BIRD' | 'PER_BATCH';
 
 /**
+ * WHEN an overhead line is paid — orthogonal to `OverheadBasis`, which is how
+ * much. Daniel described the cadences on 2026-09-12: "labour when the batch is
+ * done, other expenses we pay as when they arise".
+ *
+ * `PLACEMENT` — day 1, in one payment. Vaccines.
+ * `HARVEST_COMPLETE` — the day the batch finishes. Labour.
+ * `MONTHLY` — the measured amount SPLIT across the calendar months the batch
+ *   spans, never charged again per month. See AD-56: `amount_cents` is what one
+ *   BATCH cost, so re-charging it monthly would invent money he never spent.
+ *
+ * These are his stated cadences on our assumed DATES — the calendar still
+ * reports `overhead_timing: 'assumed'` (OQ-19), because knowing labour is paid
+ * "when the batch is done" is not the same as knowing which day that lands on.
+ */
+export type OverheadTiming = 'PLACEMENT' | 'MONTHLY' | 'HARVEST_COMPLETE';
+
+/**
  * One production overhead, as booked in the client's own Final Report.
  *
  * The amount is the MEASURED figure for a batch of `measured_at_flock_size`
@@ -141,6 +158,8 @@ export interface OverheadLine {
   readonly key: OverheadKey;
   readonly label: string;
   readonly basis: OverheadBasis;
+  /** When it is paid. Independent of `basis`, which is how much. */
+  readonly timing: OverheadTiming;
   readonly amount_cents: Cents;
   /** The flock `amount_cents` was measured against. Unused for PER_BATCH. */
   readonly measured_at_flock_size: number;
@@ -157,6 +176,7 @@ export interface OverheadCharge {
   readonly key: OverheadKey;
   readonly label: string;
   readonly basis: OverheadBasis;
+  readonly timing: OverheadTiming;
   readonly cents: Cents;
   readonly confidence: Confidence;
 }

@@ -605,6 +605,45 @@ Tracked in `current-issues.md`.
 
 ## Architecture Decisions
 
+**AD-56 · Each overhead line is paid on its own cadence, and a monthly line is
+SPLIT rather than repeated.**
+Decided 2026-09-12, on Daniel's answer: *"labour when the batch is done, other
+expenses we pay as when they arise"*. `OverheadLine.timing` is now
+`PLACEMENT | MONTHLY | HARVEST_COMPLETE`, orthogonal to `basis`, which is how
+much rather than when.
+
+| Line | Timing | Lands |
+|---|---|---|
+| Vaccine | `PLACEMENT` | Day 1, in full — "vaccines upfront" |
+| Labour | `HARVEST_COMPLETE` | The day the batch finishes |
+| Electricity and heating | `MONTHLY` | Split across the months the batch spans |
+
+**The trap in "monthly", and why the split is not a stylistic choice.**
+`amount_cents` is what ONE BATCH cost him — $140 of electricity over a 41-day
+cycle, off his own Final Report. A 41-day batch touches two calendar months, so
+charging $140 *per month* would bill him $280 for a batch that cost $140. That
+is not a timing assumption, it is an invented amount, and it is the exact class
+of error invariant 5 exists to prevent. The measured total is therefore SPLIT,
+weighted by housed days in each month (23 in February, 8 in March on the client
+batch: $103.87 and $36.13), with `Money.split` allocating the remainder so the
+instalments sum back to $140.00 exactly.
+
+**What moved.** The whole $822 used to land on day 1. On the client's own batch
+the day-1 overhead outflow drops from $822.00 to $145.87 and $640 of labour
+moves to day 31. That **materially flattens the early-cycle trough**, which is
+what OQ-19 predicted and what AD-43's reserve-floor filter reads — so it changes
+which candidates the optimiser judges affordable, not just a displayed number.
+
+**Still `overhead_timing: 'assumed'`, deliberately.** He gave cadences, not
+dates. "When the batch is done" does not say which day that is: the calendar
+dates it against the first day the curve reaches the slaughter target — day 31
+on his curve — which is at or before the day the last bird actually goes, so the
+charge lands early rather than late and deepens the trough rather than
+flattering it. `firstDayAtWeight` is shared with `harvest.ts` rather than
+re-derived, for the reason AD-52 gives about duplicated rules. **OQ-19 stays
+open** on the dates, narrowed from "we have no idea when he pays" to "we know
+the cadence, not the day".
+
 **AD-55 · The run to the abattoir is 10c a bird, SEPARATE from the 10c abattoir
 fee. 20c a bird in total.**
 Decided 2026-09-12, on Daniel's answer to the transport question — closing OQ-2,

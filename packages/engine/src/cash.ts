@@ -1,6 +1,8 @@
 import { SEED_BREED_CURVE, pointForDay } from './breed-curve.js';
 import { costOfFeed } from './costing.js';
 import { addDays, daysBetween } from './day-number.js';
+import { firstDayAtWeight } from './harvest.js';
+import { Money } from './money.js';
 import { SEED_OVERHEADS, overheadBreakdown } from './overheads.js';
 import type {
   BreedCurve,
@@ -10,6 +12,7 @@ import type {
   Cents,
   EngineInput,
   FeedLiability,
+  IsoDate,
   MissingInput,
   Parameters,
   Phase,
@@ -225,6 +228,53 @@ export function bulkNetCentsPerBird(sale: SalesOrder, parameters: Parameters): C
 }
 
 /**
+ * A MONTHLY overhead split across the calendar months a batch is housed in.
+ *
+ * **It splits the measured amount; it never repeats it** (AD-56).
+ * `amount_cents` is what ONE BATCH cost him — $140 of electricity over a
+ * 41-day cycle — so charging $140 again each month would invent money he never
+ * spent, which is the same class of error as a confident wrong number.
+ *
+ * Weighted by HOUSED DAYS in each month rather than split evenly, because a
+ * batch placed on the 28th owes that month two days of power, not half the
+ * bill. `Money.split` allocates the remainder, so the instalments always sum
+ * back to the measured figure exactly.
+ *
+ * The first instalment lands on the placement date and the rest on the 1st of
+ * each following month — the dates are ours and assumed, which is why the
+ * calendar still reports `overhead_timing: 'assumed'` (OQ-19).
+ */
+function monthlyInstalments(
+  placement_date: IsoDate,
+  completion_date: IsoDate,
+  total: Cents
+): readonly { date: IsoDate; cents: Cents; days: number }[] {
+  const months: { date: IsoDate; days: number }[] = [];
+  const span = daysBetween(placement_date, completion_date);
+
+  for (let offset = 0; offset <= span; offset += 1) {
+    const date = addDays(placement_date, offset);
+    const month = date.slice(0, 7);
+    const current = months[months.length - 1];
+    if (current !== undefined && current.date.slice(0, 7) === month) {
+      current.days += 1;
+      continue;
+    }
+    // The first month starts on the placement date; every later one on its 1st,
+    // which is the day this loop first reaches it.
+    months.push({ date, days: 1 });
+  }
+
+  if (months.length === 0) return [];
+  const shares = Money.split(total, months.map((m) => m.days));
+  return months.map((month, index) => ({
+    date: month.date,
+    cents: shares[index] ?? (0n as Cents),
+    days: month.days
+  }));
+}
+
+/**
  * M5a — the cash calendar.
  *
  * Day-by-day opening / in / out / closing from placement through
@@ -301,25 +351,63 @@ export function projectCashCalendar(
   });
 
   /**
-   * Overhead TIMING is assumed — one of two independent assumptions in this
-   * module; the other is the planned feed schedule below.
+   * Overhead cadences, per the client (2026-09-12): "labour when the batch is
+   * done, other expenses we pay as when they arise". Each line carries its own
+   * `timing` and is dated accordingly — AD-56.
    *
-   * `computeCosting` gives amounts and no dates — the client books overheads
-   * per batch, not per day. Charging them all at placement is the simplest
-   * defensible choice and it is almost certainly wrong in shape: labour is
-   * likely monthly, which would flatten the early-cycle trough materially.
-   * OQ-19 asks him. Until then the calendar says `overhead_timing: 'assumed'`
-   * so nobody reads the minimum balance as measured. The AMOUNTS are his,
-   * measured, straight out of `overheadBreakdown` — only the date they land
-   * on is this module's guess.
+   * Every line used to land in one lump on the placement date, which OQ-19
+   * flagged as almost certainly wrong in SHAPE: it dug the whole $822 on day 1
+   * and so overstated the early-cycle trough that AD-43's reserve-floor filter
+   * reads. It now lands the way he described it.
+   *
+   * **Still `overhead_timing: 'assumed'`, and that is not an oversight.** He
+   * gave cadences, not dates. Knowing labour is paid "when the batch is done"
+   * does not say which day that is — this module dates it against the first day
+   * the curve reaches the slaughter target, which is at or before the day the
+   * last bird actually goes. The AMOUNTS remain his, measured; only the dates
+   * are ours.
    */
   const overheads = input.parameters.overheads ?? SEED_OVERHEADS;
+  const curveForOverheads = input.curve ?? SEED_BREED_CURVE;
+  const completionDay =
+    firstDayAtWeight(curveForOverheads, input.parameters.slaughter_target_g) ??
+    curveForOverheads.points[curveForOverheads.points.length - 1]?.day_number ??
+    1;
+
   for (const line of overheadBreakdown(overheads, flock)) {
+    const note = `${line.basis}, ${line.timing}, timing assumed — OQ-19`;
+
+    if (line.timing === 'HARVEST_COMPLETE') {
+      flows.push({
+        kind: 'OVERHEAD',
+        date: addDays(placement_date, completionDay - 1),
+        amount_cents: -line.cents as Cents,
+        description: `${line.label} (${note})`
+      });
+      continue;
+    }
+
+    if (line.timing === 'MONTHLY') {
+      for (const instalment of monthlyInstalments(
+        placement_date,
+        addDays(placement_date, completionDay - 1),
+        line.cents
+      )) {
+        flows.push({
+          kind: 'OVERHEAD',
+          date: instalment.date,
+          amount_cents: -instalment.cents as Cents,
+          description: `${line.label} (${note}, ${instalment.days} housed days)`
+        });
+      }
+      continue;
+    }
+
     flows.push({
       kind: 'OVERHEAD',
       date: placement_date,
       amount_cents: -line.cents as Cents,
-      description: `${line.label} (${line.basis}, timing assumed — OQ-19)`
+      description: `${line.label} (${note})`
     });
   }
 

@@ -21,17 +21,22 @@ import type {
  * here is `confidence: 'measured'` because every figure is his, read out of his
  * own spreadsheet. Nothing in this file is estimated.
  *
- * Two things that ARE still open, and are not resolved by inventing a number:
+ * **The transport gap this file used to describe is closed.** It said transport
+ * was charged nowhere; both halves now are. Feed delivery is `delivery_cents`
+ * on the draw ($40/tonne, AD-54) and the run to the abattoir is
+ * `transport_cents_per_bird` (10c, AD-55). Neither belongs here — they are feed
+ * and sales costs respectively, not production overheads, which is why the
+ * retired $400 line could not simply be repointed at either.
  *
- *   1. **Transport is now charged NOWHERE and is understated, not absent.**
- *      `Parameters.transport_cents_per_bird` (the run to the abattoir) is still
- *      null pending OQ-2, and feed delivery at $40/tonne (OQ-28, confirmed
- *      2026-09-12) has no field yet. On this batch's 13,224 kg that is $528.96
- *      of real cost nothing books. Removing the retired $400 widened that gap
- *      rather than closing it.
- *   2. The PER_BATCH lines were measured at 3,000 birds. Whether labour and
- *      electricity are genuinely flat at 30,000 birds is a client question,
- *      not something to model a scaling law for. See OQ-15.
+ * **Each line carries its own `timing`** (AD-56), from the client 2026-09-12:
+ * vaccines upfront, labour when the batch is done, electricity as it arises.
+ * The amounts are measured; the dates those cadences land on are still ours and
+ * still assumed — see OQ-19.
+ *
+ * **One thing that IS still open, and is not resolved by inventing a number:**
+ * the PER_BATCH lines were measured at 3,000 birds. Whether labour and
+ * electricity are genuinely flat at 30,000 birds is a client question, not
+ * something to model a scaling law for. See OQ-15.
  */
 export const SEED_OVERHEADS: OverheadModel = {
   lines: [
@@ -40,6 +45,8 @@ export const SEED_OVERHEADS: OverheadModel = {
       label: 'Vaccine',
       // The brief lists medication under VARIABLE costs: it follows the bird.
       basis: 'PER_BIRD',
+      // "Vaccines upfront" — the client, 2026-09-12. Day 1, in one payment.
+      timing: 'PLACEMENT',
       amount_cents: 4200n as Cents,
       measured_at_flock_size: 3000,
       confidence: 'measured',
@@ -50,6 +57,10 @@ export const SEED_OVERHEADS: OverheadModel = {
       label: 'Electricity and heating',
       // The brief lists electricity under FIXED/OVERHEAD costs.
       basis: 'PER_BATCH',
+      // "We pay as when they arise" — a monthly bill. The measured $140 is what
+      // one BATCH cost, so it is SPLIT across the months the batch spans rather
+      // than charged again each month (AD-56).
+      timing: 'MONTHLY',
       amount_cents: 14000n as Cents,
       measured_at_flock_size: 3000,
       confidence: 'measured',
@@ -60,6 +71,8 @@ export const SEED_OVERHEADS: OverheadModel = {
       label: 'Labour',
       // The brief lists labour under FIXED/OVERHEAD costs.
       basis: 'PER_BATCH',
+      // "Labour when the batch is done" — the client, 2026-09-12.
+      timing: 'HARVEST_COMPLETE',
       amount_cents: 64000n as Cents,
       measured_at_flock_size: 3000,
       confidence: 'measured',
@@ -170,6 +183,7 @@ export function overheadBreakdown(
     key: line.key,
     label: line.label,
     basis: line.basis,
+    timing: line.timing,
     cents: overheadLineCents(line, flock_size),
     confidence: line.confidence
   }));

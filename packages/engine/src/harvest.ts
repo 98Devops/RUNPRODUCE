@@ -182,8 +182,17 @@ export function bandForDressedG(bands: readonly BulkBand[], dressed_g: number): 
 // copy of the rounding rule until AD-52, which is exactly the shape of
 // duplication that lets two feed figures in one engine disagree.
 
-/** First day the curve's weight reaches `target_g`, or null if it never does. */
-function firstDayAtWeight(curve: BreedCurve, target_g: number): number | null {
+/**
+ * First day the curve's weight reaches `target_g`, or null if it never does.
+ *
+ * Exported because `cash.ts` needs a harvest-completion day to date a
+ * `HARVEST_COMPLETE` overhead against, and deriving a second notion of "the
+ * batch is done" there would be the duplication AD-52 removed from feed
+ * pricing. It is the day the batch COULD be finished, which is at or before the
+ * day the last bird actually goes — so an overhead dated against it lands early
+ * rather than late, deepening the projected trough rather than flattering it.
+ */
+export function firstDayAtWeight(curve: BreedCurve, target_g: number): number | null {
   for (const point of curve.points) {
     if (point.weight_g >= target_g) return point.day_number;
   }

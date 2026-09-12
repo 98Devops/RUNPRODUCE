@@ -27,7 +27,11 @@ const SRC = join(__dirname, '..', 'src');
 const INTERNAL_CROSS_MODULE: Readonly<Record<string, string>> = {
   // cash.ts prices a planned draw the way computeCosting prices feed, and must
   // use the identical round-up convention or the two disagree by cents.
-  costOfFeed: 'shared by costing.ts and cash.ts so feed rounds identically in both'
+  costOfFeed: 'shared by costing.ts and cash.ts so feed rounds identically in both',
+  // cash.ts dates a HARVEST_COMPLETE overhead against the day the batch could
+  // be finished (AD-56). Deriving a second notion of "the batch is done" there
+  // is the duplication AD-52 removed from feed pricing.
+  firstDayAtWeight: 'shared by harvest.ts and cash.ts so one engine holds one harvest-completion day'
 };
 
 function valueExportsOf(source: string): string[] {

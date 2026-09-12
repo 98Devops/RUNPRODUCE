@@ -103,11 +103,12 @@ describe('projectCashCalendar — dated outflows', () => {
     const calendar = projectCashCalendar(engineInput, 5, 0n as Cents, feedFor(engineInput));
     const day1 = calendar.days[0];
 
-    // 3,000 birds x $1.00 chicks + $822.00 of overheads, both on placement,
-    // plus $53.28 delivery on the first planned draw — 1,332 kg collected on
-    // placement day, paid on the spot (AD-54).
-    expect(day1?.out_cents).toBe(387528n);
-    expect(day1?.closing_cents).toBe(-387528n);
+    // $3,000 of chicks, $53.28 of delivery on the 1,332 kg collected that day
+    // (AD-54), and only the overheads he actually pays on day 1 (AD-56):
+    // $42 vaccine upfront plus February's $103.87 share of electricity.
+    // Labour is not here any more — it lands when the batch is done.
+    expect(day1?.out_cents).toBe(300000n + 5328n + 4200n + 10387n);
+    expect(day1?.closing_cents).toBe(-319915n);
     expect(day1?.flows.map((f) => f.kind)).toContain('CHICK_COST');
   });
 
@@ -128,7 +129,11 @@ describe('projectCashCalendar — dated outflows', () => {
 
     // Collected day 1, 30-day terms, so it lands 2026-03-08 — day 31.
     const dueDay = calendar.days.find((d) => d.date === '2026-03-08');
-    expect(dueDay?.out_cents).toBe(32500n);
+    const drawFlow = dueDay?.flows.find((f) => f.kind === 'FEED_DRAW_PAYMENT');
+    expect(drawFlow?.amount_cents).toBe(-32500n);
+    // Day 31 is also the day the batch finishes, so $640 of labour lands here
+    // too since AD-56 — the flow is asserted rather than the day's total.
+    expect(dueDay?.out_cents).toBe(32500n + 64000n);
     expect(dueDay?.flows.map((f) => f.kind)).toContain('FEED_DRAW_PAYMENT');
 
     const collectionDay = calendar.days[0];
@@ -226,7 +231,12 @@ describe('projectCashCalendar — planned feed draws (finding 1)', () => {
     expect(dueDay?.flows.filter((f) => f.kind === 'FEED_DRAW_PAYMENT')).toHaveLength(1);
     expect(dueDay?.flows.filter((f) => f.kind === 'PLANNED_FEED_DRAW_PAYMENT')).toHaveLength(0);
     // The real draw's own price ($325.00), not that PLUS a planned figure.
-    expect(dueDay?.out_cents).toBe(32500n);
+    // Day 31 also carries labour since AD-56, so the FEED total is what this
+    // test is about — summing the day would test the wrong thing.
+    const feedOut = (dueDay?.flows ?? [])
+      .filter((f) => f.kind === 'FEED_DRAW_PAYMENT' || f.kind === 'PLANNED_FEED_DRAW_PAYMENT')
+      .reduce((sum, f) => sum - f.amount_cents, 0n);
+    expect(feedOut).toBe(32500n);
   });
 });
 
@@ -358,16 +368,17 @@ describe('projectCashCalendar — receipts', () => {
 });
 
 describe('projectCashCalendar — overheads', () => {
-  it('charges every overhead line on the placement date, flagged assumed', () => {
+  it('charges each overhead line on its own cadence, all of them flagged assumed', () => {
     const engineInput = input('2026-02-06');
     const calendar = projectCashCalendar(engineInput, 5, 0n as Cents, feedFor(engineInput));
     const day1 = calendar.days[0];
 
-    // $3,000 chicks + $822 of overheads at his 3,000-bird scale, plus $53.28
-    // of delivery on the 1,332 kg collected that day (AD-54).
-    expect(day1?.out_cents).toBe(300000n + 82200n + 5328n);
-    // Three, not four, since transport_other was retired (AD-51).
-    expect(day1?.flows.filter((f) => f.kind === 'OVERHEAD')).toHaveLength(3);
+    // $3,000 chicks + $53.28 delivery (AD-54) + the day-1 overheads only:
+    // vaccine upfront and February's share of electricity. Labour is gone from
+    // day 1 — it is paid when the batch is done (AD-56).
+    expect(day1?.out_cents).toBe(300000n + 5328n + 4200n + 10387n);
+    // Two on day 1, not the whole model: labour lands on day 31.
+    expect(day1?.flows.filter((f) => f.kind === 'OVERHEAD')).toHaveLength(2);
     expect(calendar.overhead_timing).toBe('assumed');
   });
 
@@ -380,8 +391,11 @@ describe('projectCashCalendar — overheads', () => {
         chick_price_cents: 100n as Cents
       }
     });
-    const calendar = projectCashCalendar(engineInput, 5, 0n as Cents, feedFor(engineInput));
-    const overheads = calendar.days[0]?.flows.filter((f) => f.kind === 'OVERHEAD') ?? [];
+    // Over the WHOLE calendar, not day 1: since AD-56 the lines land on three
+    // different cadences, and a day-1 sum would test the schedule rather than
+    // the scaling this test is about.
+    const calendar = projectCashCalendar(engineInput, 60, 0n as Cents, feedFor(engineInput));
+    const overheads = calendar.days.flatMap((d) => d.flows.filter((f) => f.kind === 'OVERHEAD'));
     const total = overheads.reduce((sum, f) => sum - f.amount_cents, 0n);
 
     // Vaccine $42 doubles; labour $640 and electricity $140 do not.
@@ -416,10 +430,19 @@ describe('projectCashCalendar — overheads', () => {
       (sum, f) => sum - f.amount_cents,
       0n
     );
-    expect(overheadTotal).toBe(82340n);
+    // Day 1 carries the vaccine in full and February's share of electricity;
+    // labour lands when the batch is done (AD-56).
+    expect(overheadTotal).toBe(4340n + 10387n);
     // Plus delivery on the first planned draw, which scales with the flock too:
     // 1,376.4 kg at $40 a tonne = $55.06.
-    expect(day1?.out_cents).toBe(310000n + 82340n + 5506n);
+    expect(day1?.out_cents).toBe(310000n + 4340n + 10387n + 5506n);
+
+    // The scaling itself, over the whole calendar rather than one day.
+    const whole = projectCashCalendar(engineInput, 60, 0n as Cents, feedFor(engineInput));
+    const everyLine = whole.days
+      .flatMap((d) => d.flows.filter((f) => f.kind === 'OVERHEAD'))
+      .reduce((sum, f) => sum - f.amount_cents, 0n);
+    expect(everyLine).toBe(82340n);
   });
 
   it('treats an omitted overheads parameter as the measured default, distinct from an explicit empty model', () => {
@@ -428,9 +451,11 @@ describe('projectCashCalendar — overheads', () => {
     const defaultTotal = (
       withDefault.days[0]?.flows.filter((f) => f.kind === 'OVERHEAD') ?? []
     ).reduce((sum, f) => sum - f.amount_cents, 0n);
-    // $1,222.00 — SEED_OVERHEADS at 3,000 birds, absent means "use the
-    // client's measured default", per Parameters.overheads.
-    expect(defaultTotal).toBe(82200n);
+    // $42 vaccine + February's $103.87 of electricity. The whole-calendar
+    // total is $822.00 — SEED_OVERHEADS at 3,000 birds, absent meaning "use the
+    // client's measured default" per Parameters.overheads — and the cadence
+    // decides only which day each part lands on (AD-56).
+    expect(defaultTotal).toBe(4200n + 10387n);
 
     const explicitEmpty = input('2026-02-06', {
       parameters: parameters({ overheads: { lines: [] } })
@@ -454,7 +479,7 @@ describe('projectCashCalendar — the reserve floor', () => {
     expect(calendar.breaches_reserve_floor).toBe(true);
     expect(calendar.first_breach_date).toBe('2026-02-06');
     // The floor REPORTS; it never clamps. AD-43: filtering is M5b's job.
-    expect(calendar.days[0]?.closing_cents).toBe(-387528n);
+    expect(calendar.days[0]?.closing_cents).toBe(-319915n);
   });
 
   it('reports no breach when every closing balance clears the floor', () => {
@@ -473,7 +498,7 @@ describe('projectCashCalendar — the reserve floor', () => {
 
     // Nothing moves after day 1 inside a 5-day horizon, so days 1-5 all hold
     // the minimum.
-    expect(calendar.minimum_cents).toBe(-387528n);
+    expect(calendar.minimum_cents).toBe(-319915n);
     expect(calendar.minimum_date).toBe('2026-02-06');
   });
 });
@@ -667,5 +692,65 @@ describe('the abattoir run and the abattoir fee are two costs (AD-55)', () => {
     // the seed behind a caller's back — a null is a refusal, as it always was.
     const missing = cashFlowsMissingInputs(input('2026-03-18', { sales: [bulk] }));
     expect(missing.map((m) => m.key)).toContain('transport_cents_per_bird');
+  });
+});
+
+describe('overhead cadences — when Daniel actually pays (AD-56)', () => {
+  const day = (calendar: ReturnType<typeof projectCashCalendar>, date: string) =>
+    calendar.days.find((d) => d.date === date);
+  const overheadsOn = (calendar: ReturnType<typeof projectCashCalendar>, date: string) =>
+    (day(calendar, date)?.flows ?? []).filter((f) => f.kind === 'OVERHEAD');
+
+  const run = () => {
+    const engineInput = input('2026-02-06');
+    return projectCashCalendar(engineInput, 60, 0n as Cents, feedFor(engineInput));
+  };
+
+  it('pays vaccine on day 1 — "vaccines upfront"', () => {
+    const vaccine = overheadsOn(run(), '2026-02-06').filter((f) => /Vaccine/.test(f.description));
+    expect(vaccine).toHaveLength(1);
+    expect(vaccine[0]?.amount_cents).toBe(-4200n);
+  });
+
+  it('pays labour when the batch is done, not on placement day', () => {
+    const calendar = run();
+    const labourFlows = calendar.days.flatMap((d) =>
+      d.flows.filter((f) => f.kind === 'OVERHEAD' && /Labour/.test(f.description)).map((f) => ({ date: d.date, f }))
+    );
+    expect(labourFlows).toHaveLength(1);
+    // Day 31 is the first day the curve reaches the 1,770 g slaughter target
+    // (fixture 10) — 2026-03-08 from a 2026-02-06 placement.
+    expect(labourFlows[0]?.date).toBe('2026-03-08');
+    expect(labourFlows[0]?.f.amount_cents).toBe(-64000n);
+  });
+
+  it('spreads electricity across the months the batch spans, without inventing a second bill', () => {
+    const calendar = run();
+    const electricity = calendar.days.flatMap((d) =>
+      d.flows
+        .filter((f) => f.kind === 'OVERHEAD' && /Electricity/.test(f.description))
+        .map((f) => ({ date: d.date, cents: f.amount_cents }))
+    );
+
+    // February and March — two instalments, not two bills. The measured $140
+    // is his figure for one BATCH; charging $140 a month would invent money he
+    // never spent (AD-56).
+    expect(electricity.map((e) => e.date)).toEqual(['2026-02-06', '2026-03-01']);
+    expect(electricity.reduce((sum, e) => sum + e.cents, 0n)).toBe(-14000n);
+    // Weighted by housed days: 23 in February, 8 in March to the day-31 finish.
+    expect(electricity[0]?.cents).toBe(-10387n);
+    expect(electricity[1]?.cents).toBe(-3613n);
+  });
+
+  it('still charges every measured cent, whatever the cadence', () => {
+    const calendar = run();
+    const total = calendar.days
+      .flatMap((d) => d.flows.filter((f) => f.kind === 'OVERHEAD'))
+      .reduce((sum, f) => sum - f.amount_cents, 0n);
+    // $822.00 — SEED_OVERHEADS at 3,000 birds. The cadence moves WHEN money
+    // leaves, never HOW MUCH: the amounts are his, measured, and only the
+    // dates are ours (OQ-19).
+    expect(total).toBe(82200n);
+    expect(calendar.overhead_timing).toBe('assumed');
   });
 });
