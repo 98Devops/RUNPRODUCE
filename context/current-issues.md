@@ -2052,6 +2052,19 @@ the client to confirm.
 
 ## Tracked but deferred
 
+### TD-4 · Pre-merge review of M5b, 2026-09-14 — minors deferred, not dismissed 🟡
+The review of `u5-m5b-allocation-enumeration` raised 13 findings. Findings 1-5
+are fixed (AD-59 / OQ-31, the flow-covering horizon, invariant 16 from real
+sales, the null-fee guard, gate-order refusal), as are 6, 7 and 11. These remain:
+
+| # | Finding | Why deferred |
+|---|---|---|
+| 8 | Refusals are spread across `missingInputsFor` (index.ts), `cashFlowsMissingInputs` and `salesMissingInputs`, and have drifted: a BANDED bulk order with no bands gives `computeDecision → ok`. `missingInputsFor` is also exported from index.ts only for a test | Harmless while the decision carries no cash output. **Must be one shared refusal before U6 wires `decision.allocation`** |
+| 9 | A schedule of floors gives the top band zero width: 1,300 g pays $3.70, 1,301 g refuses. If "1.3 kg" means 1.30-1.39 kg, valid invoices are refused | Errs toward a blank, not a wrong number. **A Daniel question**, to go with question 2 on the Daniel list; pinned by a boundary test |
+| 10 | `cash.ts` dates a HARVEST_COMPLETE overhead at the last curve day (or day 1) when the slaughter target is never reached, where `planHarvest` throws. And feed delivery falls back to its seed rate silently while AD-55 refuses a null abattoir fee: two policies for the same kind of client fact | The first is an invented date and should refuse; the second is AD-54 vs AD-55 and needs one policy chosen, not a patch |
+| 12 | `PlaceNothing.overhead_still_incurred_cents` is hard-coded `0n`, copied from the plan with no derivation | Whether labour or any line is paid with no batch housed is unknown (OQ-15 territory). Zero is a claim; this should be null or derived |
+| 13 | A bulk contract grossing under 20c a bird books a negative receipt with no refusal | Unrealistic; noted rather than guarded |
+
 ### TD-1 · `npm audit` critical in the dev toolchain 🟡
 **Raised:** 2026-09-10. **Decision:** accepted, not remediated. **Revisit:** when vitest is next upgraded.
 

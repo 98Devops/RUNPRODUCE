@@ -449,8 +449,13 @@ describe('placeNothing', () => {
     const nothing = placeNothing(baseInput(), handoff);
 
     // It carries the overhead arithmetic that justifies it, and no candidate.
-    expect('candidate' in nothing).toBe(false);
-    expect('maximum_growth_birds' in nothing).toBe(false);
+    // Exact keys, so a candidate field added later fails here rather than
+    // only a field whose name we thought to check.
+    expect(Object.keys(nothing).sort()).toEqual(
+      ['closing_cents', 'overhead_avoided_cents', 'overhead_still_incurred_cents']
+    );
+    const carried = handoff.carried_flows.reduce((sum, f) => sum + f.amount_cents, 0n);
+    expect(nothing.closing_cents).toBe(handoff.opening_cents + carried);
   });
 });
 

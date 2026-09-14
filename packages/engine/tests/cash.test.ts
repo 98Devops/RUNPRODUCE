@@ -931,6 +931,39 @@ describe("bulk pricing is the buyer's own contract, not ours (AD-57)", () => {
     expect(missing[0]?.why).toMatch(/above this contract's top band/i);
   });
 
+  it('refuses a bird lighter than the lowest band rather than reading the bottom band down', () => {
+    const light = order({
+      avg_dressed_weight_g: 1099 as Grams,
+      pricing_basis: 'BANDED',
+      price_cents_per_bird: null,
+      bands: BUYER_BANDS
+    });
+    const missing = cashFlowsMissingInputs(
+      input('2026-03-08', { parameters: settled(), sales: [light] })
+    );
+    expect(missing.map((m) => m.key)).toEqual(['bulk_price']);
+    expect(missing[0]?.why).toMatch(/BELOW this contract's lowest band/);
+  });
+
+  it('prices exactly the top floor and refuses one gram over it (AD-58)', () => {
+    const at = (g: number) =>
+      order({
+        avg_dressed_weight_g: g as Grams,
+        pricing_basis: 'BANDED',
+        price_cents_per_bird: null,
+        bands: BUYER_BANDS
+      });
+    const missingAt = (g: number) =>
+      cashFlowsMissingInputs(input('2026-03-08', { parameters: settled(), sales: [at(g)] }));
+
+    // 1,300 g clears the top floor: $3.70 less 20c.
+    expect(missingAt(1300)).toEqual([]);
+    expect(bulkNetCentsPerBird(at(1300), settled())).toBe(350n);
+    // 1,301 g is past the last stated floor. Whether the top band is meant to
+    // run on (1.30-1.39 kg, say) is a question for Daniel, logged as TD-4 finding 9.
+    expect(missingAt(1301).map((m) => m.key)).toEqual(['bulk_price']);
+  });
+
   it('refuses a BANDED order carrying no schedule, rather than borrowing the planning default', () => {
     const naked = order({ pricing_basis: 'BANDED', price_cents_per_bird: null, avg_dressed_weight_g: 1250 as Grams });
     const missing = cashFlowsMissingInputs(

@@ -95,7 +95,9 @@ export const SEED_OVERHEADS: OverheadModel = {
      *
      * 2. **Transport is now UNDER-charged, and was already.** He confirmed feed
      *    delivery at $40/tonne on 2026-09-12 (OQ-28), which on this batch's
-     *    13,224 kg is $528.96 — and nothing in the engine charges it yet.
+     *    13,224 kg is $528.96 — and when this line was retired, nothing in the
+     *    engine charged it. AD-54 has since charged it per tonne collected, so
+     *    the understatement described below is historical.
      *    Before this change the retired $400 partly offset that, so costs ran
      *    ~$129 light; after it they run ~$529 light. The error direction is
      *    UNDERSTATEMENT, which is the flattering direction this engine is not
