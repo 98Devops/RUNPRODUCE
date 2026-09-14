@@ -519,10 +519,10 @@ completeness fixture.
 
 ## In Progress
 
-Nothing — between units. **U5 is partly built and unmerged** on
-`u5-m5b-allocation-enumeration` (pushed 2026-09-14): M5a done, M5b Tasks 1-8
-done, Daniel's six answers wired (AD-52 to AD-57), band refusal made consistent
-(AD-58). What is left in U5 is blocked, not in progress — see Next Up.
+Nothing — between units. **U5 M5b is merged to `main`** (2026-09-14, `6a73ad0`):
+M5a done, M5b Tasks 1-8 done, Daniel's six answers wired (AD-52 to AD-57), band
+refusal made consistent (AD-58), pre-merge review fixed (AD-59). What is left in
+U5 is blocked, not in progress — see Next Up.
 
 ### Closed, kept for the reasoning
 
@@ -563,9 +563,9 @@ done, Daniel's six answers wired (AD-52 to AD-57), band refusal made consistent
    209 tests green, golden unchanged at 11/11/1 (AD-46, AD-47)
 5. **U5 · M5b** — allocation enumeration. **Tasks 1-8 built**; Daniel's six
    answers wired (AD-52 to AD-57) and the band refusal made consistent (AD-58).
-   Bulk net is computable — OQ-2 and OQ-16 are both closed. Unmerged; a
-   pre-merge review is owed before `main`, since AD-57 was not built
-   test-first. **Still blocked:**
+   Bulk net is computable — OQ-2 and OQ-16 are both closed. Reviewed,
+   fixed (AD-59) and merged 2026-09-14. Build Reserve is now null too (OQ-31).
+   **Still blocked:**
    - **Task 9**, wiring `decision.allocation` — **OQ-25**, no opening cash
      balance in `EngineInput`. Recommendation: getter keeps throwing until U6.
    - **Cover Fast** — **OQ-26**, structurally null until M6 forecasts sales.

@@ -1,5 +1,5 @@
 # RunProduce - Session State
-Last updated: 2026-09-14 · Branch: `u5-m5b-allocation-enumeration`
+Last updated: 2026-09-14 · Branch: `main`
 
 ## What this is
 A decision console for Daniel, a broiler farmer, that turns his daily batch records into feed, cost, cash and harvest figures. Its headline job is telling him how many birds to place next and when, under three named strategies.
@@ -19,7 +19,7 @@ npm monorepo: a pure TypeScript engine (`packages/engine`) behind a Next.js app 
 - **Status:** 344 unit tests. Golden 11 written / 11 passing / 1 held. Lint, typecheck, build clean.
 
 ## In progress
-Nothing. Between units: M5b is built as far as it can go, pushed, and unmerged (30 commits ahead of `main`).
+Nothing. Between units: U5 M5b is reviewed, fixed and merged to `main`. U5's remainder (Task 9, M6) is blocked, see below.
 
 ## Blockers
 | Blocker | Blocks | Who resolves |
@@ -62,7 +62,7 @@ Full log: `progress-tracker.md` § Architecture Decisions.
 8. `context/ui-context.md`, `ui-build-playbook.md`, `card-system-and-decision-ux.md`: only for UI units (U7-U11). For U9, read the OQ-29 section first.
 
 ## Recommended next action
-Run a pre-merge code review of this branch and merge it to `main`. It carries 30 unreviewed commits including AD-57, which was not built test-first, and the U4 review wave found eight real defects in code that already had passing tests.
+Plan U6 (Supabase schema, RLS, repositories), with TD-4 #8's single shared refusal function as its first task. U6 supplies the opening cash balance OQ-25 needs to wire `decision.allocation`, and wiring it on today's three drifted refusal checks would ship the drift.
 
 ## Maintaining this file
 - Update at the end of every unit, and on any commit that changes state a future session needs.
