@@ -1051,6 +1051,10 @@ both subtrahends are `null` pending OQ-2. The fee does not cancel out
 of a per-day difference. This fixture is blocked on OQ-2 rather than
 disputed — it becomes writable the moment the fee arrives.
 
+**OQ-2 closed 2026-09-12, so this is now ours to attempt.** Untested claim -
+fixture 8 may still need a planning band schedule; verify by attempting to
+write it before treating this as closed.
+
 ### OQ-11 · Fixture 11 — gate window end day 38, and the per-kg rate ✅ CLOSED 2026-09-10
 **Closed by generation in U4.** The fixture is written and asserts.
 
@@ -2246,15 +2250,11 @@ recommendation — divergences are the most valuable data available.
 
 | Work | Blocked by |
 |---|---|
-| Bulk allocation recommendation | OQ-2 — **transport half only**; abattoir fee answered 2026-09-10 |
-| U5 · bulk net revenue computation | OQ-2 (transport) **and** OQ-16 — both required, neither sufficient alone |
-| U5 · any **bulk-inclusive** candidate score | OQ-2 (transport) **and** OQ-16. The enumeration's SHAPE is buildable today and is spec'd; a candidate routing birds to bulk returns `missing_input` naming both gaps, never a gate-only figure dressed as complete |
 | Calibrated `MaxSafeBatchSize` | OQ-1 (mortality data) |
-| ~~M5b · Task 8, the enumeration ceiling~~ | **UNBLOCKED 2026-09-11.** ~~OQ-23~~ answered: the ceiling is an operator-entered `max_placement_birds`, no derived cap. Tasks 1-7 built; Tasks 8 and 9 now proceed, with **bulk scoring still refused** on OQ-2/OQ-16 |
+| ~~M5b · Task 8, the enumeration ceiling~~ | **UNBLOCKED 2026-09-11.** ~~OQ-23~~ answered: the ceiling is an operator-entered `max_placement_birds`, no derived cap. Tasks 1-8 built; Task 9 now blocked on OQ-25 below |
 | M5b · the Cover Fast mode | **OQ-26** — structurally cannot answer: a candidate has no forecast sales, so receipts never clear core credit. Needs M6 |
 | M5b · Task 9, wiring `decision.allocation` | **OQ-25** — the engine holds no cash balance to pass as `openingCents`, and the plan passed `reserve_floor_cents`, a different quantity. Recommendation: leave the getter throwing until U6 |
 | **U9 · the mode-selector / recommendation screen** | **OQ-29 — HARD BLOCKER, not an optimisation.** `computeAllocation` takes **20.8 s** at Daniel's realistic 5,000-bird ceiling and ~2 min at the brief's 30,000. U9 is a click-and-see screen; two minutes is not usable and no spinner makes it so. **U9 planning must produce a real design answer** — see OQ-29 for the three candidates and what each costs. A plan that says "consider performance" does not clear this |
-| M5b · scoring any **bulk-inclusive** candidate | OQ-2 transport **and** OQ-16. Verified in code 2026-09-11: supplying both OQ-2 values still leaves `bulk_price`, because OQ-16 gates the formula independently. Gate-only candidates score today |
 | U3 · pricing a **part-bag** draw | OQ-21 — the client question half only. **The crash half landed 2026-09-11**: a part-bag draw now returns a typed `feed_draw_bags` refusal instead of a `RangeError` |
 | Default strategy selection | ~~OQ-3~~ answered; mode set decided (AD-35) |
 | ~~Gate harvest window past day 32~~ | **Moot.** Built in U4: under the settled flat gate price the window ends at day 31, so there is no "past day 32" to unblock. It reopens only if per-kg gate pricing becomes the default — see OQ-11 |

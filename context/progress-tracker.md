@@ -499,8 +499,10 @@ completeness fixture.
 
 ## In Progress
 
-Nothing. U4 closed 2026-09-10; U5 has not started and is blocked — see
-Next Up.
+Nothing — between units. **U5 is partly built and unmerged** on
+`u5-m5b-allocation-enumeration` (pushed 2026-09-14): M5a done, M5b Tasks 1-8
+done, Daniel's six answers wired (AD-52 to AD-57), band refusal made consistent
+(AD-58). What is left in U5 is blocked, not in progress — see Next Up.
 
 ### Closed, kept for the reasoning
 
@@ -539,31 +541,29 @@ Next Up.
 3. ~~**U4** — M4 harvest optimiser~~ done ← fixtures 7, 10, 11 green
 4. ~~**U5 · M5a** — cash calendar~~ done ← `packages/engine/src/cash.ts`,
    209 tests green, golden unchanged at 11/11/1 (AD-46, AD-47)
-5. **U5 · M5b** — allocation enumeration. **`/grill-me` complete
-   2026-09-10**, both rounds: AD-40 to AD-45 and OQ-18 came out of it.
-   The frontier is closed and the spec is complete —
-   `context/plans/u5-allocation-optimiser.md`. **The enumeration's shape
-   and mechanics are buildable today; bulk-inclusive candidate scores are
-   not** (OQ-2 transport, OQ-16), and two of three modes returning
-   `missing_input` while Maximum Growth returns a real number is the
-   expected behaviour while they are open — see AD-43. Blocked on
-   **OQ-2's transport half** (the abattoir fee landed, transport did not)
-   **and** OQ-16 (bulk net double-count), and Mode set decided (AD-35):
-   three modes, Maximum Growth reframed as leveraged rollover. Enumeration
-   must respect invariant 16's 14-day floor (AD-31). **M5b's plan is now
-   written against `projectCashCalendar`'s real signature** — `(input,
-   throughDay, openingCents, feed)` — rather than a guessed one.
+5. **U5 · M5b** — allocation enumeration. **Tasks 1-8 built**; Daniel's six
+   answers wired (AD-52 to AD-57) and the band refusal made consistent (AD-58).
+   Bulk net is computable — OQ-2 and OQ-16 are both closed. Unmerged; a
+   pre-merge review is owed before `main`, since AD-57 was not built
+   test-first. **Still blocked:**
+   - **Task 9**, wiring `decision.allocation` — **OQ-25**, no opening cash
+     balance in `EngineInput`. Recommendation: getter keeps throwing until U6.
+   - **Cover Fast** — **OQ-26**, structurally null until M6 forecasts sales.
+6. **U5 · M6** — recommendations: revenue, profit, margin, break-even. Not
+   started. Fixture 6 (OQ-8) lands here.
+7. **U6** — Supabase schema, RLS, repositories. Supplies the opening balance
+   OQ-25 needs.
+8. **U9** is additionally hard-blocked on **OQ-29** (20.8 s allocation at 5k
+   birds) — a design answer is required before it is planned.
 
-**Outstanding client questions, after Daniel's 2026-09-10 answers** —
-**OQ-8** and the **transport half of OQ-2** are what remain outstanding,
-plus **OQ-13, OQ-15, OQ-16, OQ-17**, none of which block. **OQ-17 is the
-highest-value ask of that group**: a measured dressing percentage from
-~20 paired live/dressed weights. It blocks nothing, but the harvest day
-rests on an unmeasured ~62% that is 0.8 points from changing the answer. Answered: OQ-1,
-OQ-14, OQ-3, OQ-4, OQ-7, and OQ-2 in part. **OQ-9 and OQ-11 were never
-client questions and are now CLOSED** — both were reframed, then closed by
-generating fixtures 7 and 11 from the model in U4. **OQ-3's internal decision is settled** —
-leveraged rollover reframes Maximum Growth; three modes (AD-35).
+**Outstanding client questions, as of 2026-09-14** — **OQ-8** (fixture 6
+chick price), **OQ-17** (measured dressing yield — highest value, since day 31
+sits 0.8 points from moving), **OQ-15** (labour/electricity at 30k),
+**OQ-19** (overhead payment dates, narrowed), and **OQ-21**'s rounding half.
+None blocks building. **OQ-10** (fixture 8) was blocked on OQ-2, which is now
+answered — it is ours to attempt, not Daniel's. Answered and closed: OQ-1,
+OQ-2, OQ-3, OQ-4, OQ-7, OQ-13, OQ-14, OQ-16 (retired), OQ-18, OQ-22, OQ-23,
+OQ-24, OQ-28, OQ-30.
 
 **Outstanding internal decision** — the AD-9 collision needs a renumber.
 

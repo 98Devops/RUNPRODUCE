@@ -348,9 +348,9 @@ export type AllocationMode = 'COVER_FAST' | 'MAXIMUM_GROWTH' | 'BUILD_RESERVE';
 export interface ScoredCandidate {
   readonly candidate: Candidate;
   /**
-   * null when the candidate could not be projected at all — a bulk-inclusive
-   * batch, whose calendar `projectCashCalendar` refuses until OQ-2 and OQ-16
-   * land. Every other field that needs a calendar is null with it.
+   * null when the candidate could not be projected at all — a bulk sale
+   * `projectCashCalendar` refuses because `cashFlowsMissingInputs` names a gap
+   * (AD-55, AD-57). Every other field that needs a calendar is null with it.
    */
   readonly calendar: CashCalendar | null;
   /** Days until receipts repay core credit, or null if they never do. */

@@ -71,10 +71,12 @@ export function cashFlowsMissingInputs(input: EngineInput): MissingInput[] {
     missing.push({
       key: 'abattoir_fee',
       why:
-        'Bulk net needs the abattoir fee per bird (OQ-2). Until it and transport land, ' +
-        'Cover Fast and Build Reserve return missing_input for any bulk-inclusive ' +
-        'candidate while Maximum Growth still returns a real number — its scalar is ' +
-        'placement size, which needs no bulk net. That split is expected, not a bug (AD-43).'
+        'Bulk net needs the abattoir fee per bird, and this input does not carry it. The ' +
+        'client answered it on 2026-09-10 — 10 cents a bird, SEED_ABATTOIR_FEE_CENTS — but ' +
+        'a known value is not a supplied one. While it is missing, Cover Fast and Build ' +
+        'Reserve return missing_input for any bulk-inclusive candidate and Maximum Growth ' +
+        'still returns a real number, since its scalar is placement size and needs no bulk ' +
+        'net. That split is expected, not a bug (AD-43).'
     });
   }
   if (transport_cents_per_bird === null) {

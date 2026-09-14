@@ -291,9 +291,11 @@ export function pickWinner(
 export function placeNothing(
   input: EngineInput,
   /**
-   * null when the running batch could not be projected — a bulk-inclusive
-   * batch, whose calendar is refused until OQ-2 and OQ-16 land. The overhead
-   * arithmetic below needs no projection and stays real either way.
+   * null when the running batch could not be projected — a bulk sale the
+   * calendar refuses because `cashFlowsMissingInputs` names a gap (a null
+   * abattoir fee or transport rate, or that order's own contract incomplete:
+   * AD-55, AD-57). The overhead arithmetic below needs no projection and stays
+   * real either way.
    */
   handoff: RunningBatchHandoff | null
 ): PlaceNothing {
@@ -358,10 +360,10 @@ function requirePlacementCeiling(parameters: Parameters): number {
 /**
  * A candidate the engine can name but cannot price.
  *
- * Every field needing a cash calendar is null, because a bulk-inclusive batch
- * has no calendar until OQ-2 and OQ-16 land. Only `maximum_growth_birds`
- * survives, which is exactly why Maximum Growth still answers while the other
- * two modes refuse.
+ * Every field needing a cash calendar is null, because the calendar refuses a
+ * bulk sale that `cashFlowsMissingInputs` names a gap in (AD-55, AD-57). Only
+ * `maximum_growth_birds` survives, which is exactly why Maximum Growth still
+ * answers while the other two modes refuse.
  */
 function unscorableCandidate(candidate: Candidate): ScoredCandidate {
   return {
