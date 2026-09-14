@@ -18,7 +18,13 @@ Last updated: 2026-09-14 · Branch: `u6-supabase-schema`
   3. Restore `&read_only=true`, reconnect, and verify: `select current_setting('transaction_read_only')` reads `on`, and `apply_migration` is no longer offered. If either check fails, stop and report.
   - A write window never stays open across a planning step, a commit or the end of a session. `.mcp.json` is never committed without `read_only=true`.
   - Before any MCP call, check that the URL still reads `project_ref=zlvjmaorlxrjnuxhykuh`.
-- **Read-only is NOT yet confirmed in effect (last checked at the end of chunk 3, 2026-09-14).** The live connection still predates the URL change: `transaction_read_only` = `off`, user `postgres`. At the end of chunk 3 the session's tool list still offered `apply_migration`, `create_branch` and `deploy_edge_function`. **No MCP calls until the user reconnects `supabase` in `/mcp` and the step-3 check passes.** "No writes attempted" is true; "read-only is holding" is not yet.
+- **Read-only is NOT yet confirmed in effect.** At the end of chunk 3 the live connection predated the URL change (`transaction_read_only` = `off`, user `postgres`; `apply_migration` offered). **Re-checked 2026-09-14 after chunk 5 approval:** `claude mcp list` shows `supabase` (URL with `project_ref=zlvjmaorlxrjnuxhykuh&read_only=true`) as **"Needs authentication"**, so no `supabase` tools are loaded and the check could not run. The claude.ai Supabase connector shows connected; it is denied and was not used.
+- **PRE-FLIGHT GATE, required by the user before any migration runs** (same discipline as CD-1 and the target check):
+  1. The user authenticates `supabase` in `/mcp`.
+  2. Confirm the tool list offers no `apply_migration`.
+  3. `execute_sql`: `CREATE TABLE _readonly_test (id int)` must be **rejected** (expected: "cannot execute CREATE TABLE in a read-only transaction"). If it succeeds, read-only is not in effect: drop the table, stop, report.
+  4. `execute_sql`: `SELECT 1` must **succeed**, and `select current_setting('transaction_read_only')` reads `on`.
+  5. Report both results to the user. Nothing in chunk 5 is built until then.
 - **Writes so far: none.** Dev has 0 migrations and 0 `public` tables. Every MCP call in this session was read-only by nature: `get_project_url`, `list_tables`, `list_migrations`, and one `SELECT` of settings. No MCP call was made during chunks 3 to 5.
 
 ## What this is
@@ -45,7 +51,8 @@ npm monorepo: a pure TypeScript engine (`packages/engine`) behind a Next.js app 
 - **Chunk 1** (framing, dev project): drafted.
 - **Chunk 2** (parameters, opening cash, D4-D8): approved, AD-61 to AD-67.
 - **Chunk 3** (parameter tables, D9-D12): approved, AD-68 to AD-72. `create_parameter_set` in one transaction; `revision`; immutable breed curves pinned by the batch; `bag_kg` on `feed_prices`; T-RT1 overhead round trip. `gate_price_cents_per_bird` stays; `mortality_history` is deleted in the build.
-- **AD-73** (approved): an unrecognised overhead `timing` or `basis` is refused (`'overhead_line'` in `missingInputsFor`) with a guard throw in `cash.ts`, never dated on day 1. CD-1 pattern. Not built.
+- **AD-72** (approved): T-RT1, the overhead round trip through `create_parameter_set`, written before any code that makes it pass.
+- **AD-73** (approved, scope confirmed): an unrecognised overhead `timing` **or `basis`** is refused (`'overhead_line'` in `missingInputsFor`) with a guard throw, never dated on day 1 or charged per bird. **Standing rule:** any future categorical field with a fallback path gets the same treatment by default (`code-standards.md`). Not built.
 - **Chunk 4** (recorded facts, D13-D19): **approved 2026-09-14**, AD-74 to AD-80.
   - D13 / AD-74: a batch is an identity row plus placement and closure facts; status derived.
   - D14 / AD-75: corrections append (`supersedes_id`, `voided`, `client_request_id`). **The current-row filter is enforced in the database:** version tables live in a non-exposed `facts` schema as `*_versions`; the plain names in `public` are `security_invoker` views of current rows; history is `*_history`. Repositories read views only, and a test enforces it.
@@ -54,8 +61,13 @@ npm monorepo: a pure TypeScript engine (`packages/engine`) behind a Next.js app 
   - D17 / AD-78: a draw belongs to one batch; `bags numeric`, at most 2 decimals by CHECK (never silently rounded), part bags recordable.
   - D18 / AD-79: forward sales orders stored; no derived money; BANDED only on BULK.
   - D19 / AD-80: payments, receipts, facilities, allocations, expenses, offal deferred; cash accounts and transactions built.
-- **Daniel message drafted, NOT sent** (`current-issues.md`, "DANIEL MESSAGE — how things get recorded"): OQ-32 (shared feed collection), OQ-34 (feed before placement, new: `buildDays` throws on it), OQ-33 (booked bulk with fixed weight), plus six still-open older questions. The user sends it.
-- **Chunk 5** (fact table structure): **drafted, awaiting sign-off.** Built on assumed answers OQ-32 a, OQ-33 a/b, OQ-34 a. Tests T-RT2, T-RT3, T-DB1 to T-DB3.
+- **Daniel message approved to send unchanged** (`current-issues.md`, "DANIEL MESSAGE — how things get recorded"): OQ-32, OQ-34, OQ-33, plus Q4-9. Q4-9 checked 2026-09-14: all six still open (OQ-21, OQ-17, OQ-15, OQ-19, OQ-8, OQ-6), none dropped. The user sends it. **Open call for the user:** three open client questions from the 2026-09-12 list are not in it (over 1.3 kg dressed, bulk buyer cap, direct-delivery transport).
+- **Chunk 5** (fact table structure): **approved 2026-09-14**, AD-81 to AD-84. Built on assumed answers OQ-32 a, OQ-33 a/b, OQ-34 a. Tests T-RT2, T-RT3, T-DB1 to T-DB3.
+  - AD-81: `facts` holds identities and versions; parameter tables stay in `public`.
+  - AD-82: feed grams `not null`, no default. A blank fails to save.
+  - AD-83: a draw's price is required for now; the refusal is added only if "price not known yet" proves real.
+  - AD-84: a daily record on the wrong date is voided and re-entered, never moved along a chain.
+- **TD-5** (engine feed in kg, database in grams): deferred out of U6, **must close before U9 starts**.
 - **Chunks 6-9** to come: access, repositories, seed, build order.
 
 ## Blockers
@@ -65,7 +77,9 @@ npm monorepo: a pure TypeScript engine (`packages/engine`) behind a Next.js app 
 | OQ-26: Cover Fast can't answer structurally (candidates have no forecast sales) | 1 of 3 modes | Us, via M6 |
 | OQ-31: Build Reserve pinned null for the same reason (AD-59) | 1 of 3 modes. Only Maximum Growth answers | Us, via M6 |
 | OQ-29: `computeAllocation` takes 20.8 s at 5k birds, ~2 min at 30k | **U9, hard.** Needs a design answer, not "consider performance" | Us: profile first |
-| OQ-32 / OQ-33 / OQ-34: feed shared across batches; booked bulk weight; feed before placement | Shape of U6 chunk 5 (assumed simple answers) | Daniel (message drafted) |
+| OQ-32 / OQ-33 / OQ-34: feed shared across batches; booked bulk weight; feed before placement | Shape of U6 chunk 5 (assumed simple answers) | Daniel (message approved, user sends) |
+| MCP read-only unverified: `supabase` needs authentication | **Any migration** (chunk 5 onward) | User authenticates in `/mcp`; then the pre-flight gate above |
+| TD-5: engine feed kg vs database grams | **U9 start** | Us, before U9 |
 | OQ-8: fixture 6 chick price ($0.85 vs $1.00) | Golden completeness hold | Daniel |
 | OQ-10: fixture 8 was blocked on OQ-2, now answered | Golden completeness hold | Us: attempt it |
 | OQ-17: dressing yield ~62% is unmeasured | Accuracy of the bulk harvest day (0.8 pt from flipping) | Daniel (~20 paired weights) |
@@ -86,7 +100,8 @@ npm monorepo: a pure TypeScript engine (`packages/engine`) behind a Next.js app 
 - **AD-58:** past the top band, both planning and sales refuse. Bulk hold cost is blank from day 34.
 - **AD-59:** Build Reserve scores null until a candidate has forecast sales; ranking on costs alone picked a 1-bird batch.
 - **AD-60:** one refusal list (`refusals.ts`) for decision, calendar and allocation; fixture 13's wording follows it.
-- **AD-73:** an unrecognised overhead value is refused, never defaulted to day 1.
+- **AD-72:** the overhead round trip (T-RT1) is written before anything that makes it pass.
+- **AD-73:** an unrecognised overhead value (timing or basis) is refused, never defaulted. Any future categorical field with a fallback gets the same by default.
 - **AD-75:** facts append; the plain table name is a view of current rows, raw versions are unreachable through the API.
 
 Full log: `progress-tracker.md` § Architecture Decisions.
@@ -102,7 +117,7 @@ Full log: `progress-tracker.md` § Architecture Decisions.
 8. `context/ui-context.md`, `ui-build-playbook.md`, `card-system-and-decision-ux.md`: only for UI units (U7-U11). For U9, read the OQ-29 section first.
 
 ## Recommended next action
-User sends the Daniel message. Get sign-off on chunk 5 (fact table structure). On a surprising Daniel answer, reshape chunk 5 per the consequences table under the message. Then draft chunk 6 (access: RLS, roles, WORKER and financial columns). Reconnect `supabase` in `/mcp` and pass the read-only check before any MCP call. Update this file when planning ends, before any schema code.
+User authenticates `supabase` in `/mcp`; run the pre-flight gate above and report both results. User decides on the three extra Daniel questions and sends the message. On a surprising Daniel answer, reshape chunk 5 per the consequences table. Draft chunk 6 (access: RLS, roles, WORKER and financial columns). No migration before the gate passes and planning ends.
 
 ## Maintaining this file
 - Update at the end of every unit, and on any commit that changes state a future session needs.

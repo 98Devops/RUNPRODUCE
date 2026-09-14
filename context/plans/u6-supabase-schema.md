@@ -755,12 +755,14 @@ built first in the same way as T-RT1.
 
 ## Chunk 5 — Fact table structure: daily records, feed draws, and the rest
 
-**Status: draft, awaiting sign-off.** Turns D13-D19 (AD-74 to AD-80) into
+**Status: approved 2026-09-14, logged as AD-81 to AD-84** (the four decisions
+below). **No migration from this chunk runs until the MCP read-only check
+passes** (`SESSION.md`). Turns D13-D19 (AD-74 to AD-80) into
 tables, the way chunk 3 turned D4-D8 into parameter tables. Columns and named
 constraints are listed here; the DDL is written in the build.
 
-**This chunk rests on three assumed answers from Daniel** (message drafted
-2026-09-14, not yet sent):
+**This chunk rests on three assumed answers from Daniel** (message approved
+2026-09-14, sent by the user):
 - **OQ-32:** one feed collection serves one batch.
 - **OQ-33:** no bulk run is booked with a fixed weight.
 - **OQ-34:** no feed is collected before placement.
@@ -1005,16 +1007,16 @@ Each function:
 | `sales_order_versions_pricing_basis_values` | `SalePricingBasis` | `PER_BIRD`, `PER_KG`, `BANDED` |
 | `cash_transaction_versions_direction_values` | `CashDirection` (new, with AD-67's engine function) | `IN`, `OUT` |
 
-### The discussion points, in short
+### Decisions, approved 2026-09-14
 
-1. **The `facts` schema.** It holds identity rows as well as versions, and the
-   parameter tables stay in `public`. Is that the split you want?
+1. **The `facts` schema** holds identity rows and versions; parameter tables
+   stay in `public`. AD-81.
 2. **Feed columns are `not null` with no default.** A blank field fails to save
-   instead of storing zero.
-3. **A draw's price is not null.** Is "price not known yet" a real state for a
-   feed docket?
-4. **Correcting onto another date is not allowed.** A wrong date is void and
-   re-enter.
+   instead of storing zero. AD-82.
+3. **A draw's price is not null, for now.** If "price not known yet" turns out
+   to be real, the refusal is added then, not speculatively. AD-83.
+4. **A daily record cannot be corrected onto another date.** A wrong date is
+   voided and re-entered. AD-84.
 
 ---
 
@@ -1031,4 +1033,6 @@ Each function:
 9. **Build order (TDD), CI's database target (including AD-63's drift test),
    Task 9's placement**, and the plan task list. Already owed a slot: T-RT1 to T-RT3 and
    T-DB1 to T-DB3 first, the `overhead_line` refusal (AD-73), deleting
-   `mortality_history`, and the TD-5 decision not to retype feed in U6.
+   `mortality_history`, and the TD-5 decision not to retype feed in U6 (it must
+   close before U9 starts). **Gate before the first migration:** the MCP
+   read-only check in `SESSION.md` has passed.

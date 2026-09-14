@@ -588,7 +588,9 @@ U5 is blocked, not in progress — see Next Up.
 7. **U6** — Supabase schema, RLS, repositories. Supplies the opening balance
    OQ-25 needs.
 8. **U9** is additionally hard-blocked on **OQ-29** (20.8 s allocation at 5k
-   birds) — a design answer is required before it is planned.
+   birds) — a design answer is required before it is planned — and on **TD-5**:
+   the engine's feed quantities must be grams, like the database's, before any
+   screen binds against either.
 
 **Outstanding client questions, as of 2026-09-14** — **OQ-8** (fixture 6
 chick price), **OQ-17** (measured dressing yield — highest value, since day 31
@@ -675,6 +677,49 @@ Tracked in `current-issues.md`.
 
 ## Architecture Decisions
 
+**AD-84 · A daily record on the wrong date is voided and re-entered, never moved (U6 chunk 5).**
+Approved 2026-09-14. Every correction chain stays on one batch: the self-reference
+is the composite FK `(supersedes_id, batch_id)`. For daily records it is
+`(supersedes_id, batch_id, record_date)`, so a record dated the 12th cannot
+supersede one dated the 11th. A wrong date is fixed by voiding the entry and
+entering it again on the right date. Feed draws and sales orders are not keyed
+by date, so a correction may change their date.
+*Why:* a daily record is "the record for that date". Moving one onto another
+date's chain could collide with that date's own record, and the cumulative
+triggers (AD-76) would have to re-check two dates in one write. Void and
+re-enter leaves both facts visible: what was typed, and that it was withdrawn.
+*Rejected:* allowing `record_date` to change along a chain.
+
+**AD-83 · A feed draw's price is required (U6 chunk 5).**
+Approved 2026-09-14 "for now". `price_per_bag_cents not null`, `> 0`. Every
+draw recorded so far carries its price on the docket, and `FeedDraw` types the
+price non-null, so the engine has no refusal for an unpriced draw.
+*Why not nullable now:* a nullable price would be a state nothing produces and
+nothing refuses. Adding a refusal for a case no one has reported is speculation.
+*Revisit when:* Daniel reports a docket that arrives without its price, or any
+answer implies one. Then: the column becomes nullable (additive under AD-65), and
+the engine gains a typed `feed_draw_price` refusal in `missingInputsFor` under
+AD-73's standing rule, test-first. No question in the 2026-09-14 message asks
+this directly; Q4 (part bags) is about quantity, not price.
+
+**AD-82 · Feed amounts on a daily record are required, with no default (U6 chunk 5).**
+Approved 2026-09-14. `feed_starter_g`, `feed_grower_g` and `feed_finisher_g`
+are `not null` with no `DEFAULT 0`. A day with no finisher is entered as `0`; a
+blank field fails to save.
+*Why:* a default of zero turns "not entered" into "none eaten". That is the CD-1
+pattern applied at the point of entry: refusing the blank before it is stored
+rather than refusing a wrong number after it has been computed on.
+
+**AD-81 · Facts and identities live in `facts`; parameters stay in `public` (U6 chunk 5).**
+Approved 2026-09-14. `facts` holds the identity tables (`batches`,
+`cash_accounts`) and every `*_versions` table, with RLS enabled, and is not
+exposed through PostgREST. `public` holds the current and `_history` views
+(AD-75), the chunk 3 parameter tables (which are already immutable by
+`revision`, AD-69, and need no current-row filter), and the write functions.
+*Why:* the identity rows are only ever read joined to their current facts, so
+exposing them alone would offer a half-picture under a plain name. Parameter
+sets are read whole by id, so there is nothing for a view to hide.
+
 **AD-80 · Tables with no engine reader wait for the feature that needs them (U6 D19).**
 Approved 2026-09-14. Not built in U6: `credit_facilities`, `feed_allocations`,
 `feed_payments`, `receipts`, `expenses`, `offal_disposition`,
@@ -712,6 +757,7 @@ number with it. Feed is stored as integer grams (CLAUDE.md rule 2), and the
 repository converts to the engine's kg. Weight and sample size are null
 together or present together.
 *Tech debt:* the engine's `DailyRecord` feed fields are kg `number`, TD-5.
+Deferred out of U6, and **must close before U9 starts** (approved 2026-09-14).
 
 **AD-76 · The database refuses an impossible fact; the engine refuses an inconsistent one (U6 D15).**
 Approved 2026-09-14. Deferred constraint triggers, checked at commit and taking a
@@ -808,6 +854,17 @@ wrong day 1 is not safe just because it is early. It is a date nobody gave us,
 presented as the calendar.
 *Relation to AD-72:* AD-72 is the round trip that catches a stored misspelling.
 This AD is what the engine does with a bad value from any source.
+
+**Scope confirmed 2026-09-14: timing AND basis.** Same failure shape, same fix;
+including basis is the rule applied, not scope creep.
+
+**Standing rule (approved 2026-09-14).** Any categorical field added later whose
+code has a fallback path, meaning a final branch that treats every unlisted
+value as one of the listed ones, gets this treatment by default: a typed
+refusal in `missingInputsFor` naming the field and the value, plus an exhaustive
+guard throw. It needs no new AD. Keeping a fallback does: that AD has to show the
+fallback is a client fact, not an invented one. Recorded in `code-standards.md`.
+
 **AD-72 · Overhead cadences are proven by a round trip (U6 T-RT1).**
 Approved 2026-09-14 with chunk 3. Before the first migration, and before any
 table, function or repository that would make it pass, a test writes overhead

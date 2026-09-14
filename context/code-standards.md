@@ -57,6 +57,12 @@
   }
   ```
 - `computeDecision()` in `index.ts` is the only public export.
+- **No fallback branch for a categorical field (AD-73).** When code branches on
+  a value list (`timing`, `basis`, and anything added later), every value gets
+  its own branch. An unlisted value is a typed refusal in `missingInputsFor`
+  plus a final branch that throws "call missingInputsFor() first". Never
+  `else` into one of the listed behaviours: that invents a fact. Keeping a
+  fallback needs its own AD.
 
 ## Money and units
 

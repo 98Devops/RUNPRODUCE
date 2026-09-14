@@ -295,12 +295,34 @@ first pass was itself incomplete. Items 5 and 6 were only visible by executing
 the engine rather than reading it. **Treat any NEW client question arising on
 this topic as evidence this pass missed something**, and check here first.
 
-## DANIEL MESSAGE — how things get recorded, drafted 2026-09-14 (NOT SENT)
+## DANIEL MESSAGE — how things get recorded, drafted 2026-09-14 (APPROVED, NOT YET SENT — the user sends it)
 
 Written for Daniel. Questions 1-3 are new (OQ-32, OQ-34, OQ-33) and shape the
-database U6 is building. 4-9 are the client questions still open in this file,
-bundled so he is not asked twice. **Before sending, drop any of 4-9 already
-answered in a conversation this file does not record.**
+database U6 is building. 4-9 are older client questions, bundled so he is not
+asked twice. **Approved to send unchanged, 2026-09-14.**
+
+**Q4-9 checked against this file on 2026-09-14, before sending. All six are still
+open; none is dropped:**
+
+| Q | Entry | Status in this file | Why it is not answered |
+|---|---|---|---|
+| 4 | OQ-21 | Crash fixed, client half open | Not among the six answers of 2026-09-12 (AD-52 to AD-57) |
+| 5 | OQ-17 | Open | No paired weights received |
+| 6 | OQ-15 | Open | Not among the six answers |
+| 7 | OQ-19 | Narrowed, still open | He gave the cadence ("when the batch is done"), not the day |
+| 8 | OQ-8 | Open, provisional | Not among the six answers |
+| 9 | OQ-6 | Unconfirmed | Not among the six answers |
+
+**Found in the same check: three client questions still open and NOT in this
+message.** All were on the 2026-09-12 list and are not among the six answers:
+- **#2, what a bird over 1.3 kg dressed pays** (OQ-30, closed on our side by
+  AD-58; the client half is unasked, and TD-4 #9 hangs off it).
+- **#8, whether the bulk buyer caps how many birds he takes.**
+- **#11, whether transport is the same per bird on a direct delivery**
+  (`cash.test.ts`, "whether transport is the SAME per bird is unanswered").
+
+Held for the user's decision: add them to this message, or leave them out. Asking
+them in a later message is the drip this bundle exists to avoid.
 
 > **Subject: Nine quick questions, most are pick-a-letter**
 >
@@ -2174,7 +2196,14 @@ sales, the null-fee guard, gate-order refusal), as are 6, 7 and 11. These remain
 | R2-a | Invariant 16 now counts from the latest `order_date`, which has no upper bound: a mistyped far-future date silently pushes the placement floor out | Input validation, for U6/U8's sales ledger, not the engine |
 | R2-b | `batchCashFlows` is exported and allowlisted as internal; it can be called without `cashFlowsMissingInputs` first | Acceptable while the allowlist entry stands; do not re-export it from index.ts |
 
-### TD-5 · The engine types feed quantities as kg `number` 🟡
+### TD-5 · The engine types feed quantities as kg `number` 🟠 MUST CLOSE BEFORE U9
+**Consistency debt, with a deadline (approved 2026-09-14).** Deferred out of U6
+correctly, but it **must close before U9 (the decision screen) starts**. While it
+is open, the database holds feed in grams and the engine in kg. A screen reading
+one side in kg and the other in grams would show a figure 1,000 times wrong
+with no error: the silent wrong answer this project is built to prevent. U9
+planning checks this entry first.
+
 **Raised:** 2026-09-14, U6 D16 (AD-77). `DailyRecord.feed_*_kg` and `FeedDraw.kg`
 are floats in kg. CLAUDE.md rule 2 says integer grams, and the database stores
 grams. The repository divides by 1000 at the boundary. `kgDiscrepancy` already
@@ -2415,6 +2444,7 @@ recommendation — divergences are the most valuable data available.
 | M5b · the Cover Fast mode | **OQ-26** — structurally cannot answer: a candidate has no forecast sales, so receipts never clear core credit. Needs M6 |
 | M5b · Task 9, wiring `decision.allocation` | **OQ-25** — the engine holds no cash balance to pass as `openingCents`, and the plan passed `reserve_floor_cents`, a different quantity. Recommendation: leave the getter throwing until U6 |
 | **U9 · the mode-selector / recommendation screen** | **OQ-29 — HARD BLOCKER, not an optimisation.** `computeAllocation` takes **20.8 s** at Daniel's realistic 5,000-bird ceiling and ~2 min at the brief's 30,000. U9 is a click-and-see screen; two minutes is not usable and no spinner makes it so. **U9 planning must produce a real design answer** — see OQ-29 for the three candidates and what each costs. A plan that says "consider performance" does not clear this |
+| **U9 · any screen showing feed quantities** | **TD-5**: the engine types feed in kg, the database in grams. Closes before U9 starts, so no screen binds against two units |
 | U3 · pricing a **part-bag** draw | OQ-21 — the client question half only. **The crash half landed 2026-09-11**: a part-bag draw now returns a typed `feed_draw_bags` refusal instead of a `RangeError` |
 | Default strategy selection | ~~OQ-3~~ answered; mode set decided (AD-35) |
 | ~~Gate harvest window past day 32~~ | **Moot.** Built in U4: under the settled flat gate price the window ends at day 31, so there is no "past day 32" to unblock. It reopens only if per-kg gate pricing becomes the default — see OQ-11 |
