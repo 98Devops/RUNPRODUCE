@@ -24,8 +24,9 @@ export type PricingBasis = 'PER_BIRD' | 'PER_KG';
  * buyer it is for. `Parameters` holds no per-bird bulk price at all any more —
  * see AD-57 on OQ-22.
  *
- * `BANDED` is meaningful only on a BULK order. Gate pricing stays
- * `PricingBasis`, so the type makes a banded gate sale unrepresentable.
+ * `BANDED` is meaningful only on a BULK order. The type does NOT enforce that:
+ * `pricing_basis` is typed per order, not per channel, so
+ * `cashFlowsMissingInputs` refuses a BANDED gate order instead.
  */
 export type SalePricingBasis = PricingBasis | 'BANDED';
 export type Confidence = 'measured' | 'calibrated' | 'assumed';

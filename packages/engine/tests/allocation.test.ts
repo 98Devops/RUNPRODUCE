@@ -498,6 +498,28 @@ describe('computeAllocation — the two-blocked-one-working asymmetry', () => {
   });
 });
 
+describe('computeAllocation — an unpriced gate order', () => {
+  it('refuses with a typed gate_price rather than throwing mid-projection', () => {
+    const unpriced = () =>
+      baseInput({}, [
+        {
+          channel: 'GATE',
+          order_date: '2026-03-08' as IsoDate,
+          bird_count: 500,
+          avg_live_weight_g: 1770 as Grams,
+          avg_dressed_weight_g: null,
+          bands: null,
+          pricing_basis: 'PER_BIRD',
+          price_cents_per_bird: null,
+          price_cents_per_kg: null,
+          terms_days: 0
+        }
+      ]);
+    const result = computeAllocation(unpriced(), feedFor(unpriced()), harvestOf(unpriced()), 0n as Cents);
+    expect((result.build_reserve as MissingInput[]).map((m) => m.key)).toEqual(['gate_price']);
+  });
+});
+
 describe('computeAllocation — a gate-only batch answers everything', () => {
   // A floor low enough that candidates are affordable. baseInput carries NO
   // sales, so the running batch spends a whole cycle and earns nothing; against

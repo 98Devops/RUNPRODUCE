@@ -63,6 +63,10 @@ export const SEED_ABATTOIR_COST_CENTS_PER_BIRD = (SEED_ABATTOIR_FEE_CENTS +
  */
 export function cashFlowsMissingInputs(input: EngineInput): MissingInput[] {
   const missing: MissingInput[] = [];
+  for (const sale of input.sales) {
+    if (sale.channel === 'BULK') continue;
+    missing.push(...gateOrderProblems(sale));
+  }
   if (!input.sales.some((sale) => sale.channel === 'BULK')) return missing;
 
   const { abattoir_fee_cents, transport_cents_per_bird, delivery_mode } = input.parameters;
@@ -103,6 +107,39 @@ export function cashFlowsMissingInputs(input: EngineInput): MissingInput[] {
   }
 
   return missing;
+}
+
+/**
+ * What stops THIS gate order being priced, if anything.
+ *
+ * `SalesOrder.pricing_basis` is typed per order, not per channel, so nothing in
+ * the type stops a gate order carrying BANDED. Checked here so the calendar
+ * refuses it rather than booking the per-bird price with the bands ignored, and
+ * so an unpriced gate order is a typed refusal rather than a throw mid-projection.
+ */
+function gateOrderProblems(sale: SalesOrder): MissingInput[] {
+  if (sale.pricing_basis === 'BANDED') {
+    return [
+      {
+        key: 'gate_price',
+        why:
+          `This ${sale.channel} order is priced BANDED. Bands are a bulk contract priced ` +
+          'on dressed weight, and a gate bird is sold live, so there is no gate reading ' +
+          'of them to fall back on.'
+      }
+    ];
+  }
+  const rate =
+    sale.pricing_basis === 'PER_KG' ? sale.price_cents_per_kg : sale.price_cents_per_bird;
+  if (rate === null) {
+    return [
+      {
+        key: 'gate_price',
+        why: `This ${sale.channel} order is priced ${sale.pricing_basis} and carries no such price.`
+      }
+    ];
+  }
+  return [];
 }
 
 /**

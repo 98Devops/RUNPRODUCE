@@ -340,6 +340,29 @@ describe('projectCashCalendar — receipts', () => {
     expect(cashFlowsMissingInputs(input('2026-03-10', { sales: [gateOrder] }))).toEqual([]);
   });
 
+  it('refuses a gate order that carries no price for its own basis', () => {
+    // Before this, the calendar threw a raw Error on it, and computeAllocation
+    // with it — a crash where a typed refusal belongs.
+    const unpriced = { ...gateOrder, price_cents_per_bird: null };
+    const missing = cashFlowsMissingInputs(input('2026-03-10', { sales: [unpriced] }));
+    expect(missing.map((m) => m.key)).toEqual(['gate_price']);
+  });
+
+  it('refuses a BANDED gate order rather than pricing it per bird', () => {
+    // Bands are a bulk contract. A gate order marked BANDED was booked at its
+    // per-bird price with the bands silently ignored.
+    const banded = {
+      ...gateOrder,
+      pricing_basis: 'BANDED' as const,
+      avg_dressed_weight_g: 1100 as Grams,
+      bands: [{ dressed_floor_g: 1000 as Grams, price_cents_per_bird: 370n as Cents }],
+      price_cents_per_bird: 999n as Cents
+    };
+    const missing = cashFlowsMissingInputs(input('2026-03-10', { sales: [banded] }));
+    expect(missing.map((m) => m.key)).toEqual(['gate_price']);
+    expect(missing[0]!.why).toMatch(/BANDED/);
+  });
+
   it('prices a BULK candidate once abattoir fee and transport are both supplied', () => {
     const engineInput = input('2026-03-10', {
       parameters: parameters({

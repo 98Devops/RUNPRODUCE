@@ -437,7 +437,7 @@ export function computeAllocation(
   const asymmetry =
     ' Two of three modes returning missing_input while Maximum Growth returns a real ' +
     'number is EXPECTED, not a regression: its scalar is placement size, which needs no ' +
-    'bulk net. Its winner carries reserve_floor_checked: false, because without a ' +
+    'cash calendar. Its winner carries reserve_floor_checked: false, because without a ' +
     'calendar the floor could not be evaluated either. See u5-allocation-optimiser.md.';
   const refusal = blocked.map((m) => ({ ...m, why: m.why + asymmetry }));
 
