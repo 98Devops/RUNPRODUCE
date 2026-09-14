@@ -1,5 +1,12 @@
 # RunProduce - Session State
-Last updated: 2026-09-14 · Branch: `main`
+Last updated: 2026-09-14 · Branch: `u6-supabase-schema`
+
+## HARD RULE: Daniel's production Supabase project is off-limits
+- **No U6 work touches Daniel's production Supabase project.** Every connection string, MCP target and deploy script defaults to the **dev** project.
+- **Dev project ref: `zlvjmaorlxrjnuxhykuh`.** It is the only target of the `supabase` server in `.mcp.json`. It may be reset, wiped and rebuilt freely: migrations, tests and experiments all run there.
+- **CI's database job** runs against a CI-only project or a throwaway branch of dev. Never dev directly, never production.
+- **Production is first touched in U11**, deliberately, in one clean migration of the final schema.
+- **Do not use the claude.ai Supabase connector** (`mcp__claude_ai_Supabase__*`) for this project. It is account-wide, and it lists unrelated projects.
 
 ## What this is
 A decision console for Daniel, a broiler farmer, that turns his daily batch records into feed, cost, cash and harvest figures. Its headline job is telling him how many birds to place next and when, under three named strategies.
@@ -20,12 +27,12 @@ npm monorepo: a pure TypeScript engine (`packages/engine`) behind a Next.js app 
 - **Status:** 348 unit tests. Golden 11 written / 11 passing / 1 held. Lint, typecheck, build clean.
 
 ## In progress
-**U6**, planning. Task 0 done: one shared refusal list, `missingInputsFor` in `refusals.ts` (TD-4 #8, AD-60). U5's remainder (Task 9, M6) is blocked, see below.
+**U6**, planning. Task 0 done: one shared refusal list, `missingInputsFor` in `refusals.ts` (TD-4 #8, AD-60). Spec in `context/plans/u6-supabase-schema.md`: chunk 1 (framing, dev project) and chunk 2 (parameters, opening cash) are drafted, chunks 3-7 to come. No schema code yet. The `supabase` MCP server needs the user to authenticate it (`/mcp` in a terminal) before any migration runs.
 
 ## Blockers
 | Blocker | Blocks | Who resolves |
 |---|---|---|
-| OQ-25: engine holds no opening cash balance | M5b Task 9, wiring `decision.allocation` (getter throws) | Us, via U6 |
+| OQ-25: engine holds no opening cash balance | M5b Task 9, wiring `decision.allocation` (getter throws) | Us, U6. Proposed in spec chunk 2 D8, not yet signed off |
 | OQ-26: Cover Fast can't answer structurally (candidates have no forecast sales) | 1 of 3 modes | Us, via M6 |
 | OQ-31: Build Reserve pinned null for the same reason (AD-59) | 1 of 3 modes. Only Maximum Growth answers | Us, via M6 |
 | OQ-29: `computeAllocation` takes 20.8 s at 5k birds, ~2 min at 30k | **U9, hard.** Needs a design answer, not "consider performance" | Us: profile first |
@@ -63,7 +70,7 @@ Full log: `progress-tracker.md` § Architecture Decisions.
 8. `context/ui-context.md`, `ui-build-playbook.md`, `card-system-and-decision-ux.md`: only for UI units (U7-U11). For U9, read the OQ-29 section first.
 
 ## Recommended next action
-Plan U6 (Supabase schema, RLS, repositories), with TD-4 #8's single shared refusal function as its first task. U6 supplies the opening cash balance OQ-25 needs to wire `decision.allocation`, and wiring it on today's three drifted refusal checks would ship the drift.
+Get sign-off on U6 spec chunks 1-2 (`context/plans/u6-supabase-schema.md`), then draft chunks 3-7. Update this file when planning ends, before any schema code.
 
 ## Maintaining this file
 - Update at the end of every unit, and on any commit that changes state a future session needs.
