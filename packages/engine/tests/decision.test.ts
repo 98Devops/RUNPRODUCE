@@ -23,7 +23,6 @@ function input(overrides: Partial<EngineInput> = {}): EngineInput {
       gate_price_cents_per_kg: null,
       gate_pricing_basis: 'PER_BIRD',
       gate_capacity_per_day: 750,
-      bulk_price_cents_per_bird: Money.fromCents(390n),
       abattoir_fee_cents: null,
       transport_cents_per_bird: null,
       delivery_mode: 'ABATTOIR',
@@ -42,6 +41,8 @@ const bulkSale: SalesOrder = {
   order_date: '2026-03-08' as IsoDate,
   bird_count: 1200,
   avg_live_weight_g: 1843 as Grams,
+  avg_dressed_weight_g: null,
+  bands: null,
   pricing_basis: 'PER_BIRD',
   price_cents_per_bird: Money.fromCents(390n),
   price_cents_per_kg: null,
@@ -54,7 +55,7 @@ describe('computeDecision', () => {
     expect(result.kind).toBe('ok');
     if (result.kind !== 'ok') return;
     expect(result.decision.production.total_feed_kg).toBe(13224);
-    expect(result.decision.costing.feed_cost_cents).toBe(807981n);
+    expect(result.decision.costing.feed_cost_cents).toBe(769806n);
   });
 
   it('refuses to price a BULK sale with no abattoir fee, naming both gaps (fixture 13)', () => {
@@ -118,5 +119,124 @@ describe('computeDecision', () => {
       }
       expect(isNotImplemented(thrown), `${key} should still be held`).toBe(true);
     }
+  });
+});
+
+describe('the engine surface', () => {
+  /**
+   * The gap this exists to catch: every M5b function lived in allocation.ts and
+   * was never re-exported from index.ts, so the whole module was unreachable
+   * from the package entry point. No test noticed, because the allocation tests
+   * import '../src/allocation.js' directly.
+   */
+  it('reaches the allocation module from the package entry point', async () => {
+    const engine = await import('../src/index.js');
+    for (const name of [
+      'computeAllocation',
+      'enumerateCandidates',
+      'handoffAtPlacement',
+      'candidateInput',
+      'projectCandidate',
+      'scoreCandidate',
+      'pickWinner',
+      'placeNothing',
+      'DEFAULT_PLACEMENT_STEP_BIRDS'
+    ]) {
+      expect(engine, `${name} should be exported from index.ts`).toHaveProperty(name);
+    }
+  });
+
+  it('holds allocation on the cash balance, not on the optimiser being unbuilt', () => {
+    const result = computeDecision(input());
+    if (result.kind !== 'ok') throw new Error('expected ok');
+
+    let thrown: unknown;
+    try {
+      void result.decision.allocation;
+    } catch (error) {
+      thrown = error;
+    }
+    // Still NotImplementedError, because classifyFixture holds only on that
+    // exact type — but the reason is now OQ-25, and the unit is U6.
+    expect(isNotImplemented(thrown)).toBe(true);
+    expect((thrown as Error).message).toMatch(/OQ-25/);
+    expect((thrown as Error).message).toMatch(/U6/);
+  });
+});
+
+describe('sales quantity validation — 0 < ordered <= birds alive', () => {
+  const gateSale = (bird_count: number, order_date = '2026-03-08'): SalesOrder => ({
+    channel: 'GATE',
+    order_date: order_date as IsoDate,
+    bird_count,
+    avg_live_weight_g: 1770 as Grams,
+    avg_dressed_weight_g: null,
+    bands: null,
+    pricing_basis: 'PER_BIRD',
+    price_cents_per_bird: Money.fromCents(430n),
+    price_cents_per_kg: null,
+    terms_days: 0
+  });
+
+  it('refuses an order for more birds than are alive that day', () => {
+    // The exact shape found in the 2026-09-12 due-diligence pass: this returned
+    // `ok`, and every downstream figure would have been revenue on birds that
+    // do not exist.
+    const result = computeDecision(input({ sales: [gateSale(999_999)] }));
+
+    expect(result.kind).toBe('missing_input');
+    if (result.kind !== 'missing_input') throw new Error('unreachable');
+    const entry = result.missing.find((m) => m.key === 'sales_bird_count');
+    expect(entry).toBeDefined();
+    // Actionable: it names the order and both numbers, so a capture screen can
+    // point at the row rather than at the concept.
+    expect(entry?.why).toContain('999999');
+    expect(entry?.why).toContain('2026-03-08');
+  });
+
+  it('refuses a negative bird count', () => {
+    const result = computeDecision(input({ sales: [gateSale(-500)] }));
+
+    expect(result.kind).toBe('missing_input');
+    if (result.kind !== 'missing_input') throw new Error('unreachable');
+    expect(result.missing.map((m) => m.key)).toContain('sales_bird_count');
+  });
+
+  it('refuses a zero bird count — an order for nothing is not an order', () => {
+    const result = computeDecision(input({ sales: [gateSale(0)] }));
+    if (result.kind !== 'missing_input') throw new Error('expected refusal');
+    expect(result.missing.map((m) => m.key)).toContain('sales_bird_count');
+  });
+
+  it('refuses two orders that are individually fine but oversell together', () => {
+    // Production models mortality and NEVER subtracts sold birds, so each of
+    // these passes a per-day check on its own. Their sum does not.
+    const result = computeDecision({
+      ...input(),
+      sales: [gateSale(2000, '2026-03-08'), gateSale(1500, '2026-03-09')]
+    });
+
+    expect(result.kind).toBe('missing_input');
+    if (result.kind !== 'missing_input') throw new Error('unreachable');
+    expect(result.missing.map((m) => m.key)).toContain('sales_bird_count');
+  });
+
+  it('allows a legitimate order and changes nothing about it', () => {
+    const result = computeDecision(input({ sales: [gateSale(2900)] }));
+    expect(result.kind).toBe('ok');
+  });
+
+  it('allows a future-dated order the production series does not reach', () => {
+    // asOf is 2026-03-18 and the series stops there, so there is no day to
+    // check against. The flock-size ceiling still applies — you can never sell
+    // more birds than were ever placed — but a plausible forward order stands.
+    const result = computeDecision(input({ sales: [gateSale(2500, '2026-04-01')] }));
+    expect(result.kind).toBe('ok');
+  });
+
+  it('still refuses a future-dated order that exceeds the whole flock', () => {
+    const result = computeDecision(input({ sales: [gateSale(999_999, '2026-04-01')] }));
+    if (result.kind !== 'missing_input') throw new Error('expected refusal');
+    expect(result.missing.map((m) => m.key)).toContain('sales_bird_count');
   });
 });

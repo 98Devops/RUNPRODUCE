@@ -12,29 +12,31 @@ import type {
  * and 12 are drawn from.
  *
  *   Vaccine                $42      Electricity & heating   $140
- *   Labour                 $640     Other / transport       $400
+ *   Labour                 $640
  *                                   ----------------------------
- *                                   $1,222.00
+ *                                   $822.00
  *
- * That is 11.0% on top of core credit (chicks $3,000 + feed $8,079.81 =
- * $11,079.81) and 9.9% of his total booked batch cost of $12,301.81. Every
- * figure here is `confidence: 'measured'` because every figure is his, read
- * out of his own spreadsheet. Nothing in this file is estimated, and nothing
- * in it waits on a client answer.
+ * Was $1,222.00 until 2026-09-12, when the client RETIRED the $400
+ * "Other/Transport" line — see AD-51 and the removal note below. Every figure
+ * here is `confidence: 'measured'` because every figure is his, read out of his
+ * own spreadsheet. Nothing in this file is estimated.
  *
- * Two things that ARE still open, and are not resolved by inventing a number:
+ * **The transport gap this file used to describe is closed.** It said transport
+ * was charged nowhere; both halves now are. Feed delivery is `delivery_cents`
+ * on the draw ($40/tonne, AD-54) and the run to the abattoir is
+ * `transport_cents_per_bird` (10c, AD-55). Neither belongs here — they are feed
+ * and sales costs respectively, not production overheads, which is why the
+ * retired $400 line could not simply be repointed at either.
  *
- *   1. `transport_other` is the Final Report's "Other/Transport" line for a
- *      batch sold at the gate. It is NOT the run to the abattoir — that is
- *      `Parameters.transport_cents_per_bird`, which stays null until OQ-2 is
- *      answered. The brief says "Do not double-count costs", so the two must
- *      never both be charged for the same bird's journey. OQ-16 is a hard
- *      precondition on the U5 bulk-net task and is listed as such in
- *      current-issues.md's blocked-work table — an answered OQ-2 does not
- *      release it. This comment records the risk; the table is the gate.
- *   2. The PER_BATCH lines were measured at 3,000 birds. Whether labour and
- *      electricity are genuinely flat at 30,000 birds is a client question,
- *      not something to model a scaling law for. See OQ-15.
+ * **Each line carries its own `timing`** (AD-56), from the client 2026-09-12:
+ * vaccines upfront, labour when the batch is done, electricity as it arises.
+ * The amounts are measured; the dates those cadences land on are still ours and
+ * still assumed — see OQ-19.
+ *
+ * **One thing that IS still open, and is not resolved by inventing a number:**
+ * the PER_BATCH lines were measured at 3,000 birds. Whether labour and
+ * electricity are genuinely flat at 30,000 birds is a client question, not
+ * something to model a scaling law for. See OQ-15.
  */
 export const SEED_OVERHEADS: OverheadModel = {
   lines: [
@@ -43,6 +45,8 @@ export const SEED_OVERHEADS: OverheadModel = {
       label: 'Vaccine',
       // The brief lists medication under VARIABLE costs: it follows the bird.
       basis: 'PER_BIRD',
+      // "Vaccines upfront" — the client, 2026-09-12. Day 1, in one payment.
+      timing: 'PLACEMENT',
       amount_cents: 4200n as Cents,
       measured_at_flock_size: 3000,
       confidence: 'measured',
@@ -53,6 +57,10 @@ export const SEED_OVERHEADS: OverheadModel = {
       label: 'Electricity and heating',
       // The brief lists electricity under FIXED/OVERHEAD costs.
       basis: 'PER_BATCH',
+      // "We pay as when they arise" — a monthly bill. The measured $140 is what
+      // one BATCH cost, so it is SPLIT across the months the batch spans rather
+      // than charged again each month (AD-56).
+      timing: 'MONTHLY',
       amount_cents: 14000n as Cents,
       measured_at_flock_size: 3000,
       confidence: 'measured',
@@ -63,21 +71,41 @@ export const SEED_OVERHEADS: OverheadModel = {
       label: 'Labour',
       // The brief lists labour under FIXED/OVERHEAD costs.
       basis: 'PER_BATCH',
+      // "Labour when the batch is done" — the client, 2026-09-12.
+      timing: 'HARVEST_COMPLETE',
       amount_cents: 64000n as Cents,
       measured_at_flock_size: 3000,
       confidence: 'measured',
       source: 'Final Report, 3,000-bird batch placed 2026-02-06'
     },
-    {
-      key: 'transport_other',
-      label: 'Transport and other',
-      // The brief lists transport under VARIABLE costs.
-      basis: 'PER_BIRD',
-      amount_cents: 40000n as Cents,
-      measured_at_flock_size: 3000,
-      confidence: 'measured',
-      source: 'Final Report, 3,000-bird batch placed 2026-02-06'
-    }
+    /**
+     * `transport_other` — the Final Report's $400 — was REMOVED on 2026-09-12.
+     *
+     * The client retired the line: it is no longer part of his business logic,
+     * so charging it would be billing him for a cost he has stopped incurring.
+     * He did NOT say what it was composed of, and nothing here should be read
+     * as deciding that (OQ-16 is recorded as retired, not answered).
+     *
+     * TWO CONSEQUENCES, and the second is the uncomfortable one.
+     *
+     * 1. **A historical discontinuity.** His Final Report totals $12,301.81 of
+     *    expenditure INCLUDING this $400, against a net profit of $4,948.19.
+     *    Batches costed after this change are not comparable like-for-like with
+     *    that one. See AD-51.
+     *
+     * 2. **Transport is now UNDER-charged, and was already.** He confirmed feed
+     *    delivery at $40/tonne on 2026-09-12 (OQ-28), which on this batch's
+     *    13,224 kg is $528.96 — and when this line was retired, nothing in the
+     *    engine charged it. AD-54 has since charged it per tonne collected, so
+     *    the understatement described below is historical.
+     *    Before this change the retired $400 partly offset that, so costs ran
+     *    ~$129 light; after it they run ~$529 light. The error direction is
+     *    UNDERSTATEMENT, which is the flattering direction this engine is not
+     *    allowed to err in, and removing a false line widened it rather than
+     *    closing it. That is not a reason to keep false data — it is a reason
+     *    OQ-28 is the next overhead work, and nobody should read the improved
+     *    margin in the meantime as real.
+     */
   ]
 };
 
@@ -157,6 +185,7 @@ export function overheadBreakdown(
     key: line.key,
     label: line.label,
     basis: line.basis,
+    timing: line.timing,
     cents: overheadLineCents(line, flock_size),
     confidence: line.confidence
   }));

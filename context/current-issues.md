@@ -208,7 +208,181 @@ one. See AD-26, and OQ-14 below, which this closes.
 
 ---
 
-### OQ-13 · Which feed price set is current? 🟠 BLOCKS NOTHING
+## FOR US TO BUILD — bulk revenue, complete, 2026-09-12
+
+**Daniel is never asked about any of this.** Same trace as the Daniel list;
+these are the gaps where the missing thing is code, not information.
+
+**Ordered by real priority, not by the order they were found.** Reprioritised
+and the first three executed on 2026-09-12.
+
+| Rank | Item | State |
+|---|---|---|
+| **1** | Sales quantity validation | ✅ **DONE** — `salesMissingInputs`, typed `sales_bird_count` refusal, 7 tests. Daniel's robustness request maps directly here: a 999,999-bird order against a 3,000-bird batch returning `ok` is precisely what he asked for protection against. |
+| **2** | Retired $400 in `SEED_OVERHEADS` | ✅ **DONE** — removed, AD-51, 8 assertions updated. Note the error direction was **understatement**, not overstatement — see AD-51. |
+| **3** | `bulkNetCentsPerBird` | ✅ **BUILT AND WIRED** 2026-09-12 (AD-57) — reads the ORDER's own contract (PER_BIRD, PER_KG or BANDED) and books a NET `BULK_RECEIPT` on order date + terms. |
+| 4 | Revenue / profit / margin / break-even | **Queued — now the largest thing standing between the engine and a bulk number.** Nothing of it exists. |
+| **5** | Dressed weight on `SalesOrder` | ✅ **DONE** — `avg_dressed_weight_g`, required for a BANDED order and refused rather than derived from the assumed yield (AD-57). |
+| **6** | OQ-22 precedence | ✅ **DONE** — closed by DELETING `bulk_price_cents_per_bird`, not by ranking the two sources (AD-57). |
+| 7 | `transport_cents_per_bird` not distinguished by delivery mode | Queued — the value landed (AD-55), the DIRECT-mode distinction did not. Needs question 11. |
+| 8 | Offal fields on `SalesOrder` | Queued. |
+| 9 | `mortality_history` dead key | Queued — wire or delete. |
+| **10** | OQ-28 feed delivery field | ✅ **DONE** — AD-54, paid on the collection date. |
+| 11 | OQ-25 cash balance | Blocked on U6. **Now the only thing between `computeAllocation` and the `decision.allocation` getter.** |
+| 12 | OQ-26 Cover Fast | Blocked on M6. |
+| 13 | OQ-29 — a 1-bird grid takes 20.8 s | **New 2026-09-12.** Ours. Should land before M5b Task 9. |
+| 14 | OQ-30 — the band schedule extrapolates in planning, refuses in sales | **New 2026-09-12.** Half ours, half question 2 on the Daniel list. |
+
+**On the critical path to a bulk number:**
+
+1. **Bulk net is not implemented at all.** `grep bulk_net src/` returns nothing.
+   `receiptCents` computes a GROSS amount and the BULK branch in
+   `projectCashCalendar` refuses rather than booking it. Verified 2026-09-12:
+   supplying a hypothetical transport value still throws. **Answering OQ-2
+   closes one gap of two.**
+2. **No revenue, profit, margin or break-even exists anywhere in the engine.**
+   `CostingResult` is costs only. The brief asks outright for break-even
+   quantity ("how many birds must be sold to recover...") and profit, and none
+   of it is built. "Bulk profitability end to end" needs this, not just a net
+   per bird.
+3. **`SalesOrder` carries no dressed weight.** Bands key on `dressed_floor_g`;
+   orders carry `avg_live_weight_g` only, so every band lookup routes through
+   the assumed 62% yield even when a real dressed weight is known.
+4. **OQ-22 is still undecided** — `bulk_price_cents_per_bird` is declared and
+   read nowhere, while M4 prices bulk off the bands. Two live sources for one
+   price. It moved out of M5b because M5b never computes a bulk net; it lands
+   with whichever unit does.
+
+**Correctness, found by this pass:**
+
+5. **`SEED_OVERHEADS` still charges the retired $400.** `transport_other`,
+   `amount_cents: 40000n`, PER_BIRD at 3,000 birds. Daniel retired this line on
+   2026-09-12, so every `overhead_cost_cents`,
+   `full_production_cost_cents` and day-1 cash lump is now overstated by
+   13.3c/bird. **No golden fixture asserts an overhead-inclusive figure**
+   (checked: fixtures assert feed cost, feed kg, FCR, cumulative feed, draw
+   bags, hold cost, due dates, harvest day, gate window, flock size, and one
+   refusal), so removing it is contained — but it must be a deliberate AD, not
+   a quiet edit, because it changes the client's own historical baseline.
+6. **Sales are not reconciled against live birds.** Verified 2026-09-12:
+   `computeDecision` returns `ok` for a GATE order of **999,999 birds from a
+   3,000-bird batch**, and `ok` for a bird count of **−500**. Revenue would be
+   computed on birds that do not exist. This is the most direct gap against
+   Daniel's robustness request, and it is entirely ours to close.
+7. **`transport_cents_per_bird` is required in both delivery modes**, with no
+   distinction between the run to the abattoir and a direct delivery to the
+   buyer — which the client explicitly asked to be supported as an edge case.
+   Only the abattoir FEE is gated on `delivery_mode`.
+8. **`SalesOrder` has no offal fields.** `architecture.md` and AD-32 specify
+   `offal_disposition` and `offal_value_cents` (null meaning "not valued", which
+   is not zero); the engine type has neither, so a future deal that pays for
+   offals cannot be compared against this one.
+9. **`mortality_history` is a declared `MissingInputKey` emitted nowhere** —
+   the same dead-slot shape as OQ-22, and worth either wiring or deleting.
+10. **OQ-28 has no field yet** — `delivery_cents_per_tonne` on `Parameters` plus
+    a derived `delivery_cents` beside `total_cents` on `DrawLiability`. Design
+    chosen; blocked only on Daniel's timing answer (item 6 on his list).
+
+**Already logged, still open, on the path to a usable answer:**
+
+11. **OQ-25** — no cash balance in `EngineInput`, so M5b Task 9 cannot wire
+    `decision.allocation`. Needs U6.
+12. **OQ-26** — Cover Fast structurally cannot answer; needs M6's channel split.
+
+**Was there anything behind these?** The pass was run twice. The second run
+found items 5, 6, 8 and 9, and found that OQ-24 duplicated OQ-13 — i.e. the
+first pass was itself incomplete. Items 5 and 6 were only visible by executing
+the engine rather than reading it. **Treat any NEW client question arising on
+this topic as evidence this pass missed something**, and check here first.
+
+## THE DANIEL LIST — bulk revenue, complete, 2026-09-12
+
+### SEND FIRST, ALONE — the pricing question
+
+> **Is the bulk deal priced per bird or per kg?** Your contract bands say
+> $3.90 at 1.1 kg dressed, $3.80 at 1.2, $3.70 at 1.3. But your record shows
+> one sale at $2.00/kg — $5.75 a bird at 2.875 kg. Which one governs a new
+> sale?
+
+**Why it goes alone and first.** It is the only question whose answer changes
+the SHAPE of the calculation rather than a number inside it. Per-bird bands and
+per-kg pricing are incompatible structures: one caps at $3.70 for a heavy bird,
+the other pays more the heavier it gets. Until it is settled, `bulkNetCentsPerBird`
+cannot be wired to the cash calendar, OQ-22 cannot be closed, and the bands may
+be modelling a `band_overshoot_loss` that does not exist. Bundling it with
+twelve other questions risks it being answered last or in passing.
+
+**Then ask him which he prefers:** answer this one first and take the rest after,
+or take all thirteen at once. **Do not send the bundle until he chooses.**
+
+---
+
+### THE REMAINING TWELVE — bundled, held until he chooses
+
+**This is the whole of what only Daniel can answer on this topic.** Produced by
+a full end-to-end trace of the bulk-revenue path on 2026-09-12, after two
+earlier rounds each found a gap hiding behind the last. Every item was verified
+against code or client files, not recalled. **Nothing further should be sent to
+him about bulk revenue after this — if a new question appears, it means this
+pass missed something and that is worth knowing.**
+
+**Blocks a bulk number outright:**
+
+| # | Question | Why it blocks | Ref |
+|---|---|---|---|
+| 1 | What does it cost to get one load of birds to the abattoir — per bird, or per truckload and how many birds fit? | `transport_cents_per_bird` is the last unknown term in gross − fee − transport | OQ-2 |
+| 2 | The contract pays $3.90 at 1.1 kg dressed, $3.80 at 1.2, $3.70 at 1.3. What does it pay above 1.3 kg dressed? | `bandForDressedG` silently reuses the top band past 1.3 kg — an extrapolation past the contract's stated range | new |
+| ~~3~~ | **MOVED — sent first and alone, see above.** | | |
+
+**Changes the number materially:**
+
+| # | Question | Why | Ref |
+|---|---|---|---|
+| 4 | Roughly 20 paired live/dressed weights, or your measured dressing percentage | Bulk price is banded on DRESSED weight; every bulk figure currently rests on an assumed 62% | OQ-17 |
+| 5 | Two feed prices appear in your file — $32.50 a starter bag on the daily sheet, $31.60 on the feed account. Which is current? | 3-5% on the largest single cost; no cross-check exists | OQ-13 |
+| 6 | Is the $40/tonne feed transport paid on collection, or on the same 30 days as the feed? | Changes the cash calendar, not just the total | OQ-28 |
+| 7 | Do labour and electricity stay flat at 30,000 birds, or scale? | Measured at 3,000 only | OQ-15 |
+| 8 | Does the bulk buyer cap how many birds he will take? | "Guaranteed outlet" with no stated ceiling; decides whether bulk can absorb a whole flock | new |
+| 9 | Does the feed supplier ever invoice a part bag, or do you always collect whole 50 kg bags? | Feed cost feeds core credit and break-even | OQ-21 |
+| 10 | Day 40 shows 2,789 g — a jump of +227 g against about 90 g/day. Typo or real? | Weight → dressed weight → band → price | OQ-6 |
+
+**Smaller, but ask now rather than later:**
+
+| # | Question | Ref |
+|---|---|---|
+| 11 | If you ever deliver straight to the buyer instead of the abattoir, is transport the same per bird? | new |
+| 12 | When do you actually pay labour and electricity — per batch, monthly, or on some other date? | OQ-19 |
+| 13 | What unit does the hatchery invoice chicks in — boxes of 100, or something else? | OQ-18 |
+
+**Deliberately NOT on this list:** anything the engine can settle itself.
+Everything in "for us to build" below is ours and Daniel is never asked about
+it. Recording that boundary matters as much as the list — three of the gaps
+found on 2026-09-12 had been sitting behind a client question that would never
+have revealed them.
+
+### OQ-13 · Which feed price set is current? ✅ ANSWERED 2026-09-12 — with a THIRD set
+**Answer (Daniel, 2026-09-12):** **$30.60 starter, $29.60 grower, $28.60
+finisher**, per 50 kg bag.
+
+**Neither of the two sets we asked about.** We offered the Record sheet's
+$32.50/$31.00/$30.00 or the Feed Account's $31.60/$29.60/$28.60. He gave a third.
+His data supersedes our question's framing and is used as given — reconciling it
+to our own options would mean arguing with the client about what he pays for
+feed. **OQ-24 is closed by the same answer**; both workbook sets are historical.
+
+**Two consequences, both in AD-52:**
+
+1. **`price_per_kg_cents` could not hold it.** $30.60 over 50 kg is 61.2 cents a
+   kg. Phase pricing is now per BAG, with `bag_kg`, and `costOfFeed` divides the
+   bag price to the gram in one integer expression.
+2. **Fixture 1 no longer reproduces his workbook**, and that is correct — the
+   workbook is priced at what feed used to cost. Feed cost at day 41 drops from
+   $8,079.81 to **$7,698.06**; fixture 7's hold cost from $3,200.71 to
+   **$3,076.16**. The extraction check those fixtures provided is spent.
+
+**Superseded reasoning below, kept because its lesson outlived the question.**
+
+### OQ-13 (superseded) · Which feed price set is current? 🟠 BLOCKS NOTHING
 **Status:** Open, and deliberately not blocking. **Affects:** every money
 figure downstream *if* the answer turns out to be the cheaper set.
 
@@ -310,17 +484,68 @@ scenario is modelled the overhead lines are editable — the brief says
 "Make this editable" — and anything the user changes stops being
 `measured`.
 
-### OQ-16 · Is the $400 "Other/Transport" the abattoir run? 🔴 BLOCKS BULK NET
-**Status:** Open, and a **hard precondition on the U5 task that computes
-bulk net revenue** — listed in the blocked-work table below, not only in
-a code comment, so that answering OQ-2 cannot silently unblock bulk
-allocation while this is still open. **Affects:** whether bulk economics
+### OQ-16 · Is the $400 "Other/Transport" the abattoir run? ✅ RETIRED 2026-09-12
+**Resolution: RETIRED — the input is no longer part of the client's business
+logic.** Daniel removed the $400 "Other Expenses/Transport" line. He did **not**
+tell us what it was composed of.
+
+**Record this precisely, because two wrong summaries are available and both
+would be load-bearing:**
+
+| Wrong summary | Why it misrepresents him |
+|---|---|
+| "Answered yes — it WAS the abattoir run" | He never said so. Recording it this way would let a future reader treat `transport_cents_per_bird` as already covered by a retired overhead, and under-charge bulk. |
+| "Answered no — it was feed and chick collection" | He never said this either. It would license charging transport twice if the line ever came back, and it invents a composition for a number nobody analysed. |
+
+**What is actually true:** the question asked how to split a line that no longer
+exists. It is moot, not resolved. **No fact about transport composition was
+established** — we know less about what the $400 was than the question assumed
+we would by now, and that is fine, because nothing depends on it any more.
+
+**What this DOES unblock.** The double-count risk is gone: there is no longer an
+overhead line that might duplicate `transport_cents_per_bird`, so transport,
+once we know its value, can be charged into bulk net cleanly. The formula
+question OQ-16 existed to answer is closed by the removal of one of its terms.
+
+**What this does NOT unblock — read this before declaring bulk net ready.**
+Retiring a cost line is not the same as supplying a different cost's value.
+**OQ-2's transport half is still unanswered**: nobody has told us what the run
+to the abattoir costs. Setting it to `0n` because an unrelated overhead was
+retired would be inventing the number, which is exactly what invariant 5
+forbids. See OQ-2 and the blocked-work table.
+
+**Superseded analysis below, kept because it is why the question was asked.**
+
+**Status (before retirement):** Open, and a **hard precondition on the U5 task
+that computes bulk net revenue**. **Affects:** whether bulk economics
 double-counts transport.
 
-`overhead_lines.transport_other` is the Final Report's $400 on a batch
-sold at the gate. `Parameters.transport_cents_per_bird` is the run to
-the abattoir, still null pending OQ-2. The brief says "Do not
-double-count costs", and these two could be the same truck.
+`overhead_lines.transport_other` is the Final Report's $400.
+`Parameters.transport_cents_per_bird` is the run to the abattoir, still null
+pending OQ-2. The brief says "Do not double-count costs", and these two could
+be the same truck.
+
+**PREMISE CORRECTED 2026-09-11 — and it moves the odds toward a
+double-count, not away.** This entry previously said the $400 sat on "a batch
+sold at the gate". **It did not.** Read from the client workbook
+(`RUNproduce Broiler Management .xlsx`):
+
+- `Final Report`!C8 — "Other Expenses/Transport" = **400**, a hardcoded
+  constant with no formula, alongside vaccine 42, electricity 140, labour 640.
+- `Record`!row 43 is the **only** sale in the entire workbook: day 41, all
+  3,000 birds, avg **2,875 g**, **8,625 kg at $2.00/kg = $17,250**. One
+  transaction, whole flock, per-kg. Income runs 0 to 17,250 on that row and
+  never moves again.
+
+One lot, per-kg, below the gate's per-kg equivalent (~$2.43/kg at $4.30 for
+a 1.77 kg bird) — that is a **contract/bulk** sale, not gate trade. So the
+$400 sat on a batch sold **100% in bulk**, which makes it MORE likely to
+already be the abattoir run, not less. $400 / 3,000 = **13.3c per bird**, a
+plausible transport figure in its own right.
+
+**This raises the stakes on the question rather than answering it.** If the
+$400 is the abattoir run and we also charge `transport_cents_per_bird`, we
+bill the same truck twice on every bulk batch.
 
 **Ask the client:** *"Is the $400 transport on your final report the feed
 and chick collection, or does it include taking birds to the abattoir?"*
@@ -344,8 +569,24 @@ same truck twice. An answered OQ-2 is **not** sufficient to proceed.
 
 ## Open questions — blocking
 
-### OQ-21 · A fractional-bag draw crashes the engine 🔴 URGENT — INTERNAL
-**Status:** Open, unfixed, **reproduced 2026-09-11**. **Raised:** 2026-09-11,
+### OQ-21 · A fractional-bag draw crashes the engine 🟠 CRASH FIXED — CLIENT HALF OPEN
+**Status:** **The crash is fixed** (2026-09-11). The engine now refuses with a
+typed `missing_input` keyed `feed_draw_bags`, naming the draw and its date,
+instead of throwing a `RangeError`. `feed.ts` also carries a named guard for a
+caller that skips the check, matching `cash.ts`'s precedent — it matters
+because M5b's `projectCandidate` calls `computeFeedLiability` directly.
+**The secondary `kg_discrepancy` float bug is fixed too:** `kgDiscrepancy()`
+compares at gram resolution (invariant 2's own unit), so `0.07` bags against
+`3.5` kg no longer reports a discrepancy that does not exist.
+
+**What is still open is the CLIENT half, and only that:** whether a part bag
+is real commerce to be priced or a capture-screen artefact to be rejected.
+The fix deliberately answers neither — it refuses. Nothing rounds `bags`, and
+no price is derived for a part bag. When Daniel answers, the refusal is
+replaced by pricing (round the resulting cents up, as `costOfFeed` does) or by
+a hard input-boundary rejection, and this entry closes.
+
+**Originally raised and reproduced 2026-09-11.** **Raised:** 2026-09-11,
 out of the M5a review session — but the defect is **pre-existing U3 scope**,
 not M5a's. **Affects:** every `computeDecision()` call for a batch whose
 entered draws carry a non-integer bag count. **This is ours, not Daniel's**,
@@ -477,7 +718,24 @@ recalibrated to land near 5% cumulative, and the "is 100/day a count or
 a rate" reading is settled: **neither — it is a cumulative percentage of
 placement.** Do not act on this before U4; log it against OQ-12.
 
-### OQ-2 · Abattoir fee and transport cost per bird 🟠 HALF ANSWERED 2026-09-10
+### OQ-2 · Abattoir fee and transport cost per bird ✅ ANSWERED 2026-09-12 — both halves
+**Answer, completed:** the abattoir fee is **10 cents a bird** (2026-09-10) and
+the run to the abattoir is **10 cents a bird** (2026-09-12). **20 cents a bird in
+total, and they are two costs, not one** — see AD-55, which also records why
+charging both was a judgement rather than a fact, which direction it errs in
+(conservative: it understates bulk profitability), and where it will be caught
+if wrong.
+
+Bulk net is now computed and booked (AD-57). Both fields stay
+required-and-nullable on `Parameters`, and a null still refuses: a value being
+known is not the same as it being supplied.
+
+**Still open and NOT answered here:** whether a DIRECT delivery to the buyer
+costs the same per bird — question 11 on the Daniel list.
+
+**Superseded detail below, kept for the reasoning.**
+
+### OQ-2 (superseded) · Abattoir fee and transport cost per bird 🟠 HALF ANSWERED 2026-09-10
 **Answer (Daniel):** the abattoir fee is **10 cents per bird in cash,
 and the abattoir keeps the offals.**
 
@@ -487,6 +745,30 @@ stays `null` and the engine keeps returning `missing_input` for it, so
 bulk net is still not computable. Do not read "OQ-2 answered" anywhere
 and assume both halves landed — **the bulk recommendation remains
 blocked**, now on transport alone.
+
+**Re-confirmed 2026-09-12, against two events that each looked like they
+closed it and did not.**
+
+1. **OQ-16 was RETIRED, not answered.** The client removed the $400
+   Other/Transport line. That removes the double-count RISK, so transport can
+   now be charged cleanly — but removing one cost does not price a different
+   one. `transport_cents_per_bird` is still `null`, and **it is not zero by
+   default**: nobody has said the truck to the abattoir is free.
+2. **The $40/tonne figure is FEED transport, not this.** Confirmed by the
+   client 2026-09-12 as the cost of getting FEED delivered. It is real data and
+   it is tracked as OQ-28 — it is not the abattoir run and must never be
+   substituted for it.
+
+**Verified by running it, not by reading:** with the abattoir fee supplied and
+transport `null`, `computeDecision` on the client's own batch returns
+`missing_input` keyed `transport_cents_per_bird`. With a hypothetical transport
+value supplied, `projectCashCalendar` still throws — because bulk net was never
+implemented (see OQ-16's retirement note and the `bulk_price` refusal). **Two
+independent gaps, and answering this question closes only one of them.**
+
+**The one-line question that closes this:** *"What does it cost you to get one
+load of birds to the abattoir — per bird, or per truckload and how many birds
+fit?"*
 
 **Only the 10 cents flows through the financial model.** The offals are
 recorded, not costed: `offal_disposition = RETAINED_BY_ABATTOIR` with
@@ -769,6 +1051,10 @@ both subtrahends are `null` pending OQ-2. The fee does not cancel out
 of a per-day difference. This fixture is blocked on OQ-2 rather than
 disputed — it becomes writable the moment the fee arrives.
 
+**OQ-2 closed 2026-09-12, so this is now ours to attempt.** Untested claim -
+fixture 8 may still need a planning band schedule; verify by attempting to
+write it before treating this as closed.
+
 ### OQ-11 · Fixture 11 — gate window end day 38, and the per-kg rate ✅ CLOSED 2026-09-10
 **Closed by generation in U4.** The fixture is written and asserts.
 
@@ -1038,7 +1324,19 @@ Note what this does to OQ-11: $4.30/bird at the 1,770 g target implies
 **$2.43/kg**, which is where the plan's unsourced "$2.46/kg" came from.
 The spreadsheet's actual $2.00/kg is a materially different number.
 
-### OQ-18 · What unit does the hatchery invoice chicks in? 🟡
+### OQ-18 · What unit does the hatchery invoice chicks in? ✅ ANSWERED 2026-09-12
+**Answer (Daniel):** **per chick.** So `placement_step_birds` is **1** and
+nothing rounds a recommendation — 8,437 birds is an order he can place.
+
+**It cost something, and that cost is ours: OQ-29.** The enumeration grid is
+sizes x 31 dates, so a stride of 1 multiplies the candidate count by the old
+assumed 100 — `computeAllocation` goes from 0.26 s to 20.8 s at his realistic
+5,000-bird ceiling. The fix is not to default the stride back to 100 (that puts
+a search bound back inside a field carrying a client fact); see AD-53.
+
+**Superseded framing below.**
+
+### OQ-18 (superseded) · What unit does the hatchery invoice chicks in? 🟡
 **Status:** Open, assumed default. **Raised:** 2026-09-10, from the U5
 grilling session. **Affects:** the granularity of every batch-size
 recommendation M5 makes.
@@ -1060,8 +1358,40 @@ step determines carries `confidence: 'assumed'`. See AD-41.
 **Does not block U5.** The parameter is the whole mechanism, and a different
 answer changes its default rather than any code. Ask it with the rest.
 
-### OQ-23 · What actually caps a placement? 🔴 BLOCKS M5b TASK 8
-**Status:** Open. **Raised:** 2026-09-11, from writing M5b's plan against the
+### OQ-23 · What actually caps a placement? ✅ ANSWERED 2026-09-11
+**Answer (client, from the original requirements call):** **nothing in the
+engine caps it — the operator types it in.**
+
+> *"They are not placing 30k birds per cycle but the system should be adjust
+> and be flexible for 30K so for that field they should put **any figure
+> technically** but most realistic starting example would be **5K**, so the
+> field should be dynamic and flexible for any per cycle figure in the system
+> adjusts"*
+
+**So:** `max_placement_birds` is a required `Parameters` field with **no
+derived default and no hardcoded cap**. **5,000** is the realistic current
+scale; **30,000** is the aspirational target the brief plans against
+("Target placement: 30,000 DOCs", with ~5% planning mortality). Neither is a
+ceiling the engine may assume — absent the field, `requirePlacementCeiling`
+throws, exactly as the M5b plan specified.
+
+**The same source independently confirms the conflation this question was
+raised to name.** From the same call: *"they can **7k birds on the gate** but
+for them to push aggressively to 15k they will be risk of pre harvest loss."*
+Gate absorption (7k) and placement size (15k, 30k) are stated as different
+quantities by the client himself, in one sentence. The gate-derived ceiling
+was wrong for exactly the reason argued below.
+
+**Consequence: M5b Task 8 is unblocked on the ceiling.** It remains blocked
+for **bulk scoring** on OQ-2 transport and OQ-16 — verified in code on
+2026-09-11, not assumed: a bulk-inclusive input returns `abattoir_fee`,
+`transport_cents_per_bird` and `bulk_price`; supplying both OQ-2 values still
+leaves `bulk_price`, because OQ-16 gates the formula independently. A
+gate-only input returns no refusals and is scoreable today.
+
+**Superseded framing below, kept for the reasoning.**
+
+**Status (before the answer):** Open. **Raised:** 2026-09-11, from writing M5b's plan against the
 real `projectCashCalendar` signature. **Affects:** the upper bound of the
 allocation enumeration — i.e. the largest batch the optimiser is allowed to
 consider at all.
@@ -1112,10 +1442,415 @@ Fast and Build Reserve return `missing_input` for them until **OQ-2's transport
 half** and **OQ-16** land. M5b's scoreable region is a thin gate-only sliver,
 and the old cap made the engine look more capable than it is.
 
-**Handling until answered:** M5b Task 8 does not start. Tasks 1–7 and 9 are
-unaffected — none of them reads the ceiling.
+**Handling until answered:** M5b Task 8 does not start. **Tasks 1–7 are built
+and merged-ready** (2026-09-11) — none of them reads the ceiling.
 
-### OQ-22 · `bulk_price_cents_per_bird` is declared and never read 🟡 INTERNAL
+**Task 9 is blocked too, and the plan said otherwise.** Corrected 2026-09-11
+on discovery during execution. The plan header and this entry both claimed
+`Tasks 1-7 and 9 are unaffected`; Task 9's own **Interfaces** block says
+`Consumes: computeAllocation (Task 8)`, and the Interfaces block is the
+accurate one. Task 9 replaces the `NotImplementedError` getter with a call to
+`computeAllocation` — Task 8's function, gated on `requirePlacementCeiling`,
+which throws until this question is answered. Building it would swap a
+`NotImplementedError` for a ceiling `Error`, which is strictly worse.
+`classifyFixture` (tests/golden/_shared.ts) holds a fixture **only** on
+`NotImplementedError` and classifies every other throw as `fail`. No golden
+fixture targets `decision.allocation` today, so nothing would break there
+yet — but `decision.test.ts` **does** assert that reading `allocation`
+throws `NotImplementedError` ("still holds the module U5 has not built"), and
+that test would fail on the ceiling throw while the getter is no more usable
+than before. Task 9 lands with Task 8, not before it.
+
+### OQ-30 · One band schedule, two behaviours past its top band ✅ CLOSED 2026-09-12 — by AD-58
+**Closed the day after it was opened, by making the PLANNING path refuse too.**
+`bandForDressedG` now returns null above the top band as well as below it, so M4
+refuses exactly where a real invoice refuses. Consistency with the sales path was
+chosen over the convenience of the planning path — the convenience being that a
+forecast would rather say something than nothing.
+
+**The deciding argument was direction, not tidiness.** The schedule pays LESS as
+the bird gets heavier, so reusing the top band was optimistic — and on Daniel's
+own curve it kicked in at **day 34**, inside the hold-vs-sell window. It made
+holding to day 35 look like it preserved $462.50 of bulk value the contract never
+promised.
+
+**Cost:** `hold_cost_to_day['35']`'s bulk figures are now null. The gate half
+still answers. **The client question survives**: what a bird over 1.3 kg dressed
+actually pays is question 2 on the Daniel list, unasked. When he answers, both
+paths change together, because there is only one of them now.
+
+**Superseded framing below.**
+
+### OQ-30 (superseded) · One band schedule, two behaviours past its top band 🟠 OURS, PLUS ONE CLIENT QUESTION
+**Status:** Open, deliberate, logged rather than quietly reconciled.
+**Raised:** 2026-09-12, implementing AD-57.
+
+The bulk bands stop at 1.3 kg dressed. Above that the engine now does two
+different things:
+
+| Path | Above 1.3 kg dressed | |
+|---|---|---|
+| `bandForDressedG` (M4 harvest planning) | silently reuses the top band, $3.70 | unchanged |
+| `bulkContractProblems` (a real sale, AD-57) | refuses with `bulk_price` | new |
+
+**Each is defensible in its own context and the pair is not obviously so.** A
+forecast has to produce a number or say nothing at all about a day; an invoice
+has a real carcass and a real contract, and the contract is silent. But a reader
+finding both will reasonably ask which one the engine believes.
+
+**The client half:** *what does the contract pay for a bird over 1.3 kg
+dressed?* — question 2 on the Daniel list, unanswered. It is NOT in the six he
+answered on 2026-09-12. Once answered, both paths collapse to one rule.
+
+**Why it matters more than it looks.** The schedule pays LESS as the bird gets
+heavier, so reusing the top band is an extrapolation in the OPTIMISTIC direction
+— it assumes an over-held bird still fetches $3.70 when the trend of the
+schedule says it would fetch less. That is the direction this engine is not
+allowed to err in, and it currently does err in it on the planning path.
+
+**Do not fix by making the sales path extrapolate too.** That propagates the
+optimistic guess into real money.
+
+### OQ-29 · A 1-bird placement step makes the enumeration 80x more expensive 🟠 OURS, NOT DANIEL'S
+**Status:** Open, measured, not yet fixed. **Raised:** 2026-09-12, implementing
+AD-53. **Affects:** `computeAllocation` latency at Daniel's real scale.
+**Nobody asks Daniel about this** — his answer was correct and complete; the
+cost is entirely on our side of the line.
+
+OQ-18's answer (the hatchery invoices per chick) makes the placement step 1.
+The grid is sizes x 31 dates, so the candidate count scales inversely with the
+stride. Measured, not estimated:
+
+| Ceiling | Stride | Candidates | `computeAllocation` |
+|---|---|---|---|
+| 5,000 | 100 | 1,550 | 0.26 s |
+| 5,000 | 25 | 6,200 | 0.80 s |
+| 5,000 | **1** | **155,000** | **20.8 s** |
+| 30,000 | 1 | 930,000 | ~2 min, extrapolated |
+
+**The fix is NOT to default the stride back to 100.** See AD-53: that puts a
+search bound back inside a field that now carries a client fact, which is the
+OQ-22 shape — two meanings, one name, and the wrong one silently winning.
+
+**Recommended approach, not yet built: coarse-then-fine.** Sweep the grid at a
+stride, then re-enumerate at 1 bird across a window of one stride either side of
+the coarse winner, for the winning date and any date tied with it. Cost is
+roughly the coarse sweep plus a few hundred candidates. **It is a heuristic and
+must be reported as one** — scoring across size is not proven unimodal, so the
+refinement finds the best size within one stride of the coarse winner, not the
+global best. That fact belongs on the result, in the shape `tied_candidates`
+already uses, rather than in a comment.
+
+**It blocks nothing TODAY and it is a hard blocker on U9.** Both are true and
+the second is the one to act on. `computeAllocation` is reachable only via M5b
+Task 9 (blocked on OQ-25), so nothing ships at 20 s right now — but **U9 is the
+screen where Daniel types a batch and presses a button**, and 20.8 s at his real
+scale, ~2 min at 30,000, is not a slow screen. It is a screen he will assume has
+crashed.
+
+### This must be designed, not noted
+
+**U9 does not start without a chosen answer to this.** "Consider performance" in
+a U9 plan does not clear this entry. Three candidates, none yet chosen, each with
+a real cost:
+
+| Option | What it does | What it costs |
+|---|---|---|
+| **A · Coarse-then-fine** | Sweep at a stride, then re-enumerate at 1 bird within one stride of the coarse winner, for the winning date and any date tied with it | **A heuristic.** Scoring across size is not proven unimodal, so it finds the best size within one stride of the coarse winner, not the global best. **That must be reported on the result**, in the shape `tied_candidates` already uses — never implied to be exhaustive |
+| **B · Incremental / memoised scoring** | The handoff is already memoised per DATE. Most of the per-candidate cost is a full cash projection that differs from its neighbour by one bird | Real work, and the honest one: it makes the exact answer cheap rather than approximating it. Unknown until someone profiles where the 20.8 s actually goes |
+| **C · Coarse default, fine on request** | Default the UI to a 100-bird stride and offer "refine" | **Pushes the trade onto Daniel**, who has no basis to choose. And a 100-bird default silently reintroduces exactly what AD-53 removed — a search bound wearing a client fact's name |
+
+**Recommended starting point: profile before choosing.** Nobody has measured
+where the 20.8 s goes; B may be cheap and exact, which would make A's heuristic
+unnecessary. **Do not pick A because it is the easiest to describe.**
+
+**Whatever is chosen, one rule holds:** if the search stops being exhaustive, the
+result says so. A recommendation that is "the best of what we looked at" must not
+be rendered as "the best" — the same rule AD-43 applies to a null and AD-44 to a
+tie.
+
+### OQ-28 · Feed transport is $40/tonne ✅ ANSWERED AND BUILT 2026-09-12
+**Answer (Daniel):** paid **on the spot when the feed is collected** — not on
+the feed's 30-day terms. Built as AD-54: `delivery_cents_per_tonne` on
+`Parameters` (seeded at his confirmed $40), `delivery_cents` on
+`DrawLiability` BESIDE `total_cents`, `total_delivery_cents` on
+`FeedLiability`, and a `FEED_DELIVERY_PAYMENT` flow on the collection date.
+
+The deferred sub-question — whether planned draws carry delivery — is decided:
+**they do.** Leaving it off understates the projected trough by up to $529 a
+cycle, and the trough is what AD-43's reserve-floor filter reads.
+
+**Superseded design note below.**
+
+### OQ-28 (superseded) · Feed transport is $40/tonne and the engine has nowhere to put it 🟠 DESIGN
+**Status:** **Value confirmed, design undecided, nothing wired.**
+**Confirmed by the client:** 2026-09-12 — **$40 per tonne**, a real feed
+transport cost. **Affects:** the true cost of feed, and therefore core credit,
+break-even and every allocation scalar derived from them.
+
+**This is NOT the OQ-16 answer, and must never be recorded as one.** OQ-16 was
+about the $400 Other/Transport line and was RETIRED without its composition
+ever being established. This is separate, new, and about FEED delivery — not
+the run to the abattoir (that is OQ-2's transport half, still open). Three
+different transport costs have now been in play in this project; conflating any
+two of them produces a double-count or a hole.
+
+| Cost | Status | Field |
+|---|---|---|
+| Feed delivery | **$40/tonne, confirmed 2026-09-12** | none yet — this entry |
+| Run to the abattoir | unanswered (OQ-2) | `transport_cents_per_bird` |
+| The $400 "Other/Transport" overhead | retired 2026-09-12 (OQ-16) | was `overhead_lines.transport_other` |
+
+**Why it has nowhere to go.** Nothing in the engine separates feed DELIVERY cost
+from feed PRICE. `PhasePricing.price_per_kg_cents` is a single blended rate, and
+`FeedDraw.price_per_bag_cents` is what the supplier invoiced per bag. Neither
+has a delivery component, and there is no field for one.
+
+**The design question, unresolved:** does $40/tonne apply **per draw**, **per
+tonne collected**, or does it **fold into the existing feed liability**? These
+are not notational variants — they charge different amounts in different months
+and they interact differently with `planned_draws`. Written up with a
+recommendation in `progress-tracker.md`; **nothing is implemented until that is
+chosen**, because guessing wrong here silently moves every feed number.
+
+**Do not fold it into `price_per_kg_cents` as a convenience.** That would bury a
+separately-confirmed, separately-variable cost inside a rate the client reads as
+"what feed costs", and make the two impossible to tell apart later — the shape
+of KB-3 and of OQ-24's two-prices problem.
+
+**Related:** [[OQ-24]] — the workbook already carries two different feed prices
+($29.60/bag in `Feed Account` vs $32.50 implied by `Record`). Whichever is the
+real invoiced price, delivery is a THIRD component and the two questions should
+be answered together.
+
+### OQ-27 · A whole module was unreachable and every test passed ✅ CLOSED 2026-09-11
+**Status:** Closed by a permanent test the same day it was found.
+**Raised:** 2026-09-11, finishing M5b. **This was ours, not Daniel's.**
+
+**What happened.** `allocation.ts` — nine exported functions, eight tasks, 35
+passing tests — was never re-exported from `index.ts`. `computeAllocation` was
+correct and invisible from the package's only entry point. Nothing failed,
+because every test imports `../src/allocation.js` directly.
+
+**The generalisable part:** a test suite that reaches the code by a different
+route than the consumer cannot see anything wrong with the route it does not
+take. "Tests pass" means the logic is right *when you can call it*.
+
+**Closed by `tests/engine-surface.test.ts`**, which reads `src/` and fails if
+any module exports a value `index.ts` does not re-export — written against the
+source, so there is no list to remember to update. Verified to fail on an
+injected unexported function, not merely written after the fix. Deliberately
+internal exports go on an `INTERNAL_CROSS_MODULE` allowlist with their reason,
+and a second test fails if an allowlisted name stops existing.
+
+**The audit answered "was this a one-off?" rather than assuming.** Every engine
+module was checked. Exactly one other export was unreachable —
+`costing.costOfFeed`, deliberate (`cash.ts` reuses it so feed rounds
+identically in both), now allowlisted. So: nearly a one-off, and worth
+confirming. Written up in `code-standards.md` under Testing.
+
+### OQ-31 · Build Reserve recommended a 1-bird batch 🔴 INTERNAL — PINNED NULL 2026-09-14
+**Status:** Open, **pinned null by AD-59**. **Raised:** 2026-09-14, by the
+pre-merge review of `u5-m5b-allocation-enumeration`.
+**Affects:** a second of the three headline modes. **Ours, not Daniel's.**
+
+**The finding, reproduced.** Running batch sells 2,900 birds at the gate, floor
+out of reach, ceiling 300, step 1. Build Reserve's winner was **"place 1 bird on
+2026-03-22"**, closing at **−$507.85**, with 31 dates tied. `place_nothing`
+closed at **+$275.96**. The recommendation was strictly worse than not placing.
+
+**Same root cause as OQ-26.** A candidate carries no forecast sales
+(`candidateInput` empties `sales`), so its closing balance is the handoff minus
+its own costs, and costs only grow with size. The smallest batch always wins.
+
+**Why it is worse than OQ-26, and why it is now null.** Cover Fast failed
+honestly: null. Build Reserve failed confidently: a real-looking winner. That is
+the wrong number invariant 5 forbids, and an existing test pinned it as
+acceptable. AD-59 sets `build_reserve_cents` to null for every candidate, so
+`pickWinner('BUILD_RESERVE')` returns null exactly as Cover Fast does. The
+closing balance stays on the candidate's `calendar`.
+
+**What closing it needs.** The same thing as OQ-26: M6's forecast of a
+candidate's own sales. **Do not close it by comparing against `place_nothing`**
+— that would make "place nothing" Build Reserve's answer every time, which is the
+same artefact read from the other side.
+
+**U9 is bound on it** — `ui-context.md`'s null-state rule now covers Build
+Reserve as well as Cover Fast. Only Maximum Growth answers until M6.
+
+### OQ-26 · Cover Fast structurally cannot answer 🔴 INTERNAL
+**Status:** Open, **pinned by a test rather than left to be discovered**.
+**Raised:** 2026-09-11, from reviewing M5b's own output after Task 8.
+**Affects:** one of the three headline modes — a third of the product's
+decision surface. **This is ours, not Daniel's.**
+
+**The finding.** `pickWinner('COVER_FAST', ...)` returns `null` for every
+realistic input, including one where the running batch sells 2,900 birds at the
+gate for real cash. Verified by running it, not by reading the code.
+
+**It is structural, not a bug in the scalar.** Two design facts combine, and
+each is individually correct:
+
+1. **`candidateInput` empties `sales`** (Task 4). A candidate has no sales
+   history, and inheriting the running batch's would replay it. M5b forecasts
+   no sales for a hypothetical batch — nothing in the unit does.
+2. **The running batch's receipts do not fill the gap.** Anything it settles
+   before the candidate's placement collapses into `openingCents`
+   (`handoffAtPlacement`, Task 3) — correctly, or it would be double-counted.
+   Only receipts landing ON or AFTER the placement date ride along, and by then
+   a batch harvested weeks earlier has usually been paid.
+
+So `day.in_cents` is zero across a candidate's whole horizon, cumulative
+receipts never reach `core_credit_cents`, and the scalar never fires.
+
+**Why it is logged rather than quietly accepted.** The output is *honest* —
+`null` says "could not determine", not a fabricated number, so invariant 5 is
+intact. The risk is the **reading**: a console showing Cover Fast with no
+recommendation invites "no candidate covers fast", which is a different and
+false claim. An honest blank that is reliably misread is still a reporting
+defect.
+
+**What closing it needs.** A forecast of the candidate's OWN sales — how many
+birds it would sell, when, through which channel. That is a real modelling
+decision (it needs the gate/bulk split M6 exists to make), not a patch to the
+scalar. Until then Cover Fast should be presented as unavailable rather than as
+having no answer.
+
+**U9 is already bound on this, so it cannot be rediscovered as a UX bug.**
+`ui-context.md` now carries a required rendering rule: Cover Fast's null must
+render as "not enough information yet — we cannot project this batch's own
+sales", or name OQ-26 directly, and never as a blank, a dash, a zero or an empty
+card. An empty Cover Fast panel reads to a farm owner as *"there is no way to
+cover my costs"* — a financial verdict, arrived at by accident, from a mode that
+never ran.
+
+**Do NOT close it by lowering the bar.** Scoring against something cheaper to
+compute — days to first receipt, or the running batch's receipts alone — would
+produce a number that ranks, and a ranking built on the wrong quantity is worse
+than a blank. Same reasoning as AD-43's refusal to sentinel a null.
+
+### OQ-25 · The engine has no cash balance, and M5b needs one 🔴 BLOCKS M5b TASK 9
+**Status:** Open. **Raised:** 2026-09-11, from executing M5b Task 9.
+**Affects:** whether `decision.allocation` can be wired at all.
+**This is ours, not Daniel's** — it is a decision about what the engine is
+entitled to assume, not a question he can answer.
+
+**The defect in the plan.** Task 9's getter passes
+`input.parameters.reserve_floor_cents` as `computeAllocation`'s `openingCents`.
+Those are **different quantities**:
+
+| Quantity | What it is |
+|---|---|
+| `openingCents` | The cash the business actually HAS on the placement date. Every candidate's projection starts here. |
+| `reserve_floor_cents` | The minimum it must KEEP. A constraint the running balance is tested against. |
+
+Feeding the floor in as the balance starts every projection from a number that
+was never a balance, and it does so *silently* — the arithmetic all works, the
+types all match, and every figure downstream is wrong by the size of the floor.
+
+**And there is nothing correct to pass instead.** Verified 2026-09-11:
+`EngineInput` and `Parameters` carry **no** cash balance field
+(`opening_cash`, `cash_balance`, `opening_balance` — none exist). The data is
+in the architecture as `cash_accounts.opening_balance_cents`, but that is
+**U6**, which is not built and which the build order says not to reorder.
+
+**`0n` is not the safe default it looks like.** It asserts the client has no
+money. That is a fabricated fact, and it is not even conservative in a useful
+direction: it makes every candidate look unaffordable against a positive
+reserve floor, so the optimiser would return "nothing is affordable" for
+structural reasons rather than financial ones — a confident wrong answer
+dressed as prudence.
+
+**Three options, none chosen:**
+
+1. **Add `opening_cash_cents` to `Parameters` as a required-on-use field**,
+   and have `decision.allocation` return a typed refusal naming it when absent.
+   Consistent with how `gate_price` and `max_placement_birds` already behave.
+   Costs: `AllocationResult` needs a whole-result refusal shape, which it does
+   not have — today only individual modes can refuse.
+2. **Leave the getter throwing `NotImplementedError` until U6 supplies a
+   balance.** Zero new surface, honest, and keeps the golden-fixture hold
+   mechanism working (`classifyFixture` holds only on that exact type). Costs:
+   M5b ships without its public entry point, and `computeAllocation` stays
+   reachable only by direct call.
+3. **Make `openingCents` an explicit argument to `computeDecision`.** Pushes
+   the decision to the caller, where the balance actually lives. Costs: changes
+   the engine's only public signature, which every fixture and consumer uses.
+
+**Recommendation: option 2 until U6.** It is the only one that adds no new
+guess and no new API surface, and it preserves the CI property that a fixture
+targeting `decision.allocation` stays *held* rather than failing. Options 1 and
+3 are both reasonable once there is a real balance to carry; picking between
+them before U6 exists is deciding in the dark.
+
+### OQ-24 · ~~The workbook carries TWO feed prices~~ 🔁 DUPLICATE OF OQ-13
+**Closed as a duplicate 2026-09-12**, found by the full bulk-path trace.
+**OQ-13 already covers this and covers it better** — it records that the
+Record-vs-Feed-Account split is KB-8, that reconciling to the Final Report is
+circular (`Final!C4 = Record!N93`, a re-presentation not a cross-check), and
+that only Daniel can settle it. The brief adds a third statement of the same
+prices ($31.60 / $29.60 / $28.60 per bag) which AGREES with the Feed Account,
+so it is two sets and not three. Folded into OQ-13; ask it there, once.
+
+**Original entry below, superseded.**
+
+### OQ-24 · The workbook carries TWO feed prices ✅ CLOSED 2026-09-12 — both are historical
+Asked and answered with OQ-13: Daniel's current prices are **$30.60 / $29.60 /
+$28.60 a bag**, a THIRD set. Neither workbook set is current, so the
+contradiction is no longer a question about which one to believe. See AD-52.
+
+**Superseded framing below.**
+
+### OQ-24 (superseded) · The workbook carries TWO feed prices 🟡 NOT YET ASKED
+**Status:** Open, **deliberately not sent to Daniel yet** (2026-09-11) — it
+blocks nothing currently in progress, and two more urgent questions (OQ-2
+transport, OQ-16) are in front of him. Ask it when those land, or sooner if
+feed costing comes under review. **Raised:** 2026-09-11, from reading
+`RUNproduce Broiler Management .xlsx` while checking OQ-16.
+**Affects:** every feed liability figure the engine produces.
+
+**The discrepancy.** The client's own workbook prices feed two different ways:
+
+| Source | Price | Per kg |
+|---|---|---|
+| `Feed Account`!D — "Est. Cost" per bag | **$29.60** | $0.592 |
+| `Record`!F — cost of feed per kg | $0.65 starter, $0.60-0.62 grower/finisher | **$0.65** = **$32.50**/bag |
+
+**The engine follows `Record`** — `SEED_BREED_CURVE`'s phase prices are the
+per-kg figures, and fixture 1's $8,079.81 comes straight from `Record`!N. So
+if the supplier actually invoices **$29.60**, every feed liability we report is
+**overstated by roughly 9%**, in the pessimistic direction.
+
+**Why it is not obviously a defect.** The column is headed **"Est. Cost"** —
+an estimate, possibly stale, possibly a different (older or bulk-discounted)
+supplier price. `Record`!F is what he actually costs consumption at. Both
+readings are plausible and we cannot pick between them from the file.
+
+**The ask:** *"Your feed account sheet has bags at $29.60 but your daily record
+costs feed at $0.65/kg, which works out to $32.50 a bag — which one does the
+supplier actually invoice you?"*
+
+**Handling until answered:** unchanged. The engine keeps using `Record`'s
+per-kg prices, which are the client's own measured figures and the ones every
+golden fixture was built from. **Nothing is switched to $29.60 on a guess** —
+that would move every feed number in the system on an inference from a column
+header. Related: [[OQ-21]], which is the other thing `Feed Account` raises.
+
+### OQ-22 · `bulk_price_cents_per_bird` is declared and never read ✅ CLOSED 2026-09-12 — by deletion
+**Closed by AD-57, and by deleting the field rather than ranking the two
+sources.** Daniel's answer to how bulk is priced — **"depends on the buyer"** —
+moved the contract onto `SalesOrder`, where `pricing_basis` is now
+`PER_BIRD | PER_KG | BANDED` with the buyer's own `bands`. Once the contract
+belongs to the order, a per-batch flat bulk price has nothing left to mean.
+
+`parameters.bulk_bands` SURVIVES with a narrowed job: the PLANNING default for
+a bulk sale that has no buyer yet, which M4 needs and an invoice must never
+borrow. That distinction is now enforced — a BANDED order carrying no schedule
+refuses rather than falling back to it.
+
+**Superseded framing below.**
+
+### OQ-22 (superseded) · `bulk_price_cents_per_bird` is declared and never read 🟡 INTERNAL
 **Status:** Open, documented in place, **behaviour deliberately unchanged**.
 **Raised:** 2026-09-11, from M4's pre-merge code review. **Affects:** whether a
 caller setting a bulk price gets the price they set. **This is ours, not
@@ -1188,7 +1923,26 @@ the wrong real one, which is a silent wrong number rather than a visible double
 count. Inventing that threshold with nothing to calibrate it against is what
 invariant 5 forbids. A visible over-count beats an invisible mis-match.
 
-### OQ-19 · When does the client actually pay overheads? 🟡
+### OQ-19 · When does the client actually pay overheads? 🟠 NARROWED 2026-09-12, still open
+**Answer (Daniel, partial):** *"labour when the batch is done, other expenses we
+pay as when they arise."* Built as AD-56 — vaccines on day 1, labour on harvest
+completion, electricity split across the months the batch spans.
+
+**Still open, and the calendar still says `overhead_timing: 'assumed'`.** He
+gave CADENCES, not DATES. "When the batch is done" does not say which day that
+is; the calendar dates it against the first day the curve reaches the slaughter
+target, which is ours and assumed. The question narrows from "we have no idea
+when he pays" to "we know the cadence, not the day".
+
+**The shape change is not cosmetic.** Day-1 overhead outflow on his own batch
+drops from $822.00 to $145.87 with $640 moving to day 31. That materially
+flattens the early-cycle trough — exactly what this entry predicted — and the
+trough is what M5b's reserve-floor filter reads, so it changes which candidates
+are judged affordable.
+
+**Superseded framing below.**
+
+### OQ-19 (superseded) · When does the client actually pay overheads? 🟡
 **Status:** Open, assumed default. **Raised:** 2026-09-10, from M5a.
 **Affects:** the shape of the cash calendar's early-cycle trough, and
 therefore which candidates M5b's reserve-floor filter judges affordable.
@@ -1297,6 +2051,21 @@ the client to confirm.
 ---
 
 ## Tracked but deferred
+
+### TD-4 · Pre-merge review of M5b, 2026-09-14 — minors deferred, not dismissed 🟡
+The review of `u5-m5b-allocation-enumeration` raised 13 findings. Findings 1-5
+are fixed (AD-59 / OQ-31, the flow-covering horizon, invariant 16 from real
+sales, the null-fee guard, gate-order refusal), as are 6, 7 and 11. These remain:
+
+| # | Finding | Why deferred |
+|---|---|---|
+| 8 | Refusals are spread across `missingInputsFor` (index.ts), `cashFlowsMissingInputs` and `salesMissingInputs`, and have drifted: a BANDED bulk order with no bands gives `computeDecision → ok`. `missingInputsFor` is also exported from index.ts only for a test | Harmless while the decision carries no cash output. **Must be one shared refusal before U6 wires `decision.allocation`** |
+| 9 | A schedule of floors gives the top band zero width: 1,300 g pays $3.70, 1,301 g refuses. If "1.3 kg" means 1.30-1.39 kg, valid invoices are refused | Errs toward a blank, not a wrong number. **A Daniel question**, to go with question 2 on the Daniel list; pinned by a boundary test |
+| 10 | `cash.ts` dates a HARVEST_COMPLETE overhead at the last curve day (or day 1) when the slaughter target is never reached, where `planHarvest` throws. And feed delivery falls back to its seed rate silently while AD-55 refuses a null abattoir fee: two policies for the same kind of client fact | The first is an invented date and should refuse; the second is AD-54 vs AD-55 and needs one policy chosen, not a patch |
+| 12 | `PlaceNothing.overhead_still_incurred_cents` is hard-coded `0n`, copied from the plan with no derivation | Whether labour or any line is paid with no batch housed is unknown (OQ-15 territory). Zero is a claim; this should be null or derived |
+| 13 | A bulk contract grossing under 20c a bird books a negative receipt with no refusal | Unrealistic; noted rather than guarded |
+| R2-a | Invariant 16 now counts from the latest `order_date`, which has no upper bound: a mistyped far-future date silently pushes the placement floor out | Input validation, for U6/U8's sales ledger, not the engine |
+| R2-b | `batchCashFlows` is exported and allowlisted as internal; it can be called without `cashFlowsMissingInputs` first | Acceptable while the allowlist entry stands; do not re-export it from index.ts |
 
 ### TD-1 · `npm audit` critical in the dev toolchain 🟡
 **Raised:** 2026-09-10. **Decision:** accepted, not remediated. **Revisit:** when vitest is next upgraded.
@@ -1525,12 +2294,13 @@ recommendation — divergences are the most valuable data available.
 
 | Work | Blocked by |
 |---|---|
-| Bulk allocation recommendation | OQ-2 — **transport half only**; abattoir fee answered 2026-09-10 |
-| U5 · bulk net revenue computation | OQ-2 (transport) **and** OQ-16 — both required, neither sufficient alone |
-| U5 · any **bulk-inclusive** candidate score | OQ-2 (transport) **and** OQ-16. The enumeration's SHAPE is buildable today and is spec'd; a candidate routing birds to bulk returns `missing_input` naming both gaps, never a gate-only figure dressed as complete |
 | Calibrated `MaxSafeBatchSize` | OQ-1 (mortality data) |
-| M5b · Task 8, the enumeration ceiling | OQ-23 — what actually caps a placement. Tasks 1-7 and 9 do not read it and are unaffected |
-| U3 · pricing a **part-bag** draw | OQ-21 — the client question half only. Refusing to crash on one is **not** blocked and should land first |
+| ~~M5b · Task 8, the enumeration ceiling~~ | **UNBLOCKED 2026-09-11.** ~~OQ-23~~ answered: the ceiling is an operator-entered `max_placement_birds`, no derived cap. Tasks 1-8 built; Task 9 now blocked on OQ-25 below |
+| M5b · the Build Reserve mode | **OQ-31** — pinned null by AD-59: without a candidate's forecast sales it recommended the smallest batch. Needs M6 |
+| M5b · the Cover Fast mode | **OQ-26** — structurally cannot answer: a candidate has no forecast sales, so receipts never clear core credit. Needs M6 |
+| M5b · Task 9, wiring `decision.allocation` | **OQ-25** — the engine holds no cash balance to pass as `openingCents`, and the plan passed `reserve_floor_cents`, a different quantity. Recommendation: leave the getter throwing until U6 |
+| **U9 · the mode-selector / recommendation screen** | **OQ-29 — HARD BLOCKER, not an optimisation.** `computeAllocation` takes **20.8 s** at Daniel's realistic 5,000-bird ceiling and ~2 min at the brief's 30,000. U9 is a click-and-see screen; two minutes is not usable and no spinner makes it so. **U9 planning must produce a real design answer** — see OQ-29 for the three candidates and what each costs. A plan that says "consider performance" does not clear this |
+| U3 · pricing a **part-bag** draw | OQ-21 — the client question half only. **The crash half landed 2026-09-11**: a part-bag draw now returns a typed `feed_draw_bags` refusal instead of a `RangeError` |
 | Default strategy selection | ~~OQ-3~~ answered; mode set decided (AD-35) |
 | ~~Gate harvest window past day 32~~ | **Moot.** Built in U4: under the settled flat gate price the window ends at day 31, so there is no "past day 32" to unblock. It reopens only if per-kg gate pricing becomes the default — see OQ-11 |
 

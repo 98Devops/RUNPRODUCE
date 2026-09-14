@@ -4,14 +4,61 @@ import type {
   Cents,
   DrawLiability,
   EngineInput,
+  FeedDraw,
   FeedLiability,
   IsoDate,
+  MissingInput,
   PlannedDraw,
   ProductionProjection
 } from './types.js';
 
 /** A feed bag is 50 kg. The client's own unit — `Feed!C2 = Record!M16/50`. */
 const KG_PER_BAG = 50;
+
+/**
+ * What the supplier charges to deliver feed: **$40 a tonne**, confirmed by the
+ * client 2026-09-12 (OQ-28). Measured, not estimated.
+ *
+ * Seeded here rather than required on every `Parameters` for the AD-23 reason
+ * `SEED_OVERHEADS` and `SEED_BULK_BANDS` are: it is his own figure, and no
+ * fixture should have to carry a literal copy of client data it does not assert
+ * on. A caller may override it; absent, this is what the client said.
+ *
+ * **Not to be confused with the two other transport costs this project has had
+ * in play.** This is FEED delivery. `transport_cents_per_bird` is the run to the
+ * abattoir (OQ-2), and the retired $400 "Other/Transport" overhead was a third
+ * thing (OQ-16, retired without its composition ever being established).
+ * Conflating any two of them produces a double-count or a hole.
+ */
+export const SEED_DELIVERY_CENTS_PER_TONNE = 4000n as Cents;
+
+/** One tonne, in grams — the unit `deliveryCents` divides by. */
+const GRAMS_PER_TONNE = 1_000_000n;
+
+/**
+ * Delivery on a quantity of feed: `kg / 1000 x rate`, rounded **up**.
+ *
+ * `kg` is a decimal on the client's own sheet (26.64 bags is 1,332 kg, and a
+ * part-bag draw can be a part-kg), so it is taken to GRAMS first — the
+ * project's own weight unit, invariant 2 — and every step after that is
+ * `bigint`. No float touches the money path.
+ *
+ * Rounds up for the same reason `costOfFeed` does: a cost rounded down flatters
+ * a break-even, which is the one direction this engine must not err in. At most
+ * one cent per draw.
+ */
+export function deliveryCents(kg: number, rate_cents_per_tonne: Cents): Cents {
+  if (!Number.isFinite(kg) || kg < 0) {
+    throw new Error(`feed: cannot charge delivery on ${kg} kg`);
+  }
+  if (rate_cents_per_tonne < 0n) {
+    throw new Error(`feed: delivery rate ${rate_cents_per_tonne} must not be negative`);
+  }
+  const grams = BigInt(Math.round(kg * 1000));
+  const product = grams * rate_cents_per_tonne;
+  const whole = product / GRAMS_PER_TONNE;
+  return ((product % GRAMS_PER_TONNE === 0n ? whole : whole + 1n) as Cents);
+}
 
 /**
  * The first draw covers days 1-14; every later draw covers the next 7.
@@ -28,6 +75,52 @@ const SUBSEQUENT_DRAW_DAYS = 7;
 /** Bags to 2dp. A bag count is divisible and is not money — it stays a float. */
 function bagsFromKg(kg: number): number {
   return Math.round((kg / KG_PER_BAG) * 100) / 100;
+}
+
+/**
+ * Whether a draw's recorded kg disagrees with its bag count.
+ *
+ * Compared at GRAM resolution rather than with `!==` on the raw product.
+ * `bags * 50` is not exact in binary floating point for a 2dp bag count —
+ * `0.07 * 50` gives `3.5000000000000004` — so exact inequality reported a
+ * discrepancy that does not exist. Grams are the project's own weight unit
+ * (invariant 2), so agreeing to the gram IS agreeing; this is that unit
+ * convention applied, not a tolerance invented to paper over the artefact.
+ */
+export function kgDiscrepancy(draw: FeedDraw): boolean {
+  const fromBagsG = Math.round(draw.bags * KG_PER_BAG * 1000);
+  const recordedG = Math.round(draw.kg * 1000);
+  return fromBagsG !== recordedG;
+}
+
+/**
+ * Draws this module cannot price, and why — checked BEFORE pricing.
+ *
+ * `bags` is the one client-entered field the client's own arithmetic produces
+ * as a decimal (`bagsFromKg` above rounds `kg / 50` to 2dp, which is where
+ * 26.64 comes from). `BigInt()` throws on a fractional value, so pricing one
+ * used to take the WHOLE decision down with an uncaught `RangeError` — no
+ * `missing_input`, no partial result, nothing rendered at all.
+ *
+ * This refuses instead, and refuses on purpose rather than rounding: whether a
+ * part bag is real commerce to be priced or a capture-screen artefact to be
+ * rejected is OQ-21, still open with the client. Rounding `bags` would change
+ * the money owed in a direction nobody chose, which invariant 5 forbids
+ * whichever way it rounds.
+ */
+export function feedDrawsMissingInputs(input: EngineInput): MissingInput[] {
+  return input.draws
+    .filter((draw) => !Number.isInteger(draw.bags))
+    .map((draw) => ({
+      key: 'feed_draw_bags' as const,
+      why:
+        `The feed draw collected ${draw.collection_date} carries ${draw.bags} bags, ` +
+        'which is not a whole number. A draw is priced per bag, and whether the ' +
+        'supplier ever invoices a part bag — or whether this is a kg / 50 figure ' +
+        'entered into a field that wants what the supplier invoiced — is OQ-21, ' +
+        'unanswered. The bag count is not rounded: that would change the money ' +
+        'owed in a direction nobody chose.'
+    }));
 }
 
 /**
@@ -63,6 +156,22 @@ export function computeFeedLiability(
     (draw) => daysBetween(draw.collection_date, asOf) >= 0
   );
 
+    // A draw we cannot price is not a draw with a caveat, it is a wrong
+  // liability — so this is a programming-error guard, not the invariant-5
+  // path. Callers must check feedDrawsMissingInputs() first and return
+  // missing_input; this only catches one that skipped it. It matters that it
+  // is named rather than a raw RangeError: M5b's projectCandidate calls this
+  // function directly.
+  const unpriceable = feedDrawsMissingInputs(input);
+  if (unpriceable.length > 0) {
+    throw new Error(
+      `Cannot price a feed draw: ${unpriceable.map((m) => m.why).join(' ')} ` +
+        'Call feedDrawsMissingInputs() first and return missing_input.'
+    );
+  }
+
+  const delivery_rate = parameters.delivery_cents_per_tonne ?? SEED_DELIVERY_CENTS_PER_TONNE;
+
   const draws: DrawLiability[] = collected.map((draw) => {
     const due_date = addDays(draw.collection_date, draw.terms_days);
     return {
@@ -73,9 +182,12 @@ export function computeFeedLiability(
       kg: draw.kg,
       // Money from bags, always. `kg` never prices anything.
       total_cents: (BigInt(draw.bags) * draw.price_per_bag_cents) as Cents,
+      // Beside the feed total, never inside it (AD-54), and paid on the
+      // COLLECTION date rather than the draw's terms (client, 2026-09-12).
+      delivery_cents: deliveryCents(draw.kg, delivery_rate),
       terms_days: draw.terms_days,
       days_until_due: daysBetween(asOf, due_date),
-      kg_discrepancy: draw.kg !== draw.bags * KG_PER_BAG
+      kg_discrepancy: kgDiscrepancy(draw)
     };
   });
 
@@ -114,7 +226,8 @@ export function computeFeedLiability(
       covers_first_day: firstDay,
       covers_last_day: lastDay,
       bags: bagsFromKg(kg),
-      kg
+      kg,
+      delivery_cents: deliveryCents(kg, delivery_rate)
     });
 
     // Chained off the PREVIOUS collection date, not off placement, so a late
@@ -129,6 +242,7 @@ export function computeFeedLiability(
     due_dates: draws.map((draw) => draw.due_date),
     total_drawn_kg: collected.reduce((sum, draw) => sum + draw.kg, 0),
     total_drawn_cents: draws.reduce((sum, draw) => sum + draw.total_cents, 0n) as Cents,
+    total_delivery_cents: draws.reduce((sum, draw) => sum + draw.delivery_cents, 0n) as Cents,
     first_draw_bags_to_day_14: bagsFromKg(kgForDays(1, FIRST_DRAW_LAST_DAY)),
     planned_draws,
     planned_confidence: 'assumed'

@@ -137,7 +137,7 @@ in context.
   to `[]`, so every existing caller and all 23 existing `cash.test.ts` tests
   keep compiling and passing unchanged.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 it('books carried flows from another batch alongside its own', () => {
@@ -173,7 +173,7 @@ it('still throws when a carried flow predates the candidate placement', () => {
 });
 ```
 
-- [ ] **Step 2: Run it and watch it fail**
+- [x] **Step 2: Run it and watch it fail**
 
 Run: `cd packages/engine && npx vitest run tests/cash.test.ts`
 Expected: FAIL — `projectCashCalendar` takes 4 arguments, the 5th is ignored,
@@ -181,7 +181,7 @@ so `withCarried.closing_cents` equals `without.closing_cents` and the first
 test's subtraction is off by 50,000. The second test fails because nothing
 throws.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```ts
 export function projectCashCalendar(
@@ -214,13 +214,13 @@ add:
   flows.push(...carriedFlows);
 ```
 
-- [ ] **Step 4: Run the tests and watch them pass**
+- [x] **Step 4: Run the tests and watch them pass**
 
 Run: `cd packages/engine && npx vitest run tests/cash.test.ts`
 Expected: PASS, and all 23 pre-existing `cash.test.ts` tests still pass —
 `carriedFlows` defaults to `[]`, so nothing else moves.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/engine/src/cash.ts packages/engine/tests/cash.test.ts
@@ -253,7 +253,7 @@ git commit -m "feat(engine): projectCashCalendar accepts another batch's carried
   ```
   `Parameters` gains `readonly placement_step_birds?: number;`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 describe('enumerateCandidates', () => {
@@ -292,12 +292,12 @@ describe('enumerateCandidates', () => {
 });
 ```
 
-- [ ] **Step 2: Run it and watch it fail**
+- [x] **Step 2: Run it and watch it fail**
 
 Run: `cd packages/engine && npx vitest run tests/allocation.test.ts`
 Expected: FAIL — `Cannot find module '../src/allocation.js'`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```ts
 import { addDays } from './day-number.js';
@@ -362,12 +362,12 @@ and inside `Parameters`:
   readonly placement_step_birds?: number;
 ```
 
-- [ ] **Step 4: Run the tests and watch them pass**
+- [x] **Step 4: Run the tests and watch them pass**
 
 Run: `cd packages/engine && npx vitest run tests/allocation.test.ts`
 Expected: PASS, 4 tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/engine/src/allocation.ts packages/engine/src/types.ts packages/engine/tests/allocation.test.ts
@@ -403,7 +403,7 @@ the running batch's calendar is projected once, everything it settles **before**
 the candidate's placement collapses into an opening balance, and everything it
 settles **on or after** is handed over as dated flows.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 describe('handoffAtPlacement', () => {
@@ -440,12 +440,12 @@ describe('handoffAtPlacement', () => {
 });
 ```
 
-- [ ] **Step 2: Run it and watch it fail**
+- [x] **Step 2: Run it and watch it fail**
 
 Run: `cd packages/engine && npx vitest run tests/allocation.test.ts`
 Expected: FAIL — `handoffAtPlacement is not a function`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```ts
 /**
@@ -494,12 +494,12 @@ const curve = input.curve ?? SEED_BREED_CURVE;
 const LAST_CURVE_DAY = curve.points[curve.points.length - 1]!.day_number;
 ```
 
-- [ ] **Step 4: Run the tests and watch them pass**
+- [x] **Step 4: Run the tests and watch them pass**
 
 Run: `cd packages/engine && npx vitest run tests/allocation.test.ts`
 Expected: PASS, 7 tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/engine/src/allocation.ts packages/engine/tests/allocation.test.ts
@@ -526,7 +526,7 @@ git commit -m "feat(engine): chain a candidate's opening balance off the running
   ): CashCalendar;
   ```
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 describe('candidateInput', () => {
@@ -582,12 +582,12 @@ describe('projectCandidate', () => {
 });
 ```
 
-- [ ] **Step 2: Run it and watch it fail**
+- [x] **Step 2: Run it and watch it fail**
 
 Run: `cd packages/engine && npx vitest run tests/allocation.test.ts`
 Expected: FAIL — `candidateInput is not a function`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```ts
 /**
@@ -641,12 +641,12 @@ export function projectCandidate(
 }
 ```
 
-- [ ] **Step 4: Run the tests and watch them pass**
+- [x] **Step 4: Run the tests and watch them pass**
 
 Run: `cd packages/engine && npx vitest run tests/allocation.test.ts`
 Expected: PASS, 12 tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/engine/src/allocation.ts packages/engine/tests/allocation.test.ts
@@ -683,7 +683,7 @@ git commit -m "feat(engine): project each candidate once, over its own completio
 horizon — a real state, not a large number, and it excludes the candidate from
 Cover Fast's ranking rather than ranking it last.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 describe('scoreCandidate', () => {
@@ -726,12 +726,12 @@ describe('scoreCandidate', () => {
 });
 ```
 
-- [ ] **Step 2: Run it and watch it fail**
+- [x] **Step 2: Run it and watch it fail**
 
 Run: `cd packages/engine && npx vitest run tests/allocation.test.ts`
 Expected: FAIL — `scoreCandidate is not a function`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```ts
 export function scoreCandidate(
@@ -764,12 +764,12 @@ export function scoreCandidate(
 }
 ```
 
-- [ ] **Step 4: Run the tests and watch them pass**
+- [x] **Step 4: Run the tests and watch them pass**
 
 Run: `cd packages/engine && npx vitest run tests/allocation.test.ts`
 Expected: PASS, 16 tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/engine/src/allocation.ts packages/engine/src/types.ts packages/engine/tests/allocation.test.ts
@@ -799,7 +799,7 @@ git commit -m "feat(engine): three integer scalars, the reserve floor filtering 
   ): ModeWinner | null;
   ```
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 describe('pickWinner', () => {
@@ -847,12 +847,12 @@ describe('pickWinner', () => {
 });
 ```
 
-- [ ] **Step 2: Run it and watch it fail**
+- [x] **Step 2: Run it and watch it fail**
 
 Run: `cd packages/engine && npx vitest run tests/allocation.test.ts`
 Expected: FAIL — `pickWinner is not a function`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```ts
 export function pickWinner(
@@ -892,12 +892,12 @@ export function pickWinner(
 }
 ```
 
-- [ ] **Step 4: Run the tests and watch them pass**
+- [x] **Step 4: Run the tests and watch them pass**
 
 Run: `cd packages/engine && npx vitest run tests/allocation.test.ts`
 Expected: PASS, 21 tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/engine/src/allocation.ts packages/engine/src/types.ts packages/engine/tests/allocation.test.ts
@@ -923,7 +923,7 @@ git commit -m "feat(engine): deterministic tie-break, with the tie itself report
   export function placeNothing(input: EngineInput, handoff: RunningBatchHandoff): PlaceNothing;
   ```
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 describe('placeNothing', () => {
@@ -948,12 +948,12 @@ describe('placeNothing', () => {
 });
 ```
 
-- [ ] **Step 2: Run it and watch it fail**
+- [x] **Step 2: Run it and watch it fail**
 
 Run: `cd packages/engine && npx vitest run tests/allocation.test.ts`
 Expected: FAIL — `placeNothing is not a function`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```ts
 /**
@@ -980,12 +980,12 @@ export function placeNothing(input: EngineInput, handoff: RunningBatchHandoff): 
 }
 ```
 
-- [ ] **Step 4: Run the tests and watch them pass**
+- [x] **Step 4: Run the tests and watch them pass**
 
 Run: `cd packages/engine && npx vitest run tests/allocation.test.ts`
 Expected: PASS, 23 tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/engine/src/allocation.ts packages/engine/src/types.ts packages/engine/tests/allocation.test.ts
@@ -996,36 +996,35 @@ git commit -m "feat(engine): place_nothing as its own outcome, with its overhead
 
 ## Task 8: `computeAllocation` — and the two-blocked-one-working refusal
 
-> **DO NOT START THIS TASK. Blocked on OQ-23.** The enumeration ceiling below
-> was wrong in the plan's first draft, and wrong in a way worth understanding
-> before rewriting it: it derived the ceiling from **gate capacity**, which
-> caps how fast a batch converts to same-day cash, not how large a batch can
-> be. The client's own brief settles it — *"Use the bulk buyer to absorb
-> volume"* — and CONTEXT.md's **Max safe batch size** is a gate-derived
-> **output**, not the enumeration's bound. The two share a formula and are not
-> the same quantity. `maxChickCount` needs a real source, and
-> `gate_capacity_per_day` is the only capacity field `Parameters` has.
+> **UNBLOCKED 2026-09-11. OQ-23 is answered.** The ceiling is **operator-
+> entered**, not derived: the client's own requirements call says the placement
+> field should take *"any figure technically"*, with **5,000** realistic today
+> and **30,000** the brief's planning target. So `requirePlacementCeiling`
+> reads a real `Parameters.max_placement_birds`, and still **throws when it is
+> absent** — a default there would invent the number that decides how much of
+> the decision space the engine will even look at.
 >
-> **Tasks 1-7 and 9 are unaffected** — none of them reads the ceiling. Build
-> those; leave this one until OQ-23 is answered.
+> The same source confirms the conflation that raised OQ-23: *"they can 7k
+> birds on the gate but for them to push aggressively to 15k they will be risk
+> of pre harvest loss."* Gate absorption and placement size, named as different
+> quantities in one sentence by the client. The ceiling is **not** gate-derived.
 >
-> **`requirePlacementCeiling` in the code below is a deliberate hole, not a
-> function you can go and write.** Its contract, for when OQ-23 lands:
->
-> ```ts
-> // Reads Parameters.max_placement_birds — a field that does NOT exist yet,
-> // because nobody has told us what caps a placement. When OQ-23 is answered
-> // it is added to Parameters alongside placement_step_birds, carries its own
-> // confidence ('measured' if Daniel states a house or supply limit,
-> // 'assumed' otherwise), and this helper returns it.
-> //
-> // Until then it must THROW rather than default. A default here would invent
-> // the single number that decides how much of the decision space the engine
-> // is even willing to look at — the largest possible instance of the mistake
-> // invariant 5 names. The brief's 30,000 is a document heading, not a stated
-> // constraint, and reading a ceiling off a title is exactly the AD-36 error.
-> function requirePlacementCeiling(parameters: Parameters): number;
-> ```
+> **Bulk scoring remains blocked, and this task must not paper over it.**
+> Verified in code 2026-09-11 rather than assumed: a bulk-inclusive input
+> returns `abattoir_fee`, `transport_cents_per_bird` and `bulk_price`; with
+> BOTH OQ-2 values supplied it still returns `bulk_price`, because OQ-16 gates
+> the formula independently. A gate-only input returns no refusals. The
+> two-blocked-one-working asymmetry below is therefore live and testable now.
+
+**`requirePlacementCeiling` contract, now buildable:**
+
+```ts
+// Reads Parameters.max_placement_birds. Throws when absent — never defaults.
+// OQ-23 settled the SOURCE (the operator types it) but not a value the engine
+// may assume: 5,000 is today's realistic scale and 30,000 the brief's target,
+// and picking either would be the AD-36 error at the largest possible scale.
+function requirePlacementCeiling(parameters: Parameters): number;
+```
 
 **Files:**
 - Modify: `packages/engine/src/allocation.ts`, `packages/engine/src/types.ts`
@@ -1046,7 +1045,7 @@ git commit -m "feat(engine): place_nothing as its own outcome, with its overhead
   ): AllocationResult;
   ```
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 describe('computeAllocation — the two-blocked-one-working asymmetry', () => {
@@ -1093,12 +1092,12 @@ describe('computeAllocation — the two-blocked-one-working asymmetry', () => {
 });
 ```
 
-- [ ] **Step 2: Run it and watch it fail**
+- [x] **Step 2: Run it and watch it fail**
 
 Run: `cd packages/engine && npx vitest run tests/allocation.test.ts`
 Expected: FAIL — `computeAllocation is not a function`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```ts
 export function computeAllocation(
@@ -1166,12 +1165,12 @@ export function computeAllocation(
 }
 ```
 
-- [ ] **Step 4: Run the tests and watch them pass**
+- [x] **Step 4: Run the tests and watch them pass**
 
 Run: `cd packages/engine && npx vitest run tests/allocation.test.ts`
 Expected: PASS, 27 tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/engine/src/allocation.ts packages/engine/src/types.ts packages/engine/tests/allocation.test.ts
@@ -1181,6 +1180,31 @@ git commit -m "feat(engine): computeAllocation, with the blocked/working mode sp
 ---
 
 ## Task 9: Wire `decision.allocation` and retire the `NotImplementedError`
+
+> **BLOCKED ON OQ-25 — a different blocker from the one that held it before.**
+> Task 8 now exists, so the dependency that stopped this task is satisfied. What
+> stops it now is the getter's fourth argument.
+>
+> The sketch below passes `input.parameters.reserve_floor_cents` as
+> `computeAllocation`'s `openingCents`. Those are different quantities — the
+> minimum the business must KEEP versus the cash it HOLDS — and the substitution
+> is silent: the types match, the arithmetic runs, and every projected figure is
+> wrong by the size of the floor.
+>
+> **There is nothing correct to pass instead.** `EngineInput` and `Parameters`
+> carry no cash balance at all (verified 2026-09-11). The data is
+> `cash_accounts.opening_balance_cents` in the architecture, which is **U6**.
+> `0n` is not a safe default either: it asserts the client is broke, which
+> against a positive reserve floor makes every candidate unaffordable for
+> structural rather than financial reasons.
+>
+> **Done instead, because neither needed the balance:** `allocation.ts`'s public
+> API is now exported from `index.ts` (it was unreachable from the package entry
+> point, and no test noticed because the allocation tests import the module
+> directly), and the getter's `NotImplementedError` now names OQ-25 and U6
+> rather than claiming the optimiser is unbuilt. It stays
+> `NotImplementedError` specifically so `classifyFixture` keeps HOLDING a
+> fixture that targets `decision.allocation` instead of failing it.
 
 **Files:**
 - Modify: `packages/engine/src/index.ts`, `packages/engine/src/types.ts`
@@ -1265,41 +1289,23 @@ asymmetry → Task 8.
 
 **Known soft spots, stated rather than hidden.**
 
-1. **Task 8 calls `handoffAtPlacement` once per candidate**, each of which
-   projects the running batch's full calendar — 31 dates × N sizes projections
-   of the same handful of calendars. The handoff depends only on the *date*, so
-   it should be memoised per date once Task 8 is green. Left as a Task 8
-   refactor step rather than a premature optimisation, but it is 31 projections
-   versus up to 8,401 and worth taking.
+1. ~~**Task 8 calls `handoffAtPlacement` once per candidate.**~~ **DONE
+   2026-09-11.** Memoised per date inside `computeAllocation`: the handoff
+   depends only on the placement date, so the grid now projects 31 running-batch
+   calendars rather than one per candidate.
 
-2. **`maxChickCount` was wrong, and it is now OQ-23.** RESOLVED as a
-   question, 2026-09-11; Task 8 is blocked until it is answered.
+2. ~~**`maxChickCount` was wrong, and it is now OQ-23.**~~ **ANSWERED
+   2026-09-11.** The ceiling is operator-entered — `Parameters.max_placement_birds`,
+   no derived default, `requirePlacementCeiling` throws on absence. The client's
+   own words settle both halves: the field takes *"any figure technically"*
+   (5,000 realistic, 30,000 the brief's target), and *"they can 7k birds on the
+   gate but to push aggressively to 15k..."* names gate absorption and placement
+   size as different quantities in one sentence.
 
-   The first draft derived the ceiling as gate capacity × harvest-window days.
-   That is a **conflation of two quantities that share a formula**, not merely
-   a number set too low:
-
-   - **Max safe batch size** — gate-derived, and correctly so. An **output**:
-     CONTEXT.md defines it as "largest placement that gate capacity can clear",
-     and project-overview.md goal 4 asks for it.
-   - **The enumeration ceiling** — must **not** be gate-derived. A
-     bulk-inclusive batch exceeds gate absorption by design, on the brief's own
-     instruction: *"Use cash sales to finance the cycle. Use the bulk buyer to
-     absorb volume."*
-
-   **The 30,000 range is a real client scale, checked rather than assumed:**
-   the second client artifact is the 30,000-broiler brief itself; OQ-15 records
-   that that brief costs itself at ~59c/bird at that scale; and
-   project-overview.md goal 5 states 3,000-30,000 as a product requirement.
-   So the range is not what needs revising down — the ceiling's **source** is
-   what needs replacing.
-
-   **And correcting it makes M5b look more blocked, not less.** The
-   gate-derived cap kept every candidate gate-only, and gate-only candidates
-   are scoreable today. At the real range most candidates are bulk-inclusive,
-   so Cover Fast and Build Reserve return `missing_input` for them until OQ-2's
-   transport half and OQ-16 land. The wrong cap was **masking** how thin M5b's
-   scoreable region actually is.
+   **The prediction below held.** At the real range most candidates are
+   bulk-inclusive, and those are exactly the ones Cover Fast and Build Reserve
+   refuse. Verified in code rather than argued: supplying both OQ-2 values still
+   leaves `bulk_price`, because OQ-16 gates the formula independently.
 
 3. **`place_nothing`'s `closing_cents` ignores the running batch's reserve floor
    breaches**, because it has no calendar of its own. If that matters, it needs
@@ -1326,6 +1332,16 @@ answering OQ-23 alone does not make Task 8 useful; it makes the size of the
 blocked region visible. That is worth knowing before anyone reads a demo where
 two of three modes refuse across most of the grid and treats it as a
 regression. It is not one.
+
+**OQ-22 CANNOT be closed by this unit, and that is now settled rather than
+pending.** The plan required M5b to decide the precedence between
+`Parameters.bulk_price_cents_per_bird` and M4's contract bands, on the grounds
+that "M5b is where bulk net is finally computed". **M5b never computes a bulk
+net** — every bulk-inclusive candidate refuses on OQ-2/OQ-16, so there is no
+calculation for a precedence rule to govern and nothing to test a decision
+against. Verified 2026-09-11: `bulk_price_cents_per_bird` is still read nowhere
+in `packages/engine/src` outside `types.ts`. The question moves to whichever
+unit first computes bulk net. Original note follows.
 
 **OQ-22 must be closed by this unit.** `bulk_price_cents_per_bird` is declared
 in `Parameters` and read nowhere, while M4 prices bulk off the contract bands.

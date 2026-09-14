@@ -1,6 +1,8 @@
 import { SEED_BREED_CURVE, pointForDay } from './breed-curve.js';
 import { costOfFeed } from './costing.js';
 import { addDays, daysBetween } from './day-number.js';
+import { bandForDressedG, firstDayAtWeight } from './harvest.js';
+import { Money } from './money.js';
 import { SEED_OVERHEADS, overheadBreakdown } from './overheads.js';
 import type {
   BreedCurve,
@@ -10,10 +12,47 @@ import type {
   Cents,
   EngineInput,
   FeedLiability,
+  IsoDate,
   MissingInput,
+  Parameters,
   Phase,
   SalesOrder
 } from './types.js';
+
+/**
+ * The abattoir's cash fee per bird — **10 cents**, answered by the client
+ * 2026-09-10 (OQ-2, first half). The abattoir also keeps the offals, which is
+ * real value given up and is recorded rather than costed (AD-32).
+ */
+export const SEED_ABATTOIR_FEE_CENTS = 10n as Cents;
+
+/**
+ * What the run to the abattoir costs per bird — **10 cents**, answered by the
+ * client 2026-09-12 (OQ-2, second half, closing it).
+ *
+ * **A SEPARATE cost from the fee above, which happens to be the same number**
+ * (AD-55). One is what the abattoir charges to slaughter; the other is the
+ * truck that gets the birds there. They were answered two days apart, they can
+ * move independently, and one shared 10c constant would make today's
+ * coincidence permanent and untraceable. Three different transport costs have
+ * been in play on this project and conflating any two produces a double-count
+ * or a hole — see `SEED_DELIVERY_CENTS_PER_TONNE` (feed delivery) and the
+ * retired $400 "Other/Transport" overhead (OQ-16).
+ *
+ * **Charged on both delivery modes.** Whether a DIRECT run to the buyer costs
+ * the same per bird is unanswered; this charges the one figure we have either
+ * way, which is the conservative direction. The abattoir FEE, by contrast, is
+ * correctly dropped on a DIRECT delivery — no abattoir, no fee.
+ */
+export const SEED_TRANSPORT_CENTS_PER_BIRD = 10n as Cents;
+
+/**
+ * Everything abattoir-related, per bird: **20 cents**. Named so the total is
+ * derived from its two parts in one place rather than typed as a literal
+ * anywhere, and so a change to either part cannot leave the total stale.
+ */
+export const SEED_ABATTOIR_COST_CENTS_PER_BIRD = (SEED_ABATTOIR_FEE_CENTS +
+  SEED_TRANSPORT_CENTS_PER_BIRD) as Cents;
 
 /**
  * What the calendar cannot compute, and why — checked BEFORE projecting.
@@ -24,6 +63,10 @@ import type {
  */
 export function cashFlowsMissingInputs(input: EngineInput): MissingInput[] {
   const missing: MissingInput[] = [];
+  for (const sale of input.sales) {
+    if (sale.channel === 'BULK') continue;
+    missing.push(...gateOrderProblems(sale));
+  }
   if (!input.sales.some((sale) => sale.channel === 'BULK')) return missing;
 
   const { abattoir_fee_cents, transport_cents_per_bird, delivery_mode } = input.parameters;
@@ -32,40 +75,148 @@ export function cashFlowsMissingInputs(input: EngineInput): MissingInput[] {
     missing.push({
       key: 'abattoir_fee',
       why:
-        'Bulk net needs the abattoir fee per bird (OQ-2). Until it and transport land, ' +
-        'Cover Fast and Build Reserve return missing_input for any bulk-inclusive ' +
-        'candidate while Maximum Growth still returns a real number — its scalar is ' +
-        'placement size, which needs no bulk net. That split is expected, not a bug (AD-43).'
+        'Bulk net needs the abattoir fee per bird, and this input does not carry it. The ' +
+        'client answered it on 2026-09-10 — 10 cents a bird, SEED_ABATTOIR_FEE_CENTS — but ' +
+        'a known value is not a supplied one. While it is missing, Cover Fast and Build ' +
+        'Reserve return missing_input for any bulk-inclusive candidate and Maximum Growth ' +
+        'still returns a real number, since its scalar is placement size and needs no bulk ' +
+        'net. That split is expected, not a bug (AD-43).'
     });
   }
   if (transport_cents_per_bird === null) {
     missing.push({
       key: 'transport_cents_per_bird',
       why:
-        'Bulk net needs transport to the abattoir (OQ-2), and OQ-16 gates it ' +
-        'independently: the Final Report already books an Other/Transport line for a ' +
-        'gate-sold batch, and the brief says do not double-count. An answered OQ-2 does ' +
-        'not release OQ-16.'
+        'Bulk net needs the cost of the run to the abattoir. The client answered it on ' +
+        '2026-09-12 — 10 cents a bird, SEED_TRANSPORT_CENTS_PER_BIRD, separate from the ' +
+        '10c abattoir fee answered 2026-09-10, so 20c a bird in total — but this input ' +
+        'does not carry it. A value being known is not the same as it being supplied, and ' +
+        'nothing reads the seed behind the back of a caller: the seed is what an app-level ' +
+        'default should be built from, not a silent fallback here.'
     });
   }
-  // OQ-16 is a question about the FORMULA — whether transport belongs in bulk
-  // net at all — not about the two values above. Supplying both does not
-  // answer it, so this entry must survive even once abattoir_fee_cents and
-  // transport_cents_per_bird are both non-null. Without it,
-  // cashFlowsMissingInputs() would return [] the day the client answers OQ-2,
-  // and the BULK branch below would still throw unconditionally — a raw
-  // Error where invariant 5 promises a typed blank. 'bulk_price' is the
-  // existing key for "we cannot price a bulk sale"; this is exactly that.
-  missing.push({
-    key: 'bulk_price',
-    why:
-      'OQ-16 asks whether transport belongs in bulk net at all, given the Final Report ' +
-      'already books an Other/Transport line for a gate-sold batch — a question about the ' +
-      'bulk-net FORMULA, not its inputs. Supplying abattoir_fee_cents and ' +
-      'transport_cents_per_bird does not release it: no BULK candidate is scoreable until ' +
-      'OQ-16 is answered.'
-  });
+  /**
+   * The blanket "bulk net is not implemented" refusal that used to stand here
+   * is GONE, because it is implemented (AD-57). What replaces it is a per-ORDER
+   * check, which is the right shape now that the contract lives on the order:
+   * one buyer's deal being unpriceable says nothing about another's.
+   */
+  for (const sale of input.sales) {
+    if (sale.channel !== 'BULK') continue;
+    missing.push(...bulkContractProblems(sale));
+  }
+
   return missing;
+}
+
+/**
+ * What stops THIS gate order being priced, if anything.
+ *
+ * `SalesOrder.pricing_basis` is typed per order, not per channel, so nothing in
+ * the type stops a gate order carrying BANDED. Checked here so the calendar
+ * refuses it rather than booking the per-bird price with the bands ignored, and
+ * so an unpriced gate order is a typed refusal rather than a throw mid-projection.
+ */
+function gateOrderProblems(sale: SalesOrder): MissingInput[] {
+  if (sale.pricing_basis === 'BANDED') {
+    return [
+      {
+        key: 'gate_price',
+        why:
+          `This ${sale.channel} order is priced BANDED. Bands are a bulk contract priced ` +
+          'on dressed weight, and a gate bird is sold live, so there is no gate reading ' +
+          'of them to fall back on.'
+      }
+    ];
+  }
+  const rate =
+    sale.pricing_basis === 'PER_KG' ? sale.price_cents_per_kg : sale.price_cents_per_bird;
+  if (rate === null) {
+    return [
+      {
+        key: 'gate_price',
+        why: `This ${sale.channel} order is priced ${sale.pricing_basis} and carries no such price.`
+      }
+    ];
+  }
+  return [];
+}
+
+/**
+ * What stops THIS bulk order being priced, if anything.
+ *
+ * Separate from the parameter-level checks above because it is per-order: two
+ * orders on one batch can be priced by different contracts, and only one of
+ * them may be unpriceable.
+ */
+function bulkContractProblems(sale: SalesOrder): MissingInput[] {
+  if (sale.pricing_basis === 'BANDED') {
+    if (sale.bands === null || sale.bands.length === 0) {
+      return [
+        {
+          key: 'bulk_price',
+          why:
+            'This BULK order is priced BANDED but carries no band schedule. The contract ' +
+            'belongs to the buyer and Daniel sells to more than one (2026-09-12: bulk ' +
+            'pricing "depends on the buyer"), so nothing can stand in for it — not ' +
+            'parameters.bulk_bands, which is the planning default for a sale that has no ' +
+            'buyer yet.'
+        }
+      ];
+    }
+    if (sale.avg_dressed_weight_g === null) {
+      return [
+        {
+          key: 'dressed_weight',
+          why:
+            'This BULK order is priced on DRESSED weight and none was recorded. Deriving it ' +
+            'from live weight would price a real invoice off the assumed ~62% yield that ' +
+            'OQ-17 exists to replace. A forecast may use that estimate; an invoice may not.'
+        }
+      ];
+    }
+    const floors = sale.bands.map((band) => band.dressed_floor_g);
+    const lowest = Math.min(...floors);
+    const highest = Math.max(...floors);
+    if (sale.avg_dressed_weight_g < lowest) {
+      return [
+        {
+          key: 'bulk_price',
+          why:
+            `A ${sale.avg_dressed_weight_g} g dressed bird falls BELOW this contract's ` +
+            `lowest band (${lowest} g). The schedule does not say what it pays for one, and ` +
+            'reading the bottom band down to cover it would invent a price the contract ' +
+            'does not contain.'
+        }
+      ];
+    }
+    if (sale.avg_dressed_weight_g > highest) {
+      return [
+        {
+          key: 'bulk_price',
+          why:
+            `A ${sale.avg_dressed_weight_g} g dressed bird is ABOVE this contract's top band ` +
+            `(${highest} g), and the schedule stops there. Reusing the top band would ` +
+            'extrapolate past the stated range — and this schedule pays LESS as the bird ' +
+            'gets heavier, so the extrapolation is not even conservative. What a heavier ' +
+            'bird pays is question 2 on the Daniel list, unanswered. See OQ-30.'
+        }
+      ];
+    }
+    return [];
+  }
+
+  const rate =
+    sale.pricing_basis === 'PER_KG' ? sale.price_cents_per_kg : sale.price_cents_per_bird;
+  if (rate === null) {
+    return [
+      {
+        key: 'bulk_price',
+        why: `This BULK order is priced ${sale.pricing_basis} and carries no such price.`
+      }
+    ];
+  }
+  return [];
 }
 
 /**
@@ -120,9 +271,139 @@ function pricePlannedDrawSpan(
   }
   let cents = 0n;
   for (const phase of curve.phases) {
-    cents += costOfFeed(gramsByPhase[phase.phase], phase.price_per_kg_cents);
+    cents += costOfFeed(gramsByPhase[phase.phase], phase);
   }
   return cents as Cents;
+}
+
+
+/**
+ * Bulk net per bird — gross, minus the abattoir fee, minus transport.
+ *
+ * **Wired into the calendar since AD-57.** The price source is settled and it is
+ * the ORDER's own contract: per bird, per live kg, or this buyer's own
+ * dressed-weight bands. Daniel's answer to which one governs was "depends on
+ * the buyer" (2026-09-12), so the question had no single answer to find — the
+ * structure holds all three and the order says which it is.
+ *
+ * It does NOT consult `parameters.bulk_bands`. That is the PLANNING default for
+ * a bulk sale with no buyer yet; using it to price a real invoice would be the
+ * two-live-sources problem OQ-22 named, resolved here by deleting the other
+ * source rather than ranking it.
+ *
+ * **Per-bird truncation is not the same as truncating the order total.** A
+ * PER_KG gross truncates once per bird here, where `receiptCents` truncates
+ * once across the whole order. They can differ by up to one cent per bird, and
+ * that is correct for each: a per-bird net is a per-bird figure.
+ *
+ * **Offals are not netted.** AD-32 — the abattoir keeps them on top of the 10c
+ * cash fee, which is real value given up, and nobody has priced it. Subtracting
+ * zero would assert it is worthless; `SalesOrder` carries no offal field at all
+ * yet, which is its own gap.
+ */
+export function bulkNetCentsPerBird(sale: SalesOrder, parameters: Parameters): Cents {
+  const { abattoir_fee_cents, transport_cents_per_bird, delivery_mode } = parameters;
+
+  // The programming-error guard, matching this module's precedent: callers
+  // check cashFlowsMissingInputs() and report a typed refusal; this catches one
+  // that skipped it. Transport is NOT zero by default — nobody has said the
+  // truck is free, and the retired $400 overhead did not price it (OQ-16 was
+  // retired, not answered).
+  if (transport_cents_per_bird === null) {
+    throw new Error(
+      'Cannot net a BULK sale: transport per bird is unavailable (OQ-2). ' +
+        'Call cashFlowsMissingInputs() first and return missing_input.'
+    );
+  }
+
+  if (delivery_mode === 'ABATTOIR' && abattoir_fee_cents === null) {
+    throw new Error(
+      'Cannot net a BULK sale: the abattoir fee per bird is unavailable. ' +
+        'Call cashFlowsMissingInputs() first and return missing_input.'
+    );
+  }
+
+  const problems = bulkContractProblems(sale);
+  if (problems.length > 0) {
+    throw new Error(
+      `Cannot net a BULK sale: ${problems.map((p) => p.why).join(' ')} ` +
+        'Call cashFlowsMissingInputs() first and return missing_input.'
+    );
+  }
+
+  let gross: bigint;
+  if (sale.pricing_basis === 'BANDED') {
+    // Checked above, so this cannot be null here; the band is the one whose
+    // floor this carcass clears, which is what the contract itself says.
+    const band = bandForDressedG(sale.bands!, sale.avg_dressed_weight_g!);
+    if (band === null) {
+      throw new Error('A BANDED BULK order resolved to no band after passing its own checks');
+    }
+    gross = band.price_cents_per_bird;
+  } else if (sale.pricing_basis === 'PER_KG') {
+    const rate = sale.price_cents_per_kg;
+    if (rate === null) throw new Error('A PER_KG BULK order has no price_cents_per_kg');
+    // Truncating, per bird — a receipt must never round up in our favour.
+    gross = (rate * BigInt(sale.avg_live_weight_g)) / 1000n;
+  } else {
+    const rate = sale.price_cents_per_bird;
+    if (rate === null) throw new Error('A PER_BIRD BULK order has no price_cents_per_bird');
+    gross = rate;
+  }
+
+  // The fee is the abattoir's. A DIRECT delivery to the buyer does not incur
+  // it — though whether transport costs the same per bird on that route is
+  // unanswered, and this charges the one figure we have either way.
+  const fee = delivery_mode === 'ABATTOIR' ? abattoir_fee_cents! : 0n;
+
+  return (gross - fee - transport_cents_per_bird) as Cents;
+}
+
+/**
+ * A MONTHLY overhead split across the calendar months a batch is housed in.
+ *
+ * **It splits the measured amount; it never repeats it** (AD-56).
+ * `amount_cents` is what ONE BATCH cost him — $140 of electricity over a
+ * 41-day cycle — so charging $140 again each month would invent money he never
+ * spent, which is the same class of error as a confident wrong number.
+ *
+ * Weighted by HOUSED DAYS in each month rather than split evenly, because a
+ * batch placed on the 28th owes that month two days of power, not half the
+ * bill. `Money.split` allocates the remainder, so the instalments always sum
+ * back to the measured figure exactly.
+ *
+ * The first instalment lands on the placement date and the rest on the 1st of
+ * each following month — the dates are ours and assumed, which is why the
+ * calendar still reports `overhead_timing: 'assumed'` (OQ-19).
+ */
+function monthlyInstalments(
+  placement_date: IsoDate,
+  completion_date: IsoDate,
+  total: Cents
+): readonly { date: IsoDate; cents: Cents; days: number }[] {
+  const months: { date: IsoDate; days: number }[] = [];
+  const span = daysBetween(placement_date, completion_date);
+
+  for (let offset = 0; offset <= span; offset += 1) {
+    const date = addDays(placement_date, offset);
+    const month = date.slice(0, 7);
+    const current = months[months.length - 1];
+    if (current !== undefined && current.date.slice(0, 7) === month) {
+      current.days += 1;
+      continue;
+    }
+    // The first month starts on the placement date; every later one on its 1st,
+    // which is the day this loop first reaches it.
+    months.push({ date, days: 1 });
+  }
+
+  if (months.length === 0) return [];
+  const shares = Money.split(total, months.map((m) => m.days));
+  return months.map((month, index) => ({
+    date: month.date,
+    cents: shares[index] ?? (0n as Cents),
+    days: month.days
+  }));
 }
 
 /**
@@ -165,14 +446,42 @@ export function projectCashCalendar(
    * throw in `buildDays`.
    */
   openingCents: Cents,
-  feed: FeedLiability
+  feed: FeedLiability,
+  /**
+   * Dated flows belonging to a DIFFERENT batch that is still running when this
+   * one is placed — its feed draws falling due, its receipts landing.
+   *
+   * A parameter rather than something folded into `openingCents`, because
+   * AD-43's reserve-floor filter reads the day-by-day trough and a lump at day
+   * 1 would misstate it: a draw due on day 25 that dips the balance below the
+   * floor is exactly the fact the filter exists to catch. `EngineInput.batch`
+   * is singular, so there is no way to express a second batch inside `input`.
+   *
+   * Flows dated before this batch's placement still throw. That is deliberate:
+   * anything the other batch settles before this one is placed belongs in
+   * `openingCents`, and the throw is what stops it being counted twice.
+   */
+  carriedFlows: readonly CashFlow[] = []
 ): CashCalendar {
   if (throughDay < 1) {
     throw new Error(`through_day ${throughDay} is before placement day 1`);
   }
 
-  const { placement_date, chick_count, extra_chick_count, chick_price_cents } = input.batch;
+  const flows = [...batchCashFlows(input, feed), ...carriedFlows];
   const floor = input.parameters.reserve_floor_cents;
+  return buildDays(input, throughDay, openingCents, flows, floor, feed.planned_confidence);
+}
+
+/**
+ * Every dated flow this batch generates, before any horizon is applied.
+ *
+ * Separate from `projectCashCalendar` so a caller choosing a horizon can see
+ * how far the flows actually run. A fixed horizon silently drops a draw or a
+ * receipt on its own longer terms, which is how the allocation handoff lost
+ * obligations dated past `41 + feed_terms_days`.
+ */
+export function batchCashFlows(input: EngineInput, feed: FeedLiability): CashFlow[] {
+  const { placement_date, chick_count, extra_chick_count, chick_price_cents } = input.batch;
 
   const flows: CashFlow[] = [];
 
@@ -187,25 +496,63 @@ export function projectCashCalendar(
   });
 
   /**
-   * Overhead TIMING is assumed — one of two independent assumptions in this
-   * module; the other is the planned feed schedule below.
+   * Overhead cadences, per the client (2026-09-12): "labour when the batch is
+   * done, other expenses we pay as when they arise". Each line carries its own
+   * `timing` and is dated accordingly — AD-56.
    *
-   * `computeCosting` gives amounts and no dates — the client books overheads
-   * per batch, not per day. Charging them all at placement is the simplest
-   * defensible choice and it is almost certainly wrong in shape: labour is
-   * likely monthly, which would flatten the early-cycle trough materially.
-   * OQ-19 asks him. Until then the calendar says `overhead_timing: 'assumed'`
-   * so nobody reads the minimum balance as measured. The AMOUNTS are his,
-   * measured, straight out of `overheadBreakdown` — only the date they land
-   * on is this module's guess.
+   * Every line used to land in one lump on the placement date, which OQ-19
+   * flagged as almost certainly wrong in SHAPE: it dug the whole $822 on day 1
+   * and so overstated the early-cycle trough that AD-43's reserve-floor filter
+   * reads. It now lands the way he described it.
+   *
+   * **Still `overhead_timing: 'assumed'`, and that is not an oversight.** He
+   * gave cadences, not dates. Knowing labour is paid "when the batch is done"
+   * does not say which day that is — this module dates it against the first day
+   * the curve reaches the slaughter target, which is at or before the day the
+   * last bird actually goes. The AMOUNTS remain his, measured; only the dates
+   * are ours.
    */
   const overheads = input.parameters.overheads ?? SEED_OVERHEADS;
+  const curveForOverheads = input.curve ?? SEED_BREED_CURVE;
+  const completionDay =
+    firstDayAtWeight(curveForOverheads, input.parameters.slaughter_target_g) ??
+    curveForOverheads.points[curveForOverheads.points.length - 1]?.day_number ??
+    1;
+
   for (const line of overheadBreakdown(overheads, flock)) {
+    const note = `${line.basis}, ${line.timing}, timing assumed — OQ-19`;
+
+    if (line.timing === 'HARVEST_COMPLETE') {
+      flows.push({
+        kind: 'OVERHEAD',
+        date: addDays(placement_date, completionDay - 1),
+        amount_cents: -line.cents as Cents,
+        description: `${line.label} (${note})`
+      });
+      continue;
+    }
+
+    if (line.timing === 'MONTHLY') {
+      for (const instalment of monthlyInstalments(
+        placement_date,
+        addDays(placement_date, completionDay - 1),
+        line.cents
+      )) {
+        flows.push({
+          kind: 'OVERHEAD',
+          date: instalment.date,
+          amount_cents: -instalment.cents as Cents,
+          description: `${line.label} (${note}, ${instalment.days} housed days)`
+        });
+      }
+      continue;
+    }
+
     flows.push({
       kind: 'OVERHEAD',
       date: placement_date,
       amount_cents: -line.cents as Cents,
-      description: `${line.label} (${line.basis}, timing assumed — OQ-19)`
+      description: `${line.label} (${note})`
     });
   }
 
@@ -220,6 +567,22 @@ export function projectCashCalendar(
       amount_cents: -draw.total_cents as Cents,
       description: `${draw.bags} bags ${draw.phase} drawn ${draw.collection_date}`
     });
+    /**
+     * Delivery lands on the COLLECTION date, not the due date — "on the spot
+     * when the feed is collected" (client, 2026-09-12, closing OQ-28's timing
+     * half). Its own flow rather than part of the payment above, because the
+     * two fall on different days: the feed is on 30-day terms and the truck is
+     * not. Folding them together would move up to $529 a cycle a month early
+     * or a month late, and the trough is what the reserve-floor filter reads.
+     */
+    if (draw.delivery_cents > 0n) {
+      flows.push({
+        kind: 'FEED_DELIVERY_PAYMENT',
+        date: draw.collection_date,
+        amount_cents: -draw.delivery_cents as Cents,
+        description: `Delivery of ${draw.kg} kg, paid on collection`
+      });
+    }
   }
 
   /**
@@ -248,6 +611,22 @@ export function projectCashCalendar(
   const collectedDates = new Set(feed.draws.map((draw) => draw.collection_date));
   for (const planned of feed.planned_draws) {
     if (collectedDates.has(planned.collection_date)) continue;
+    /**
+     * Delivery on feed not yet collected, on the planned COLLECTION date. An
+     * upper bound like the `kg` it comes from, and carried for the AD-54
+     * reason: leaving it off understates the projected trough by up to $529 a
+     * cycle, and understatement is the flattering direction this engine must
+     * not err in. It is deduped by the same collection-date key as the draw
+     * payment above.
+     */
+    if (planned.delivery_cents > 0n) {
+      flows.push({
+        kind: 'PLANNED_FEED_DELIVERY_PAYMENT',
+        date: planned.collection_date,
+        amount_cents: -planned.delivery_cents as Cents,
+        description: `Delivery of ${planned.kg} kg planned, paid on collection`
+      });
+    }
     flows.push({
       kind: 'PLANNED_FEED_DRAW_PAYMENT',
       date: planned.due_date,
@@ -270,32 +649,35 @@ export function projectCashCalendar(
   const missing = cashFlowsMissingInputs(input);
   if (missing.length > 0) {
     throw new Error(
-      `Cannot project cash: bulk net is unavailable — ${missing.map((m) => m.key).join(', ')}. ` +
+      `Cannot project cash: inputs are missing — ${missing.map((m) => m.key).join(', ')}. ` +
         'Call cashFlowsMissingInputs() first and return missing_input.'
     );
   }
 
   for (const sale of input.sales) {
     if (sale.channel === 'BULK') {
-      // Unreachable today: every fixture leaves transport null, so
-      // cashFlowsMissingInputs() throws above before this loop runs, and
-      // this branch has no test of its own — that is expected, not a gap.
-      // It does NOT become safe to delete once the client supplies both
-      // abattoir_fee_cents and transport_cents_per_bird, though: the guard
-      // above checks only whether the VALUES are present, not whether we
-      // know how to combine them. OQ-16 asks whether transport belongs in
-      // bulk net at all, since the Final Report already books a transport
-      // line for a gate-sold batch — a question values alone cannot
-      // answer. So this throws unconditionally for BULK, independent of
-      // the guard, until the bulk-net formula itself is settled; booking
-      // the gross contract price here would silently answer OQ-16 in the
-      // client's stead, which is the wrong-balance invariant 5 forbids.
-      throw new Error(
-        'Cannot book a BULK receipt: bulk net is contract price minus abattoir fee minus ' +
-          'transport, and whether transport belongs here at all is OQ-16 — the Final Report ' +
-          'already books a transport line for a gate-sold batch. Implement the net when OQ-2 ' +
-          'and OQ-16 are both answered; do not book the gross contract price.'
-      );
+      /**
+       * NET, never gross (AD-57). `receiptCents` returns the contract price with
+       * nothing subtracted, which is right for a gate sale — cash in the hand —
+       * and wrong here by 20 cents a bird: the abattoir fee and the run to the
+       * abattoir both come out before Daniel sees any of it (AD-55).
+       *
+       * Per bird then multiplied, rather than netted on the order total, because
+       * the fee and the transport are both per-bird charges. A PER_KG gross
+       * therefore truncates once per bird, which is correct for a per-bird net.
+       *
+       * Paid on the order's own terms — 30 days for bulk, never assumed.
+       */
+      flows.push({
+        kind: 'BULK_RECEIPT',
+        date: addDays(sale.order_date, sale.terms_days),
+        amount_cents: (bulkNetCentsPerBird(sale, input.parameters) *
+          BigInt(sale.bird_count)) as Cents,
+        description:
+          `${sale.bird_count} birds BULK, net of the abattoir fee and the run ` +
+          `(${sale.pricing_basis})`
+      });
+      continue;
     }
     // A gate sale is cash on the day, priced at the order's own terms_days
     // (0 for gate, but never assumed — always the order's own value).
@@ -307,7 +689,7 @@ export function projectCashCalendar(
     });
   }
 
-  return buildDays(input, throughDay, openingCents, flows, floor, feed.planned_confidence);
+  return flows;
 }
 
 /**

@@ -1,6 +1,12 @@
 import { SEED_BREED_CURVE, cumulativeFeedG, pointForDay } from './breed-curve.js';
 import { dayNumberFor } from './day-number.js';
-import type { DailyRecord, EngineInput, ProductionDay, ProductionProjection } from './types.js';
+import type {
+  DailyRecord,
+  EngineInput,
+  MissingInput,
+  ProductionDay,
+  ProductionProjection
+} from './types.js';
 
 /**
  * M1 — flock projection.
@@ -23,6 +29,102 @@ import type { DailyRecord, EngineInput, ProductionDay, ProductionProjection } fr
  * forecasting is M4's job, calibrated per batch (AD-24, invariant 14), and
  * inventing a number is what invariant 5 forbids.
  */
+
+/**
+ * Sales orders whose bird count cannot be true, and why — checked BEFORE any
+ * revenue is derived from them.
+ *
+ * Found by the 2026-09-12 due-diligence pass, which ran the engine rather than
+ * reading it: a GATE order for 999,999 birds against a 3,000-bird batch
+ * returned `ok`, as did an order for -500. Every downstream figure would have
+ * been revenue on birds that do not exist, reported with full confidence.
+ *
+ * Three checks, because one is not enough:
+ *
+ *   1. **Positive.** An order for zero or fewer birds is not an order.
+ *   2. **Against the flock.** No order can exceed `flock_size` — the birds that
+ *      were ever placed. This is the only bound available for an order dated
+ *      after `asOf`, where the production series has no day to read.
+ *   3. **Against that day's survivors**, where the day is within the series.
+ *      Tighter than 2 once mortality has run.
+ *
+ * Plus a CUMULATIVE check across orders, which is the one a per-order rule
+ * misses entirely: `projectProduction` models mortality and never subtracts
+ * sold birds, so two orders can each pass 3 while together exceeding the flock.
+ * Selling the same bird twice is the realistic version of this mistake.
+ */
+export function salesMissingInputs(
+  input: EngineInput,
+  production: ProductionProjection
+): MissingInput[] {
+  const missing: MissingInput[] = [];
+  const { flock_size } = production;
+  const byDayNumber = new Map(production.days.map((day) => [day.day_number, day]));
+
+  for (const sale of input.sales) {
+    const { bird_count, order_date, channel } = sale;
+    const where = `The ${channel} order dated ${order_date}`;
+
+    if (!Number.isInteger(bird_count) || bird_count <= 0) {
+      missing.push({
+        key: 'sales_bird_count',
+        why:
+          `${where} is for ${bird_count} birds. An order must be a whole number ` +
+          'greater than zero — a zero or negative order is not an order, and ' +
+          'pricing one would produce revenue with no birds behind it.'
+      });
+      continue;
+    }
+
+    if (bird_count > flock_size) {
+      missing.push({
+        key: 'sales_bird_count',
+        why:
+          `${where} is for ${bird_count} birds, but only ${flock_size} were ever ` +
+          'placed (chicks plus extras). No order can exceed the whole flock, ' +
+          'whatever date it carries.'
+      });
+      continue;
+    }
+
+    // Only checkable where the series reaches: `days` runs placement through
+    // asOf, and invariant 7 forbids reading past it. A forward-dated order is
+    // held to the flock ceiling above and no more — refusing it outright would
+    // block exactly the planning a forward order exists to do.
+    const day = byDayNumber.get(dayNumberFor(input.batch.placement_date, order_date));
+    if (day !== undefined && bird_count > day.closing_birds) {
+      missing.push({
+        key: 'sales_bird_count',
+        why:
+          `${where} is for ${bird_count} birds, but only ${day.closing_birds} were ` +
+          `alive on day ${day.day_number} after mortality and culls. ` +
+          'The order cannot be filled as entered.'
+      });
+    }
+  }
+
+  // The check a per-order rule cannot make. Deliberately against flock_size
+  // rather than survivors: mortality is modelled, sales are not subtracted from
+  // it, so survivors on a later day still count birds an earlier order sold.
+  // The flock ceiling is the bound that holds regardless.
+  const totalOrdered = input.sales.reduce(
+    (sum, sale) => sum + (Number.isInteger(sale.bird_count) && sale.bird_count > 0 ? sale.bird_count : 0),
+    0
+  );
+  if (totalOrdered > flock_size) {
+    missing.push({
+      key: 'sales_bird_count',
+      why:
+        `The orders total ${totalOrdered} birds against a flock of ${flock_size}. ` +
+        'Each order may look valid on its own day — production models mortality ' +
+        'and never subtracts birds already sold — but together they sell birds ' +
+        'that do not exist.'
+    });
+  }
+
+  return missing;
+}
+
 export function projectProduction(input: EngineInput): ProductionProjection {
   const curve = input.curve ?? SEED_BREED_CURVE;
   const flock_size = input.batch.chick_count + input.batch.extra_chick_count;

@@ -1,7 +1,7 @@
 {
   "id": 7,
   "name": "hold-cost-day-30-to-35",
-  "description": "Gate hold cost from day 30 through day 35, 5,000 birds — $2,669.46 feed plus 125 birds lost at $4.25 = $3,200.71. GENERATED from the model (OQ-9), never back-fitted to the discredited $3,305.",
+  "description": "Gate hold cost from day 30 through day 35, 5,000 birds — $2,544.91 feed plus 125 birds lost at $4.25 = $3,076.16. GENERATED from the model (OQ-9), never back-fitted to the discredited $3,305. Feed regenerated 2026-09-12 against Daniel's current bag prices (AD-52); the value-lost half is unchanged.",
   "provisional": "Rests on the assumed fallback ramp (OQ-1) and the assumed flat $4.25 gate price (OQ-4). Regenerate when real mortality data arrives.",
   "input": {
     "asOf": "2026-03-07",
@@ -22,7 +22,6 @@
       "gate_price_cents_per_kg": null,
       "gate_pricing_basis": "PER_BIRD",
       "gate_capacity_per_day": 750,
-      "bulk_price_cents_per_bird": "390",
       "abattoir_fee_cents": null,
       "transport_cents_per_bird": null,
       "delivery_mode": "ABATTOIR",
@@ -33,5 +32,5 @@
     "draws": [],
     "sales": []
   },
-  "expect": { "path": "decision.harvest.hold_cost_to_day.35.gate_total_cents", "value": "320071" }
+  "expect": { "path": "decision.harvest.hold_cost_to_day.35.gate_total_cents", "value": "307616" }
 }

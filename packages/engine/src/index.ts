@@ -1,8 +1,8 @@
 import type { DecisionResult, EngineInput, HarvestPlan, MissingInput } from './types.js';
 import { NotImplementedError } from './errors.js';
-import { projectProduction } from './production.js';
+import { projectProduction, salesMissingInputs } from './production.js';
 import { computeCosting } from './costing.js';
-import { computeFeedLiability } from './feed.js';
+import { computeFeedLiability, feedDrawsMissingInputs } from './feed.js';
 import { planHarvest } from './harvest.js';
 
 export * from './types.js';
@@ -10,9 +10,15 @@ export { NotImplementedError, isNotImplemented } from './errors.js';
 export { Money } from './money.js';
 export { SEED_BREED_CURVE, pointForDay, cumulativeFeedG, feedGByPhase } from './breed-curve.js';
 export { dayNumberFor, addDays, daysBetween } from './day-number.js';
-export { projectProduction } from './production.js';
+export { projectProduction, salesMissingInputs } from './production.js';
 export { computeCosting } from './costing.js';
-export { computeFeedLiability } from './feed.js';
+export {
+  SEED_DELIVERY_CENTS_PER_TONNE,
+  computeFeedLiability,
+  deliveryCents,
+  feedDrawsMissingInputs,
+  kgDiscrepancy
+} from './feed.js';
 export {
   SEED_BULK_BANDS,
   SEED_DRESSING_YIELD_PCT,
@@ -23,7 +29,25 @@ export {
   preharvestUpliftBp,
   planHarvest
 } from './harvest.js';
-export { projectCashCalendar, cashFlowsMissingInputs } from './cash.js';
+export {
+  SEED_ABATTOIR_COST_CENTS_PER_BIRD,
+  SEED_ABATTOIR_FEE_CENTS,
+  SEED_TRANSPORT_CENTS_PER_BIRD,
+  bulkNetCentsPerBird,
+  cashFlowsMissingInputs,
+  projectCashCalendar
+} from './cash.js';
+export {
+  DEFAULT_PLACEMENT_STEP_BIRDS,
+  candidateInput,
+  computeAllocation,
+  enumerateCandidates,
+  handoffAtPlacement,
+  pickWinner,
+  placeNothing,
+  projectCandidate,
+  scoreCandidate
+} from './allocation.js';
 export {
   SEED_OVERHEADS,
   overheadBreakdown,
@@ -35,9 +59,16 @@ export {
 /**
  * The only public entry point to the engine.
  *
- * U2 lands production (M1) and costing (M2), U3 feed liability (M3) and U4 the
- * harvest optimiser (M4). The allocation optimiser is not built, and is exposed
- * as a getter that throws `NotImplementedError` when read.
+ * U2 lands production (M1) and costing (M2), U3 feed liability (M3), U4 the
+ * harvest optimiser (M4) and U5 the cash calendar (M5a) plus the allocation
+ * enumeration (M5b).
+ *
+ * `allocation` is BUILT — `computeAllocation` is exported above and works — but
+ * is still exposed as a getter that throws `NotImplementedError`, because
+ * calling it needs an opening cash balance and `EngineInput` carries none
+ * (OQ-25). `reserve_floor_cents` is NOT that balance: it is the minimum to
+ * keep, not the amount held. Wiring the getter is M5b's Task 9 and waits on U6
+ * supplying `cash_accounts.opening_balance_cents`.
  *
  * That is deliberate and load-bearing, not a placeholder: the golden step holds
  * a fixture only when reading the value it asks for throws that exact type. A
@@ -53,6 +84,19 @@ export function computeDecision(input: EngineInput): DecisionResult {
   }
 
   const production = projectProduction(input);
+
+  /**
+   * Sales are validated HERE rather than in `missingInputsFor` because the
+   * check needs the flock, and the flock comes from production. Everything
+   * above this line is cheap and input-only; this is the first check that
+   * needed a computed value, which is why it sits after the projection and
+   * before anything derives money from an order.
+   */
+  const badSales = salesMissingInputs(input, production);
+  if (badSales.length > 0) {
+    return { kind: 'missing_input', missing: badSales };
+  }
+
   const costing = computeCosting(input, production);
   const feed = computeFeedLiability(input, production);
 
@@ -80,8 +124,25 @@ export function computeDecision(input: EngineInput): DecisionResult {
         harvestPlan ??= planHarvest(input, production);
         return harvestPlan;
       },
+      /**
+       * Still held, deliberately — and NOT because the optimiser is unbuilt.
+       * `computeAllocation` is built, tested and exported from this module. What
+       * is missing is its `openingCents` argument: the cash the business holds
+       * on the placement date, which `EngineInput` does not carry (OQ-25).
+       *
+       * Passing `reserve_floor_cents` instead — as M5b's plan sketched — would
+       * substitute the minimum to KEEP for the amount HELD, silently, with
+       * every downstream figure wrong by the size of the floor. Passing `0n`
+       * asserts the client is broke. Both are invented facts, so neither is
+       * better than saying so.
+       *
+       * `NotImplementedError` specifically, not any other throw: the golden
+       * step holds a fixture only on this exact type and fails on every other,
+       * so a fixture targeting `decision.allocation` stays held rather than
+       * turning red for a reason that is not about the fixture.
+       */
       get allocation(): never {
-        throw new NotImplementedError('allocation optimiser (M5)', 'U5');
+        throw new NotImplementedError('allocation wiring (needs an opening cash balance — OQ-25)', 'U6');
       }
     }
   };
@@ -95,7 +156,7 @@ export function computeDecision(input: EngineInput): DecisionResult {
  * rather than substituting a plausible number — a blank the client can fill is
  * always better than a confident wrong figure he cannot audit.
  */
-function missingInputsFor(input: EngineInput): MissingInput[] {
+export function missingInputsFor(input: EngineInput): MissingInput[] {
   const missing: MissingInput[] = [];
 
   /**
@@ -120,6 +181,16 @@ function missingInputsFor(input: EngineInput): MissingInput[] {
       why: `Client has not provided a ${basis} gate price`
     });
   }
+
+  /**
+   * OQ-21. A fractional bag count is checked here, alongside the gate price
+   * and before the bulk early-return, for the same reason that one is: it
+   * affects every batch that has entered a draw, bulk sales or not. It used
+   * to throw an uncaught `RangeError` out of `computeFeedLiability` below and
+   * take production and costing down with it — a stack trace where this
+   * function promises a typed blank.
+   */
+  missing.push(...feedDrawsMissingInputs(input));
 
   const sellsBulk = input.sales.some((sale) => sale.channel === 'BULK');
   if (!sellsBulk) return missing;

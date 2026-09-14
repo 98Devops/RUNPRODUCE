@@ -1,7 +1,7 @@
 {
   "id": 1,
   "name": "feed-cost-3000-chicks-day-41",
-  "description": "3,000 chicks @ $1.00, placed 2026-02-06, run to day 41 — feed cost $8,079.81",
+  "description": "3,000 chicks @ $1.00, placed 2026-02-06, run to day 41 — feed cost $7,698.06 at Daniel's current bag prices (AD-52)",
   "input": {
     "asOf": "2026-03-18",
     "batch": {
@@ -17,7 +17,6 @@
       "gate_price_cents_per_kg": null,
       "gate_pricing_basis": "PER_BIRD",
       "gate_capacity_per_day": 750,
-      "bulk_price_cents_per_bird": "390",
       "abattoir_fee_cents": null,
       "transport_cents_per_bird": null,
       "delivery_mode": "ABATTOIR",
@@ -28,5 +27,5 @@
     "draws": [],
     "sales": []
   },
-  "expect": { "path": "decision.costing.feed_cost_cents", "value": "807981" }
+  "expect": { "path": "decision.costing.feed_cost_cents", "value": "769806" }
 }

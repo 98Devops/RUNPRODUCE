@@ -12,6 +12,23 @@ export type IsoDate = string & { readonly __brand: 'IsoDate' };
 export type Phase = 'STARTER' | 'GROWER' | 'FINISHER';
 export type Channel = 'GATE' | 'BULK';
 export type PricingBasis = 'PER_BIRD' | 'PER_KG';
+
+/**
+ * How ONE SALE is priced. A superset of `PricingBasis`, because a bulk contract
+ * can also be BANDED — a dressed-weight schedule of its own.
+ *
+ * **Per sale, not per parameter set** (AD-57). Asked whether the bulk deal is
+ * priced per live kg or by his dressed-weight bands, Daniel's answer was
+ * "depends on the buyer": both structures are real and they coexist. So the
+ * contract travels with the ORDER, which is the only place that knows which
+ * buyer it is for. `Parameters` holds no per-bird bulk price at all any more —
+ * see AD-57 on OQ-22.
+ *
+ * `BANDED` is meaningful only on a BULK order. The type does NOT enforce that:
+ * `pricing_basis` is typed per order, not per channel, so
+ * `cashFlowsMissingInputs` refuses a BANDED gate order instead.
+ */
+export type SalePricingBasis = PricingBasis | 'BANDED';
 export type Confidence = 'measured' | 'calibrated' | 'assumed';
 export type DeliveryMode = 'ABATTOIR' | 'DIRECT';
 
@@ -29,11 +46,25 @@ export interface BreedCurvePoint {
   readonly phase: Phase;
 }
 
+/**
+ * What a phase's feed costs, in the unit the supplier actually invoices: a bag.
+ *
+ * NOT cents per kg (AD-52). Daniel's current prices are $30.60 / $29.60 /
+ * $28.60 a 50 kg bag, which are 61.2 / 59.2 / 57.2 cents a kg — rates `Cents`
+ * cannot hold. Rounding to whole cents per kg would bend the largest single
+ * cost in the business, and rounding it DOWN (61c) would under-charge it,
+ * which is the flattering direction this engine must never err in.
+ *
+ * `bag_kg` travels with the price rather than being a module constant because
+ * the price is meaningless without it, and `FeedDraw.price_per_bag_cents`
+ * already prices real draws the same way.
+ */
 export interface PhasePricing {
   readonly phase: Phase;
   readonly first_day: DayNumber;
   readonly last_day: DayNumber;
-  readonly price_per_kg_cents: Cents;
+  readonly price_per_bag_cents: Cents;
+  readonly bag_kg: number;
 }
 
 export interface BreedCurve {
@@ -96,9 +127,30 @@ export interface SalesOrder {
   readonly order_date: IsoDate;
   readonly bird_count: number;
   readonly avg_live_weight_g: Grams;
-  readonly pricing_basis: PricingBasis;
+  /**
+   * DRESSED weight, when it is known. Null means nobody weighed the carcass.
+   *
+   * Required for a `BANDED` order and for nothing else: the bands key on
+   * dressed weight, and deriving it from live weight would route a real invoice
+   * through the assumed ~62% yield that OQ-17 exists to replace. A forecast may
+   * use that yield — M4's harvest plan does, and says so — but a sale that has
+   * already happened has a real number, and the engine asks for it rather than
+   * estimating one (AD-57).
+   */
+  readonly avg_dressed_weight_g: Grams | null;
+  readonly pricing_basis: SalePricingBasis;
   readonly price_cents_per_bird: Cents | null;
   readonly price_cents_per_kg: Cents | null;
+  /**
+   * THIS buyer's dressed-weight schedule, for a `BANDED` order. Null otherwise.
+   *
+   * On the order rather than on `Parameters` because the contract is the
+   * buyer's, and Daniel sells to more than one (AD-57).
+   * `Parameters.bulk_bands` survives as the PLANNING default — what M4 assumes a
+   * future, uncontracted bulk sale would fetch — which is a different question
+   * from what this invoice says.
+   */
+  readonly bands: readonly BulkBand[] | null;
   readonly terms_days: number;
 }
 
@@ -115,6 +167,23 @@ export type OverheadKey = 'vaccine' | 'electricity_heating' | 'labour' | 'transp
 export type OverheadBasis = 'PER_BIRD' | 'PER_BATCH';
 
 /**
+ * WHEN an overhead line is paid — orthogonal to `OverheadBasis`, which is how
+ * much. Daniel described the cadences on 2026-09-12: "labour when the batch is
+ * done, other expenses we pay as when they arise".
+ *
+ * `PLACEMENT` — day 1, in one payment. Vaccines.
+ * `HARVEST_COMPLETE` — the day the batch finishes. Labour.
+ * `MONTHLY` — the measured amount SPLIT across the calendar months the batch
+ *   spans, never charged again per month. See AD-56: `amount_cents` is what one
+ *   BATCH cost, so re-charging it monthly would invent money he never spent.
+ *
+ * These are his stated cadences on our assumed DATES — the calendar still
+ * reports `overhead_timing: 'assumed'` (OQ-19), because knowing labour is paid
+ * "when the batch is done" is not the same as knowing which day that lands on.
+ */
+export type OverheadTiming = 'PLACEMENT' | 'MONTHLY' | 'HARVEST_COMPLETE';
+
+/**
  * One production overhead, as booked in the client's own Final Report.
  *
  * The amount is the MEASURED figure for a batch of `measured_at_flock_size`
@@ -127,6 +196,8 @@ export interface OverheadLine {
   readonly key: OverheadKey;
   readonly label: string;
   readonly basis: OverheadBasis;
+  /** When it is paid. Independent of `basis`, which is how much. */
+  readonly timing: OverheadTiming;
   readonly amount_cents: Cents;
   /** The flock `amount_cents` was measured against. Unused for PER_BATCH. */
   readonly measured_at_flock_size: number;
@@ -143,6 +214,7 @@ export interface OverheadCharge {
   readonly key: OverheadKey;
   readonly label: string;
   readonly basis: OverheadBasis;
+  readonly timing: OverheadTiming;
   readonly cents: Cents;
   readonly confidence: Confidence;
 }
@@ -170,18 +242,6 @@ export interface Parameters {
   readonly gate_price_cents_per_kg: Cents | null;
   readonly gate_pricing_basis: PricingBasis;
   readonly gate_capacity_per_day: number;
-  /**
-   * NOT READ BY THE ENGINE TODAY. M4 prices bulk from the contract's dressed-
-   * weight bands (`bulk_bands` / `SEED_BULK_BANDS`), which is the client's own
-   * schedule; this flat per-bird figure is reserved for M5b's bulk-net
-   * computation, which is blocked on OQ-2's transport half and OQ-16.
-   *
-   * Flagged rather than deleted, and flagged rather than quietly honoured:
-   * two live sources for one price is exactly the shape of KB-3, and setting
-   * this field today changes nothing. Which source wins is M5b's decision to
-   * make once OQ-16 lands, not one to pre-empt here. See OQ-22.
-   */
-  readonly bulk_price_cents_per_bird: Cents | null;
   /** null until the client answers OQ-2. Never estimate. */
   readonly abattoir_fee_cents: Cents | null;
   /** null until the client answers OQ-2. Never estimate. */
@@ -208,8 +268,28 @@ export interface Parameters {
    * top of an approximate 62% (AD-33).
    */
   readonly dressing_yield_pct?: number;
-  /** Omitted means `SEED_BULK_BANDS` — the client's own contract bands. */
+  /**
+   * The PLANNING default bulk schedule — what M4 assumes an uncontracted future
+   * bulk sale would fetch. Omitted means `SEED_BULK_BANDS`, the client's own
+   * bands.
+   *
+   * **Not a price source for an actual order** (AD-57). A real BULK sale carries
+   * its own contract on `SalesOrder`, because Daniel's answer to how bulk is
+   * priced was "depends on the buyer". A forecast has no buyer to ask, which is
+   * why this still exists.
+   */
   readonly bulk_bands?: readonly BulkBand[];
+  /**
+   * What the feed supplier charges to deliver, per tonne collected. Omitted
+   * means `SEED_DELIVERY_CENTS_PER_TONNE` — the client's own confirmed $40
+   * (OQ-28, 2026-09-12), seeded the way `overheads` and `bulk_bands` are
+   * (AD-23): measured client data no fixture should have to restate.
+   *
+   * Charged per TONNE COLLECTED, not per draw (AD-54): he was quoted per tonne,
+   * and his real draws are unequal — 26.64, 36.36, 57.36 and 73.8 bags — so a
+   * flat per-draw fee would misallocate across them.
+   */
+  readonly delivery_cents_per_tonne?: Cents;
   /**
    * Recorded own-batch days required before the calibrated mortality rate
    * overrides the assumed fallback ramp. Omitted means
@@ -219,6 +299,133 @@ export interface Parameters {
    * assumption — 3 to 5 days, validated by nothing yet (OQ-12).
    */
   readonly calibration_trailing_days_min?: number;
+  /**
+    * The bird count the allocation enumeration steps by — the hatchery's order
+    * unit, so a recommendation is orderable. Omitted means
+    * `DEFAULT_PLACEMENT_STEP_BIRDS`, which is **1**: Daniel's hatchery invoices
+    * per chick (OQ-18, answered 2026-09-12), so no size needs rounding to be
+    * orderable.
+    *
+    * Setting it higher is a SEARCH bound, not a fact about his hatchery — it
+    * makes the enumeration cheaper and the winner coarser. AD-53 and OQ-29
+    * record what a stride of 1 costs and why the fix is not to default it back.
+    */
+  readonly placement_step_birds?: number;
+  /**
+   * The largest placement the allocation enumeration may consider.
+   *
+   * OPERATOR-ENTERED, with no derived default and no hardcoded cap (OQ-23,
+   * answered 2026-09-11: the field takes "any figure technically"; 5,000 is
+   * realistic today, 30,000 the brief's planning target). Deliberately NOT
+   * gate-derived — gate capacity caps how fast a batch converts to same-day
+   * cash, and a bulk-inclusive batch exceeds gate absorption by design.
+   * CONTEXT.md's "max safe batch size" is the gate-derived OUTPUT; this is
+   * the enumeration's bound. They share a formula and are not the same thing.
+   *
+   * Absent, `requirePlacementCeiling` throws rather than defaulting.
+   */
+  readonly max_placement_birds?: number;
+}
+
+/**
+ * The running batch's cash position split at a candidate's placement date:
+ * everything settled BEFORE it collapsed into an opening balance, everything on
+ * or after it still dated.
+ */
+export interface RunningBatchHandoff {
+  readonly opening_cents: Cents;
+  readonly carried_flows: readonly CashFlow[];
+}
+
+/** AD-35. Three modes, and no Auto mode — the client chooses the posture. */
+export type AllocationMode = 'COVER_FAST' | 'MAXIMUM_GROWTH' | 'BUILD_RESERVE';
+
+/**
+ * One candidate, projected once and scored on all three of AD-43's scalars.
+ *
+ * `breaches_reserve_floor` is deliberately NOT one of the scores. The floor
+ * filters; `pickWinner` drops a breaching candidate rather than ranking it low.
+ */
+export interface ScoredCandidate {
+  readonly candidate: Candidate;
+  /**
+   * null when the candidate could not be projected at all — a bulk sale
+   * `projectCashCalendar` refuses because `cashFlowsMissingInputs` names a gap
+   * (AD-55, AD-57). Every other field that needs a calendar is null with it.
+   */
+  readonly calendar: CashCalendar | null;
+  /** Days until receipts repay core credit, or null if they never do. */
+  readonly cover_fast_days: number | null;
+  /** Placement size. The one scalar that needs no calendar, so never null. */
+  readonly maximum_growth_birds: number;
+  /**
+   * Null for every candidate until M6 forecasts a candidate's own sales (OQ-31):
+   * without receipts a closing balance ranks the smallest batch first.
+   */
+  readonly build_reserve_cents: Cents | null;
+  /**
+   * null means UNCHECKED, not "does not breach". Without a calendar there is
+   * no day-by-day trough to read, and reporting `false` would assert the
+   * candidate is affordable on no evidence.
+   */
+  readonly breaches_reserve_floor: boolean | null;
+}
+
+/**
+ * One mode's answer: the winning candidate, and how insensitive the choice
+ * was. `tied_candidates` is reported rather than swallowed (AD-44) — a winner
+ * that beat 400 others is a different fact from one that tied with them.
+ */
+export interface ModeWinner {
+  readonly mode: AllocationMode;
+  readonly winner: ScoredCandidate;
+  readonly tied_candidates: number;
+  readonly candidates_considered: number;
+  /**
+   * False when the reserve floor could not be evaluated, because no candidate
+   * had a calendar. The winner is then the best on its scalar ALONE, with a
+   * hard constraint unexamined — a materially weaker claim, and one the
+   * caller has to be able to see.
+   */
+  readonly reserve_floor_checked: boolean;
+}
+
+/**
+ * Placing no next batch, as its own outcome with its own arithmetic — never a
+ * zero-bird batch through the standard fields (AD-41).
+ *
+ * KNOWN LIMITATION: `closing_cents` is the running batch's handoff summed, not
+ * a projection, so it cannot report a reserve-floor breach of its own. If that
+ * matters it needs a real projection with zero flows.
+ */
+export interface PlaceNothing {
+  /** PER_BATCH overhead only. PER_BIRD lines scale to zero unaided. */
+  readonly overhead_avoided_cents: Cents;
+  readonly overhead_still_incurred_cents: Cents;
+  /** null when the running batch could not be projected. Never 0n for that. */
+  readonly closing_cents: Cents | null;
+}
+
+/**
+ * The whole allocation answer: one winner per mode, or a typed refusal for the
+ * modes whose scalar needs a bulk net nobody has supplied.
+ *
+ * Modes refuse INDEPENDENTLY. Cover Fast and Build Reserve both read the cash
+ * calendar, so a bulk-inclusive batch blocks them; Maximum Growth ranks on
+ * placement size and still answers. That split is the design working, not a
+ * partial failure.
+ */
+export interface AllocationResult {
+  readonly cover_fast: ModeWinner | readonly MissingInput[] | null;
+  readonly maximum_growth: ModeWinner | null;
+  readonly build_reserve: ModeWinner | readonly MissingInput[] | null;
+  readonly place_nothing: PlaceNothing;
+  readonly candidates_considered: number;
+}
+
+export interface Candidate {
+  readonly placement_date: IsoDate;
+  readonly chick_count: number;
 }
 
 export interface EngineInput {
@@ -238,10 +445,32 @@ export interface EngineInput {
 }
 
 export type MissingInputKey =
+  /**
+   * A BANDED order with no dressed weight on it. Present-but-unusable in the
+   * same sense `feed_draw_bags` is: the bands key on a carcass weight nobody
+   * recorded, and the ~62% yield that would fill the gap is an estimate OQ-17
+   * exists to replace. A real invoice does not get priced off an estimate.
+   */
+  | 'dressed_weight'
   | 'abattoir_fee'
   | 'transport_cents_per_bird'
   | 'gate_price'
   | 'bulk_price'
+  /**
+   * A feed draw whose `bags` is not a whole number. Not "absent" in the literal
+   * sense — the value is there — but the engine still cannot turn it into money
+   * without answering OQ-21, so it refuses through the same typed channel
+   * rather than crashing or rounding. Same shape as `bulk_price`: "we cannot
+   * price this".
+   */
+  | 'feed_draw_bags'
+  /**
+   * A sales order whose `bird_count` cannot be true — zero or negative, or more
+   * birds than the batch has alive. Present-but-impossible rather than absent,
+   * the same shape as `feed_draw_bags`: the engine refuses through the typed
+   * channel instead of computing revenue on birds that do not exist.
+   */
+  | 'sales_bird_count'
   | 'mortality_history';
 
 export interface MissingInput {
@@ -350,8 +579,22 @@ export interface DrawLiability {
   readonly phase: Phase;
   readonly bags: number;
   readonly kg: number;
-  /** bags x price_per_bag_cents. */
+  /** bags x price_per_bag_cents. Delivery is NOT in here — see delivery_cents. */
   readonly total_cents: Cents;
+  /**
+   * What it cost to get this draw delivered: `kg / 1000 x delivery_cents_per_tonne`,
+   * rounded up. $40 a tonne, the client's own confirmed figure (OQ-28).
+   *
+   * **Beside `total_cents`, never inside it** (AD-54). $40/tonne is exactly
+   * 4c/kg, so folding it into the feed price would give identical totals today
+   * and still be wrong: the client names delivery as its own cost, the two vary
+   * independently, and blended neither is visible — the KB-3 shape. It also
+   * keeps `feed_cost_cents` comparable with his own Record sheet, which
+   * excludes delivery.
+   *
+   * Paid on the COLLECTION date, not the draw's 30-day terms (client, 2026-09-12).
+   */
+  readonly delivery_cents: Cents;
   /** The DRAW's own terms, which beat `parameters.feed_terms_days`. */
   readonly terms_days: number;
   /**
@@ -390,6 +633,13 @@ export interface PlannedDraw {
   readonly covers_last_day: number;
   readonly bags: number;
   readonly kg: number;
+  /**
+   * Delivery on feed not yet collected. An upper bound like the `kg` it is
+   * derived from, and carried for the reason AD-54 gives: leaving it off
+   * understates the projected cash trough, and the trough is exactly what
+   * AD-43's reserve-floor filter reads.
+   */
+  readonly delivery_cents: Cents;
 }
 
 /**
@@ -402,6 +652,12 @@ export interface FeedLiability {
   readonly due_dates: readonly IsoDate[];
   readonly total_drawn_kg: number;
   readonly total_drawn_cents: Cents;
+  /**
+   * Delivery across every collected draw, so "what did delivery cost me this
+   * cycle?" is answerable of a system built to explain its numbers. Excludes
+   * planned draws, which are not costs yet.
+   */
+  readonly total_delivery_cents: Cents;
   /**
    * Fixture 5: 26.64 bags for 3,000 birds — the client's own `Feed!C2 =
    * Record!M16/50`.
@@ -567,6 +823,14 @@ export type CashFlowKind =
   | 'CHICK_COST'
   | 'FEED_DRAW_PAYMENT'
   | 'PLANNED_FEED_DRAW_PAYMENT'
+  /**
+   * Feed delivery, paid on the COLLECTION date — "on the spot when the feed is
+   * collected" (client, 2026-09-12). Its own kind rather than folded into
+   * FEED_DRAW_PAYMENT because it lands on a different day: the feed itself is
+   * on 30-day terms, the truck is not.
+   */
+  | 'FEED_DELIVERY_PAYMENT'
+  | 'PLANNED_FEED_DELIVERY_PAYMENT'
   | 'OVERHEAD'
   | 'GATE_RECEIPT'
   | 'BULK_RECEIPT';

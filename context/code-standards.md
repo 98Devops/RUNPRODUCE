@@ -160,6 +160,90 @@ this small.
 - Engine branch coverage target: 95%. Elsewhere: whatever the flows
   naturally cover.
 
+### Due-diligence passes must RUN the engine, not only read it
+
+**Standing practice, adopted 2026-09-12.** Any gap-finding or due-diligence pass
+over the engine must execute it against realistic inputs. Reading the source is
+necessary and is not sufficient.
+
+**The evidence it was adopted on.** The bulk-revenue due-diligence pass found
+ten gaps. Two of the most serious were invisible to source-reading and surfaced
+only by execution:
+
+- **`SEED_OVERHEADS` still charged the $400 line the client had retired.** In
+  source it reads as valid, well-sourced, `confidence: 'measured'` client data,
+  with a comment explaining exactly why each line belongs. Nothing about it looks
+  wrong. Running it showed overheads at $5,200 for a 30,000-bird flock against a
+  true $1,200.
+- **Sales were never reconciled against live birds.** The code path is short and
+  reads as complete. Running it accepted an order for **999,999 birds from a
+  3,000-bird batch**, and one for **−500**, both returning `ok`.
+
+A third instance, from the same week: M5b's whole module was unreachable from
+`index.ts` while 35 tests passed, because every test imported the module
+directly (OQ-27).
+
+**Why this is the same doctrine as invariant 5, not a new one.** Invariant 5
+says a confident wrong number is worse than a blank. Applied to gap-finding:
+**reading tells you what the code INTENDS; running tells you what it DOES**, and
+a due-diligence report built only on reading is itself a confident wrong answer
+— it asserts completeness it has not tested for. A pass that says "I read every
+function on the path" is making a claim of the exact kind this engine refuses to
+make about money.
+
+**What a pass must therefore include:**
+
+1. Execute the path end to end on a realistic input, not a minimal one. Use the
+   client's own figures where they exist.
+2. Probe the boundaries deliberately — absurd quantities, negatives, zero,
+   dates outside the projection window. Each of those found a real gap.
+3. Check what a CONSUMER reaches, not only what a test reaches (OQ-27).
+4. Re-run the pass after acting on it. The bulk-revenue pass was run twice and
+   the second run found four gaps the first missed, including a duplicate
+   question the first run had itself created.
+
+**Treat a new question arising on an already-audited topic as evidence the pass
+was incomplete**, and check the audit's own record before asking anyone else.
+
+### Passing tests do not prove a module is reachable
+
+**Every test in this repo imports a module directly** — `../src/feed.js`,
+`../src/allocation.js`. That proves the logic inside the module. It proves
+**nothing** about whether a consumer of `@runproduce/engine` can reach it.
+
+This is not hypothetical. **M5b shipped eight tasks, nine exported functions and
+35 passing tests with `allocation.ts` re-exported from nowhere.**
+`computeAllocation` was correct, tested, documented — and invisible from the
+package's only entry point. Every test passed the whole time, because every test
+bypassed the entry point.
+
+**So "tests pass" answers a narrower question than it appears to.** It says the
+code does what it claims *when you can call it*. Reachability is a separate
+property and needs its own assertion.
+
+**`tests/engine-surface.test.ts` now enforces it for the whole engine.** It
+reads `src/` and fails if any module exports a value `index.ts` does not
+re-export. It is written against the source rather than a hand-maintained list,
+so a new exported function is covered the moment it is written — there is no
+list to remember to update.
+
+**A deliberately-internal export goes on that file's `INTERNAL_CROSS_MODULE`
+allowlist with its reason**, never silently omitted. An allowlist entry is a real
+decision — it says consumers must not call this — and a second test fails if an
+allowlisted name stops existing, so the list cannot rot into precedent.
+
+**The audit that followed, for the record:** every other engine module was
+checked, and exactly one other export was unreachable — `costing.costOfFeed`,
+which is deliberate (`cash.ts` reuses it so feed rounds identically in both) and
+is now allowlisted. So the M5b gap was very nearly a one-off — but "nearly" was
+worth confirming rather than assuming, and the check is cheaper to keep than to
+repeat by hand.
+
+**The general lesson, beyond exports:** when a test suite and a consumer reach
+the code by different routes, the suite cannot see anything that is wrong with
+the route it does not take. Ask what the consumer's path is, and assert on that
+path at least once.
+
 ## File organization
 
 - `packages/engine/src/` — one file per calculation stage

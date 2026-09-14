@@ -27,7 +27,6 @@ function input(overrides: Partial<EngineInput> = {}): EngineInput {
       gate_price_cents_per_kg: null,
       gate_pricing_basis: 'PER_BIRD',
       gate_capacity_per_day: 750,
-      bulk_price_cents_per_bird: Money.fromCents(390n),
       abattoir_fee_cents: null,
       transport_cents_per_bird: null,
       delivery_mode: 'ABATTOIR',

@@ -1,4 +1,5 @@
 import { SEED_BREED_CURVE, pointForDay } from './breed-curve.js';
+import { costOfFeed } from './costing.js';
 import type {
   BreedCurve,
   BulkBand,
@@ -9,6 +10,7 @@ import type {
   HoldCost,
   MortalityModel,
   Parameters,
+  PhasePricing,
   ProductionProjection,
   YieldSensitivity
 } from './types.js';
@@ -164,24 +166,62 @@ export function calibrateMortalityRate(
   };
 }
 
-/** The highest band the dressed weight clears, or null if it clears none. */
+/**
+ * The band this carcass is priced in, or **null when the contract does not say**
+ * — which is both below the lowest floor and above the top one.
+ *
+ * **Null has one meaning: the schedule is silent here** (AD-58). It used to mean
+ * only "too light", and any weight above the top floor silently reused the top
+ * band. That is an extrapolation past the contract's stated range, and this
+ * schedule pays LESS as the bird gets heavier — so the extrapolation runs in the
+ * OPTIMISTIC direction, telling Daniel an over-held bird still fetches $3.70
+ * when the trend of his own schedule says it would fetch less. On his curve that
+ * begins at **day 34**, squarely inside the hold-vs-sell decision M4 exists to
+ * inform.
+ *
+ * **This is the same rule the sales path applies to a real invoice** (AD-57),
+ * and that is the point: one schedule cannot mean two things depending on who is
+ * asking. A forecast that prices a bird the invoice would refuse to price is
+ * promising money the contract does not.
+ *
+ * What a bird over 1.3 kg dressed actually pays is question 2 on the Daniel
+ * list, still unanswered. Until he answers, the honest output is a blank —
+ * callers already carry `bulk_value_lost_cents: Cents | null` and
+ * `bulk_total_cents: Cents | null` for exactly this.
+ */
 export function bandForDressedG(bands: readonly BulkBand[], dressed_g: number): BulkBand | null {
   let best: BulkBand | null = null;
+  let highestFloor = Number.NEGATIVE_INFINITY;
+
   for (const band of bands) {
+    if (band.dressed_floor_g > highestFloor) highestFloor = band.dressed_floor_g;
     if (dressed_g >= band.dressed_floor_g && (best === null || band.dressed_floor_g > best.dressed_floor_g)) {
       best = band;
     }
   }
+
+  // Above the top floor the schedule has simply stopped. Reusing the last band
+  // would be the one direction this engine may not err in.
+  if (dressed_g > highestFloor) return null;
   return best;
 }
 
 /** Grams at a per-kg rate, rounding UP — a cost must never round in our favour. */
-function feedCostCents(grams: bigint, price_per_kg_cents: Cents): bigint {
-  return (grams * price_per_kg_cents + 999n) / 1000n;
-}
+// Feed is priced by `costOfFeed` (costing.ts) — this module carried its own
+// copy of the rounding rule until AD-52, which is exactly the shape of
+// duplication that lets two feed figures in one engine disagree.
 
-/** First day the curve's weight reaches `target_g`, or null if it never does. */
-function firstDayAtWeight(curve: BreedCurve, target_g: number): number | null {
+/**
+ * First day the curve's weight reaches `target_g`, or null if it never does.
+ *
+ * Exported because `cash.ts` needs a harvest-completion day to date a
+ * `HARVEST_COMPLETE` overhead against, and deriving a second notion of "the
+ * batch is done" there would be the duplication AD-52 removed from feed
+ * pricing. It is the day the batch COULD be finished, which is at or before the
+ * day the last bird actually goes — so an overhead dated against it lands early
+ * rather than late, deepening the projected trough rather than flattering it.
+ */
+export function firstDayAtWeight(curve: BreedCurve, target_g: number): number | null {
   for (const point of curve.points) {
     if (point.weight_g >= target_g) return point.day_number;
   }
@@ -301,14 +341,14 @@ export function planHarvest(input: EngineInput, production: ProductionProjection
   const dressedG = (day: number): number =>
     Math.floor((pointForDay(curve, day).weight_g * yield_pct) / 100);
 
-  const phaseRate = (day: number): Cents => {
+  const phasePricing = (day: number): PhasePricing => {
     const phase = curve.phases.find((p) => p.phase === pointForDay(curve, day).phase);
     if (phase === undefined) throw new Error(`No phase pricing for day ${day}`);
-    return phase.price_per_kg_cents;
+    return phase;
   };
 
   const feedCentsForBirds = (day: number, birds: number): bigint =>
-    feedCostCents(BigInt(birds) * BigInt(pointForDay(curve, day).feed_g), phaseRate(day));
+    costOfFeed(BigInt(birds) * BigInt(pointForDay(curve, day).feed_g), phasePricing(day));
 
   /**
    * Invariant 5, in its sharpest form. This returned `0n` for a null gate
