@@ -761,4 +761,6 @@ built first in the same way as T-RT1.
    connect to any project ref other than dev.
 7. **Seed.** Daniel's real figures as the dev dataset.
 8. **Build order (TDD), CI's database target (including AD-63's drift test),
-   Task 9's placement**, and the plan task list.
+   Task 9's placement**, and the plan task list. Already owed a slot: T-RT1 and
+   T-RT2 first, the exhaustive `timing` check (AD-72), and deleting
+   `mortality_history`.
