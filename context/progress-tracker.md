@@ -677,6 +677,123 @@ Tracked in `current-issues.md`.
 
 ## Architecture Decisions
 
+**AD-89 · The grants baseline revokes Supabase's defaults explicitly (U6 D24).**
+Approved 2026-09-14.
+- **`anon`:** nothing in `public`, `facts` or `private`.
+- **`authenticated`:**
+  - `SELECT` only on the `public` views, the parameter and curve tables, and
+    `organizations`;
+  - `USAGE` plus `SELECT` on `facts` tables, which the `security_invoker`
+    views need, with rows limited by RLS;
+  - `EXECUTE` on the write functions, `capture_batches`, `my_memberships` and
+    `private.has_role`.
+- **No client role holds `INSERT`, `UPDATE` or `DELETE` anywhere.**
+- **Default privileges are revoked with `ALTER DEFAULT PRIVILEGES`**, so a later
+  migration cannot inherit them.
+- **RLS is on for every table in all three schemas**, and every
+  `SECURITY DEFINER` function sets `search_path = ''`.
+- **Sign-ups are disabled per project:** an Auth setting on chunk 9's
+  checklist.
+- **Enforced by T-AC5**, a catalog lint run in CI.
+
+**AD-88 · Write functions take the organisation from the row, and the author from the session (U6 D23).**
+Approved 2026-09-14.
+- **Organisation.** A write function reads `org_id` from the batch or account it
+  writes to, never from the payload. Only the functions that create a top-level
+  row take an organisation argument, and they check the caller's role in it.
+- **Author.** `created_by` is `auth.uid()`, set inside the function.
+- **No session, no write.** A caller with no `auth.uid()` is refused. The seed
+  and tests write as the service role directly into `facts`, with
+  `created_by = null`, and the triggers still hold.
+- **One refusal.** "Not permitted" and "does not exist" both raise 42501 with
+  one message, so no organisation can probe another's ids.
+
+**AD-87 · A role reads a table whole or not at all; WORKER is kept from money by tables, not columns (U6 D22).**
+Approved 2026-09-14.
+
+*The constraint.* Every signed-in user reaches Postgres as `authenticated`.
+Column grants cannot tell app roles apart, and RLS hides rows, not columns.
+
+*The rule.*
+- **Money-bearing tables are OWNER and MANAGER only.** A table holding a money
+  column, or joined to one in a view, is readable by OWNER and MANAGER only.
+- **No partial rows.** A WORKER gets zero rows from `public.batches`, never a
+  batch with a blank placement that reads as unplaced.
+- **What a WORKER reads.** `daily_records`, and `public.capture_batches()`: batch
+  id, code, placement date and chick counts, with no money column in its return
+  type.
+
+*Two consequences, approved as fixes:*
+1. **Integrity trigger functions are `SECURITY DEFINER`, `search_path = ''`.**
+   This amends chunk 5 and AD-76. Deferred checks run at commit as the caller,
+   and RLS would hide the placement row from a WORKER, so the flock bound would
+   be checked against nothing. T-DB2 runs as a WORKER.
+2. **Permission is never reported as a missing input.** The chunk 7 repository
+   layer throws `Forbidden` when a caller may not assemble `EngineInput`. It
+   never passes the engine nulls that it would refuse as `gate_price` and
+   similar. Tested in T-AC4.
+
+*Rejected:*
+- column grants;
+- a Postgres role per app role via a JWT hook: stale demotions for up to an
+  hour, and hook configuration that migrations do not carry;
+- splitting placement into price and count tables;
+- `security_invoker = false` views.
+
+**AD-86 · The role matrix, with daily-record corrections limited to the author for WORKER (U6 D21, amended).**
+Approved 2026-09-14 with one amendment.
+
+| Data | Read (O · M · W) | Write (O · M · W) |
+|---|---|---|
+| Parameter sets, overheads, bands, feed prices; breed curves; cash opening balances ("settings") | ✓ · ✓ · — | ✓ · — · — |
+| Batches: place, correct placement | ✓ · ✓ · — | ✓ · ✓ · — |
+| Batches: close or reopen | ✓ · ✓ · — | ✓ · — · — |
+| Daily records: create | ✓ · ✓ · ✓ | ✓ · ✓ · ✓ |
+| Daily records: correct or void | — | ✓ any · ✓ any · **own only** |
+| Feed draws, sales orders, cash transactions | ✓ · ✓ · — | ✓ · ✓ · — |
+
+**Amendment (2026-09-14, logged as an amendment, not folded in silently).** The
+draft let a WORKER correct or void any daily record. As approved, a WORKER
+creates daily records and corrects or voids only their own.
+- **Own** means the current version being superseded has
+  `created_by = auth.uid()`. A record a manager has corrected is no longer the
+  worker's to change.
+- **Every other case is refused with 42501**: a WORKER entering a date someone
+  else has recorded (which would supersede that record), and a WORKER correcting
+  a seed row (`created_by` null).
+- The message names the day and says a manager or owner can correct it. A
+  multi-day call containing one such row writes nothing.
+- An identical resubmission still writes nothing, and is not refused.
+- `public.daily_records` exposes `created_by`, so a screen offers "correct" only
+  where the database will allow it. The database is the enforcement.
+
+*Why:* a worker rewriting another worker's record silently makes the audit trail
+only as strong as the weakest worker on the farm. It is the same least-privilege
+principle as the rest of the matrix. MANAGER and OWNER can correct any record.
+
+**Scope: these are defaults for U6, not final positions.** Three rows are
+approved as defaults: MANAGER reads settings, MANAGER places batches, and WORKER
+reads no breed curve. **Per-org overrides may follow once OQ-5 lands**, and
+Daniel's actual delegation model may need per-organisation configuration. An
+override would be additive: a per-org policy table read by `private.has_role`.
+It is not built in U6.
+
+**AD-85 · Memberships live in a private schema, checked by one function (U6 D20).**
+Approved 2026-09-14.
+- **The table.** `private.memberships (org_id, user_id, role)`,
+  `PRIMARY KEY (org_id, user_id)`, with `memberships_role_values`
+  (`OWNER`, `MANAGER`, `WORKER`). Not exposed through the API.
+- **The check.** `private.has_role(org, roles[])` is `SECURITY DEFINER`, `STABLE`
+  and `search_path = ''`, uses `(select auth.uid())`, and is served by an index
+  on `(user_id, org_id)`. Every policy and write function uses it.
+- **What the app sees.** `public.my_memberships()` tells the app which screens to
+  offer. It is never authorisation.
+- **Changes.** Memberships change only through the service role in U6. A client
+  function comes with the settings screen. People are banned in Auth, never
+  deleted, so `created_by` keeps its author.
+- **Not covered by AD-63.** The engine has no role union, so chunk 7 compares
+  Zod's `Role` enum with the CHECK instead.
+
 **AD-84 · A daily record on the wrong date is voided and re-entered, never moved (U6 chunk 5).**
 Approved 2026-09-14. Every correction chain stays on one batch: the self-reference
 is the composite FK `(supersedes_id, batch_id)`. For daily records it is
@@ -760,6 +877,7 @@ together or present together.
 Deferred out of U6, and **must close before U9 starts** (approved 2026-09-14).
 
 **AD-76 · The database refuses an impossible fact; the engine refuses an inconsistent one (U6 D15).**
+*Amended by AD-87:* the integrity trigger functions are `SECURITY DEFINER`, so a WORKER's commit is checked against rows RLS hides from them.
 Approved 2026-09-14. Deferred constraint triggers, checked at commit and taking a
 lock on the batch row, enforce:
 - current cumulatives that never decrease;

@@ -2140,7 +2140,9 @@ specifies either way; a WORKER sees no money (D22).
 the farm? And apart from you, does anyone need to see prices, costs or the cash
 position, for example a farm manager?"*
 **Meanwhile:** Daniel is the only OWNER; no MANAGER or WORKER is seeded in
-production until answered.
+production until answered. The role matrix's delegation rows (MANAGER reads
+settings and places batches; WORKER reads no curve) are U6 defaults (AD-86); the
+answer may call for per-org overrides.
 
 If the owner ends up doing capture himself, it will happen in bursts
 from memory rather than daily, and the forecast degrades.

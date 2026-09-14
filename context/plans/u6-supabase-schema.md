@@ -770,7 +770,7 @@ logged 2026-09-14):
 A different answer reshapes the section marked for it. What each answer
 changes is in that OQ's entry in `current-issues.md`.
 
-**Amended by chunk 6 (D22), pending its sign-off:** every integrity trigger
+**Amended by chunk 6 (D22), approved 2026-09-14 (AD-87):** every integrity trigger
 function below is `SECURITY DEFINER` with `search_path = ''`, because the
 deferred checks run at commit as the caller, and RLS would hide the placement
 row from a WORKER.
@@ -1027,9 +1027,9 @@ Each function:
 
 ## Chunk 6 — Access: memberships, roles, RLS and grants
 
-**Status: draft, awaiting sign-off.** Planning only. No database work, and no MCP
-call, until the read-only confirmation (which the user handles) and the end of
-planning.
+**Status: approved 2026-09-14, logged as AD-85 to AD-89**, with one amendment
+to D21 (below). Planning only. No database work, and no MCP call, until the
+read-only confirmation (which the user handles) and the end of planning.
 
 **What `architecture.md` fixes, and this chunk does not reopen:** every user
 signs in through Supabase Auth; every row carries `org_id`; RLS restricts
@@ -1107,7 +1107,8 @@ Reads go through views and tables with RLS. Writes go only through the
 | Breed curves, points, phases | ✓ · ✓ · — | `create_breed_curve` | ✓ · — · — (settings) |
 | `batches`, `batches_history` (placement, chick price) | ✓ · ✓ · — | `record_batch`, `record_batch_placement` | ✓ · ✓ · — |
 | Batch closure (in `batches`) | ✓ · ✓ · — | `record_batch_closure`, including a void to reopen | ✓ · — · — (batch close) |
-| `daily_records`, `daily_records_history` | ✓ · ✓ · ✓ | `record_daily_records` (new, correction, void) | ✓ · ✓ · ✓ |
+| `daily_records`, `daily_records_history` | ✓ · ✓ · ✓ | `record_daily_records`: new | ✓ · ✓ · ✓ |
+| | | `record_daily_records`: correction, void | ✓ any · ✓ any · **own only** (amended, AD-86) |
 | `feed_draws`, `feed_draws_history` | ✓ · ✓ · — | `record_feed_draw` | ✓ · ✓ · — |
 | `sales_orders`, `sales_orders_history` | ✓ · ✓ · — | `record_sales_order` | ✓ · ✓ · — |
 | `cash_accounts` (opening balance) | ✓ · ✓ · — | `record_cash_account` | ✓ · — · — (settings) |
@@ -1115,11 +1116,31 @@ Reads go through views and tables with RLS. Writes go only through the
 | `capture_batches()` (D22) | ✓ · ✓ · ✓ | none | none |
 | `my_memberships()` | own rows, every role | none | none |
 
-Four readings to check at sign-off:
+**D21 amendment, approved 2026-09-14 (AD-86).** The draft let a WORKER correct
+or void any daily record. **As approved: a WORKER creates daily records, and
+corrects or voids only their own; a MANAGER (and OWNER) corrects or voids any.**
+- "Own" means the current version being superseded has `created_by =
+  auth.uid()`. A record a manager corrected is no longer the worker's, and a seed
+  row (`created_by` null) is no one's.
+- **Refused with 42501**, naming the day: a correction or void of another's
+  record, and a first entry for a date someone else already recorded (which
+  would supersede it). A multi-day call with one such row writes nothing.
+- An identical resubmission still writes nothing and is not refused.
+- `public.daily_records` exposes `created_by` so a screen can offer "correct"
+  only where allowed. The database enforces it.
+
+*Why:* a worker rewriting another worker's record silently makes the audit trail
+only as strong as the weakest worker on the farm.
+
+**Scoping (AD-86):** MANAGER reading settings, MANAGER placing batches and
+WORKER reading no curve are **defaults for U6, not final positions. Per-org
+overrides may follow once OQ-5 lands.**
+
+The readings as drafted (the third is superseded by the amendment above):
 - **"Settings" is taken to mean** parameter sets, breed curves and cash account
   opening balances. These are the rows every forecast is computed from.
 - **A MANAGER can place a batch.** Only the close is withheld.
-- **A WORKER can correct and void daily records, including someone else's.** The
+- ~~**A WORKER can correct and void daily records, including someone else's.**~~ **Superseded by the amendment above.** The
   history shows who did what (`created_by`). Nothing is lost, because nothing is
   deleted (AD-75).
 - **A WORKER reads no breed curve.** Capture needs none, and adding a read is a
@@ -1291,15 +1312,252 @@ schema. It now carries a proposed question.
 
 ---
 
+## Chunk 7 — Repositories and data access
+
+**Status: draft, awaiting sign-off.** Planning only. No code and no database
+work.
+
+**Where it lives (D3).** `apps/web/lib/repositories`, plain TypeScript with
+`@supabase/supabase-js` and Zod, and no Next.js. `apps/web` holds only a
+`package.json` today. Per `architecture.md`, repositories are the only code that
+imports the Supabase client, and they contain no business logic.
+
+**What U6 builds here:**
+- `loadEngineInput`;
+- one write repository per write function of chunks 3 and 5;
+- `myMemberships`;
+- the client factory.
+
+Readers for history screens and screen-specific queries come with the screens
+(U7, U8).
+
+### D25 · One engine read is one database statement
+
+`loadEngineInput(client, batchId, asOf)` makes **one** call:
+`public.engine_snapshot(p_batch_id uuid, p_as_of date) returns jsonb`.
+- **Invoker, not definer.** `SECURITY INVOKER`, `STABLE`, `search_path = ''`, so
+  RLS applies.
+- **Role check first.** It checks `private.has_role(batch org,
+  ARRAY['OWNER','MANAGER'])` before reading anything. It raises 42501 when the
+  role is missing or the batch is not visible (AD-88: one message for both).
+- **One document.** It returns the current batch (identity, placement, closure),
+  the parameter set in force with its overhead lines, planning bands and feed
+  prices, the pinned breed curve's points and phases, and current daily records,
+  feed draws and sales orders with bands. It also returns the cash accounts'
+  current openings and current transactions dated before placement that are
+  not linked to this batch (AD-67).
+- **The parameter set in force is chosen here, once:** latest
+  `effective_from <= p_as_of`, then highest `revision` (D7, D10). That rule
+  therefore lives in one SQL definition, and T-RP1 tests it, rather than in
+  every caller.
+- **Nothing is filtered by `asOf` except the parameter set.** The engine
+  filters records and draws itself, and reads forward orders on purpose
+  (`cash.ts`). A second filter in SQL would be a second copy of an engine rule.
+
+*Why one statement:* PostgREST runs each request in its own transaction, so
+five reads are five snapshots. A placement correction committing between the
+placement read and the records read would give day numbers computed from one
+placement date against records checked against another. Nothing would error,
+and the numbers would be wrong. One statement is one snapshot.
+
+| Option | Against |
+|---|---|
+| One PostgREST read per view | Several snapshots (above); five round trips on a slow rural connection |
+| A `SECURITY DEFINER` snapshot | Bypasses RLS. The invoker version plus an explicit role check keeps both layers |
+| A view per engine input | Still several reads |
+
+*Recommended.*
+
+### D26 · Money and bags travel as strings; Zod refuses a number where money belongs
+
+- **Why strings.** JSON numbers lose precision above 2^53. Money is never
+  allowed to pass through a JS `number`, even where today's values would fit.
+  - **Inside `engine_snapshot`,** every `bigint` money column is emitted as
+    `text` (`amount_cents::text`), and so is `bags`.
+  - **In `public.sales_orders.bands`,** the `jsonb` array carries
+    `price_cents_per_bird` as text too. **This amends chunk 5's view
+    definition.**
+- **Parsing.** Zod's `centsString` accepts only `/^-?\d+$/` strings and yields
+  `Cents` through `Money.fromCents(BigInt(s))`.
+  - A money field that arrives as a JSON number **fails validation**. It is
+    never coerced.
+  - So a forgotten cast breaks loudly in a test instead of silently rounding in
+    production.
+- **Bags.** `bagsString` accepts at most two decimals and yields a `number`,
+  which is the engine's type.
+- **Writes.** Money in RPC payloads is sent as strings, which chunk 3 already
+  requires.
+
+*Recommended.*
+
+### D27 · Assembling `EngineInput`: the mapping, and the only arithmetic allowed
+
+After Zod, the repository maps the snapshot to engine types. **The only
+arithmetic permitted is unit conversion and `dayNumberFor`**, both named here so
+nothing else creeps in.
+
+| `EngineInput` | From | Mapping |
+|---|---|---|
+| `asOf` | argument | as given |
+| `batch` | current placement | `placement_date`, `chick_count`, `extra_chick_count`, `chick_price_cents` |
+| `curve` | pinned curve's points + phases, joined with the set's `feed_prices` | **Always passed**, never omitted for "seed" (D5, D11). `phases[]` takes day ranges from the curve and price and `bag_kg` from the set (D6, D12) |
+| `parameters` scalars | parameter set in force | Every field explicit (D5). `max_placement_birds` null is **omitted**, never passed as null (D5's note) |
+| `parameters.overheads` | `overhead_lines` by `position` | Always `{ lines }`. Zero rows is `lines: []`, "charge none", never omitted |
+| `parameters.bulk_bands` | `planning_bulk_bands` by `dressed_floor_g` | Always an array; zero rows is `[]` (D5) |
+| `records` | current daily records by `record_date` | `day_number = dayNumberFor(placement_date, record_date)`; `feed_*_kg = grams / 1000` (TD-5, closes before U9) |
+| `draws` | current feed draws | `kg = feed_g / 1000` (TD-5); `bags` from its string |
+| `sales` | current sales orders | Zero band rows is `bands: null`, the engine's "not supplied", which it refuses on a BANDED order |
+| `opening_cash_cents` | accounts + transactions from the snapshot | **The engine's AD-67 function sums them**, the repository only passes them in. Its refusal becomes `null`, which `computeAllocation` reports as `'opening_cash'` |
+
+**Enum parity (AD-63).** Each engine union gets one runtime array in the
+repository layer. `PHASES`, `CHANNELS`, `SALE_PRICING_BASES`,
+`OVERHEAD_KEYS`, `OVERHEAD_BASES`, `OVERHEAD_TIMINGS`, `CONFIDENCES`,
+`DELIVERY_MODES`, `CASH_DIRECTIONS` and `ROLES` are each declared
+`as const satisfies readonly Union[]`, with a type-level check that no union
+member is missing.
+- **Zod's enums are built from those arrays.**
+- **AD-63's CI drift test** compares the same arrays with the named CHECK
+  definitions in `pg_constraint`.
+- **The result:** a union, its runtime list and its database constraint cannot
+  disagree without failing either the typecheck or CI.
+
+*Recommended.*
+
+### D28 · Errors are typed by SQLSTATE; a permission is never a missing input
+
+Every repository call maps a database error to one typed error:
+
+| SQLSTATE | Raised by | Typed error | The screen says |
+|---|---|---|---|
+| `42501` | role check, D21 own-record rule, invisible batch | `Forbidden` | the database's message ("Day 12 was recorded by another user; a manager or owner can correct it") |
+| `23514` | CHECKs, integrity triggers (engine wording, AD-76) | `IntegrityRejected` | the message as it stands |
+| `23505` | one-chain unique index (two first entries for a date raced) | `Conflict` | "Someone saved this date first. Reload." |
+| `RP001` | write function: `supersedes_id` is not the current row | `StaleCorrection` | "This record changed since you opened it." |
+| `RP002` | `engine_snapshot`: no parameter set in force on `asOf` | `NoParametersInForce` | "No parameter set is effective on {asOf}." |
+| anything else | | `RepositoryError` (logged, no message shown) | generic failure |
+
+- **`Forbidden` is thrown before any mapping.** A WORKER never reaches Zod or the
+  engine (T-AC4).
+- **`NoParametersInForce` is an error, not a `MissingInput`.**
+  - `EngineInput.parameters` is not nullable.
+  - "No settings exist for that date" is a missing configuration, not a client
+    fact the engine should compute around.
+  - Its own error names the date, so the operator knows what to create.
+- **Custom SQLSTATEs.** `RP001` and `RP002` are fixed codes in a class of our
+  own. Each is raised in exactly one function, and T-RP3 asserts the mapping.
+
+*Recommended.*
+
+### D29 · One client factory, with a project-ref guard; the service role stays out of the request path
+
+- **One factory, one guard.** `createRepositoryClient({ url, key, session })` is
+  the only place `createClient` is called. ESLint's `no-restricted-imports` bans
+  importing `createClient` from `@supabase/supabase-js` anywhere else.
+- **The guard runs before any client exists.** It reads the project ref from the
+  URL and:
+  - **allows the dev ref `zlvjmaorlxrjnuxhykuh`** by default;
+  - **allows the CI ref** only when `RUNPRODUCE_SUPABASE_TARGET=ci`, with its ref
+    in `RUNPRODUCE_CI_PROJECT_REF`;
+  - **allows production** only when `RUNPRODUCE_SUPABASE_TARGET=production` and
+    the ref matches `RUNPRODUCE_PRODUCTION_PROJECT_REF`. That is U11, set
+    deliberately in Netlify's production context only.
+  - **Throws on anything else**, including a missing URL. It never falls back.
+- **User requests use the caller's session** (anon key + JWT), so RLS and the
+  role checks apply.
+- **The service-role client** comes from
+  `apps/web/lib/repositories/admin.ts`. ESLint allows importing it only from the
+  seed script, the DB test harness and `netlify/functions` (U11). Its key never
+  carries the `NEXT_PUBLIC_` prefix (`architecture.md`).
+- **The T-DB1 rule stays:** no repository source names `facts.` or `_versions`.
+
+*Recommended.*
+
+### D30 · Write repositories: thin, one per function
+
+`recordBatch`, `recordBatchPlacement`, `recordBatchClosure`,
+`recordDailyRecords`, `recordFeedDraw`, `recordSalesOrder`,
+`recordCashAccount`, `recordCashTransaction`, `createParameterSet` and
+`createBreedCurve`.
+
+Each one:
+- **Validates its input with Zod.** Types and shapes only. Business rules are
+  the database's and the engine's.
+- **Takes `clientRequestId`** from the caller. The route passes the
+  `Idempotency-Key` header through, and never generates one server-side, since
+  the key identifies one user submission.
+- **Calls the RPC**, maps errors (D28), and returns the row id.
+- **Returns the existing id when the write was a no-op** (AD-75), so the caller
+  cannot tell a retry from a first write, which is the point.
+
+*Recommended.*
+
+### Tests this chunk adds to the build (test-first)
+
+DB tests run as their own script, `npm run test:db`, against the CI target.
+**If the target's environment variables are missing, the script fails; it never
+skips**, because a skipped integrity suite reports green.
+
+- **T-RP1 · Golden fixtures through the database.**
+  - For each golden fixture whose input is recordable, write its input through
+    the write repositories, then `loadEngineInput`.
+  - `computeDecision` on the loaded input must deep-equal `computeDecision` on
+    the fixture's in-memory input, at the fixture's path and across the whole
+    decision.
+  - This proves D5's explicit seeds, D27's mapping and TD-5's conversion
+    together. A fixture that cannot be recorded (none expected) is listed with
+    its reason, never silently omitted.
+- **T-RP2 · Snapshot rules.**
+  - Two parameter sets on either side of `asOf`, plus a same-day revision: the
+    right one is chosen.
+  - No set in force raises `NoParametersInForce`.
+  - `max_placement_birds` null is omitted, not null.
+  - Zero overhead rows gives `lines: []`, and zero band rows on an order gives
+    `bands: null`.
+- **T-RP3 · Money and errors on the wire.**
+  - A money value of 2^53 + 1 cents round-trips exactly.
+  - A snapshot with a money field as a JSON number fails Zod.
+  - Each SQLSTATE in D28 maps to its typed error.
+- **T-RP4 · The project-ref guard.**
+  - The dev ref passes.
+  - Any other ref, a missing URL, and `production` without its matching ref
+    each throw before a client is created.
+- **T-RP5 · Import boundaries**, as lint in CI:
+  - `createClient` only in the factory;
+  - `admin.ts` only from seed, the DB tests and `netlify/functions`;
+  - no `facts.` or `_versions` in repository source.
+- **T-AC1 extended for AD-86's amendment.**
+  - A WORKER corrects and voids their own record: accepted.
+  - A WORKER corrects another's record, a manager-corrected record, a seed
+    record, or enters a date someone else recorded: 42501, and a multi-day call
+    containing one such row writes nothing.
+  - A MANAGER corrects any record: accepted.
+- **Enum parity.** A compile-time test per runtime array, and AD-63's drift
+  test reading the same arrays.
+
+### What this chunk depends on
+
+- **Chunks 5 and 6 as approved, plus two amendments proposed here:**
+  - `sales_orders.bands` prices as text (D26);
+  - `daily_records` exposing `created_by`, already required by AD-86.
+- **The engine side of AD-67** (the opening-cash function and field), built
+  first in the build order (chunk 9).
+- **No client question.**
+
+### The discussion points, in short
+
+1. **`engine_snapshot` as one SQL function (D25).** One snapshot and one round
+   trip, and the "parameter set in force" rule defined once in SQL.
+2. **No parameter set in force is `NoParametersInForce`, not a `MissingInput`
+   (D28).**
+3. **A money field as a JSON number is a validation failure, never coerced
+   (D26).** This amends the chunk 5 bands view.
+4. **DB tests fail when their target is missing, never skip.** T-RP1 runs the
+   golden fixtures through the database.
+
+---
+
 ## Chunks still to come
 
-7. **Repositories and `EngineInput` assembly.** `bigint` through PostgREST
-   (JSON numbers lose precision above 2^53, so money travels as strings). Zod
-   schemas and their relation to the engine's types. A guard that refuses to
-   connect to any project ref other than dev. From chunk 6: user requests use
-   the caller's session, never the service role; a WORKER's `loadEngineInput`
-   throws `Forbidden`, not a `MissingInput` (T-AC4); the Zod `Role` enum is
-   compared with `memberships_role_values`.
 8. **Seed.** Daniel's real figures as the dev dataset. Two organisations and one
    user per role for the access tests (chunk 6).
 9. **Build order (TDD), CI's database target (including AD-63's drift test),

@@ -63,8 +63,14 @@ npm monorepo: a pure TypeScript engine (`packages/engine`) behind a Next.js app 
   - AD-83: a draw's price is required for now; the refusal is added only if "price not known yet" proves real.
   - AD-84: a daily record on the wrong date is voided and re-entered, never moved along a chain.
 - **TD-5** (engine feed in kg, database in grams): deferred out of U6, **must close before U9 starts**.
-- **Chunk 6** (access, D20-D24): **drafted, awaiting sign-off.** Roles in `private.memberships`, checked by `private.has_role`; a role sees a table whole or not at all; WORKER reads `daily_records` and `capture_batches()` only; integrity triggers become `SECURITY DEFINER` (amends chunk 5); a WORKER's engine load throws `Forbidden`, not a refusal. Tests T-AC1 to T-AC5.
-- **Chunks 7-9** to come: repositories, seed, build order.
+- **Chunk 6** (access, D20-D24): **approved 2026-09-14**, AD-85 to AD-89.
+  - D20 / AD-85: roles in `private.memberships`, checked by `private.has_role`; `my_memberships()` is for navigation, never authorisation; membership changes service-role only in U6.
+  - D21 / AD-86: role matrix. **Amended:** WORKER creates daily records and corrects or voids only their own (current version's `created_by`); MANAGER and OWNER correct any. MANAGER reads settings, MANAGER places batches, WORKER reads no curve: **defaults for U6; per-org overrides may follow once OQ-5 lands.**
+  - D22 / AD-87: a role sees a table whole or not at all; money-bearing tables OWNER/MANAGER only; WORKER reads `daily_records` and `capture_batches()`. Integrity triggers `SECURITY DEFINER` (amends chunk 5 / AD-76). A WORKER's engine load throws `Forbidden` in the repository layer (chunk 7), never a `MissingInput`.
+  - D23 / AD-88: org from the row, author from the session; "not permitted" and "not found" are one 42501.
+  - D24 / AD-89: Supabase default grants revoked; no client write grants; RLS everywhere; sign-ups off per project.
+- **Chunk 7** (repositories, D25-D30): **drafted, awaiting sign-off.** One `engine_snapshot` SQL call per engine read; money as strings, Zod refuses numbers; mapping table with only `dayNumberFor` and grams/1000; errors typed by SQLSTATE (`Forbidden`, `IntegrityRejected`, `Conflict`, `StaleCorrection`, `NoParametersInForce`); client factory with project-ref guard. Tests T-RP1 to T-RP5, including the golden fixtures run through the database.
+- **Chunks 8-9** to come: seed, build order.
 
 ## Blockers
 | Blocker | Blocks | Who resolves |
@@ -99,6 +105,8 @@ npm monorepo: a pure TypeScript engine (`packages/engine`) behind a Next.js app 
 - **AD-72:** the overhead round trip (T-RT1) is written before anything that makes it pass.
 - **AD-73:** an unrecognised overhead value (timing or basis) is refused, never defaulted. Any future categorical field with a fallback gets the same by default.
 - **AD-75:** facts append; the plain table name is a view of current rows, raw versions are unreachable through the API.
+- **AD-86:** a WORKER corrects only their own daily records; the delegation rows are defaults pending OQ-5.
+- **AD-87:** a role reads a table whole or not at all; permission is `Forbidden`, never a `MissingInput`.
 
 Full log: `progress-tracker.md` § Architecture Decisions.
 
@@ -113,7 +121,7 @@ Full log: `progress-tracker.md` § Architecture Decisions.
 8. `context/ui-context.md`, `ui-build-playbook.md`, `card-system-and-decision-ux.md`: only for UI units (U7-U11). For U9, read the OQ-29 section first.
 
 ## Recommended next action
-Get sign-off on chunk 6 (access). Then draft chunk 7 (repositories and `EngineInput` assembly). The user confirms MCP read-only mode; no migration before that and before planning ends. On a surprising Daniel answer, reshape chunk 5 per that OQ's entry.
+Get sign-off on chunk 7 (repositories). Then draft chunk 8 (seed). The user confirms MCP read-only mode; no migration before that and before planning ends. On a surprising Daniel answer, reshape chunk 5 per that OQ's entry.
 
 ## Maintaining this file
 - Update at the end of every unit, and on any commit that changes state a future session needs.
