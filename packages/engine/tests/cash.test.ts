@@ -627,6 +627,22 @@ describe('bulkNetCentsPerBird — the arithmetic, ready for the pricing answer',
     expect(() => bulkNetCentsPerBird(bulkPerBird, params(null))).toThrow(/transport/i);
   });
 
+  it('refuses to guess when the abattoir fee is unknown on an ABATTOIR delivery', () => {
+    // Null is not zero. Treating a missing fee as free would overstate every
+    // bulk receipt by 10c a bird, the flattering direction.
+    const noFee = parameters({ abattoir_fee_cents: null, transport_cents_per_bird: 10n as Cents });
+    expect(() => bulkNetCentsPerBird(bulkPerBird, noFee)).toThrow(/abattoir fee/i);
+  });
+
+  it('needs no abattoir fee on a DIRECT delivery, so a null one does not refuse', () => {
+    const direct = parameters({
+      abattoir_fee_cents: null,
+      transport_cents_per_bird: 10n as Cents,
+      delivery_mode: 'DIRECT'
+    });
+    expect(bulkNetCentsPerBird(bulkPerBird, direct)).toBe(380n);
+  });
+
   it('values no offals — null is not zero', () => {
     // AD-32: the abattoir keeps the offals on top of the 10c cash fee. That is
     // real value given up, and it is NOT netted here, because nobody has priced

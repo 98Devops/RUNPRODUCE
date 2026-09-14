@@ -279,6 +279,13 @@ export function bulkNetCentsPerBird(sale: SalesOrder, parameters: Parameters): C
     );
   }
 
+  if (delivery_mode === 'ABATTOIR' && abattoir_fee_cents === null) {
+    throw new Error(
+      'Cannot net a BULK sale: the abattoir fee per bird is unavailable. ' +
+        'Call cashFlowsMissingInputs() first and return missing_input.'
+    );
+  }
+
   const problems = bulkContractProblems(sale);
   if (problems.length > 0) {
     throw new Error(
@@ -310,7 +317,7 @@ export function bulkNetCentsPerBird(sale: SalesOrder, parameters: Parameters): C
   // The fee is the abattoir's. A DIRECT delivery to the buyer does not incur
   // it — though whether transport costs the same per bird on that route is
   // unanswered, and this charges the one figure we have either way.
-  const fee = delivery_mode === 'ABATTOIR' ? (abattoir_fee_cents ?? 0n) : 0n;
+  const fee = delivery_mode === 'ABATTOIR' ? abattoir_fee_cents! : 0n;
 
   return (gross - fee - transport_cents_per_bird) as Cents;
 }
