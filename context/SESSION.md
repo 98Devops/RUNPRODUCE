@@ -8,6 +8,19 @@ Last updated: 2026-09-14 · Branch: `u6-supabase-schema`
 - **Production is first touched in U11**, deliberately, in one clean migration of the final schema.
 - **Do not use the claude.ai Supabase connector** (`mcp__claude_ai_Supabase__*`) for this project. It is account-wide, and it lists unrelated projects.
 
+## U6 environment (target confirmed by the user 2026-09-14)
+- **U6 dev target: "Run Produce dev", ref `zlvjmaorlxrjnuxhykuh`, `https://zlvjmaorlxrjnuxhykuh.supabase.co`.** Reached only through the `supabase` server in `.mcp.json`. It is the only project U6 work ever touches.
+- **HARD RULE:** no U6 operation (planning query, schema change, migration, test, seed, experiment) touches any other project. That covers `trevis-app`, `Fuel-track`, any future staging or demo project, Daniel's production project, and any future production project.
+- **Scoping.** The server URL carries `project_ref=zlvjmaorlxrjnuxhykuh`, so the server has no tools to list or create projects, and a project added to the account later stays invisible to it. The account-wide claude.ai connector (`mcp__claude_ai_Supabase`, org "Trevis App": it sees `trevis-app` and `Fuel-track`, not dev) is **denied** in `.claude/settings.json`.
+- **STANDING RULE: the MCP is read-only unless a migration is actively being applied.** `.mcp.json` carries `read_only=true` by default. To apply a migration:
+  1. Remove `&read_only=true` from the URL and reconnect `supabase` in `/mcp`.
+  2. Apply exactly the reviewed migration(s), nothing else.
+  3. Restore `&read_only=true`, reconnect, and verify: `select current_setting('transaction_read_only')` reads `on`, and `apply_migration` is no longer offered. If either check fails, stop and report.
+  - A write window never stays open across a planning step, a commit or the end of a session. `.mcp.json` is never committed without `read_only=true`.
+  - Before any MCP call, check that the URL still reads `project_ref=zlvjmaorlxrjnuxhykuh`.
+- **Read-only is NOT yet confirmed in effect (last checked at the end of chunk 3, 2026-09-14).** The live connection still predates the URL change: `transaction_read_only` = `off`, user `postgres`. At the end of chunk 3 the session's tool list still offered `apply_migration`, `create_branch` and `deploy_edge_function`. **No MCP calls until the user reconnects `supabase` in `/mcp` and the step-3 check passes.** "No writes attempted" is true; "read-only is holding" is not yet.
+- **Writes so far: none.** Dev has 0 migrations and 0 `public` tables. Every MCP call in this session was read-only by nature: `get_project_url`, `list_tables`, `list_migrations`, and one `SELECT` of settings. No MCP call was made during chunks 3 or 4.
+
 ## What this is
 A decision console for Daniel, a broiler farmer, that turns his daily batch records into feed, cost, cash and harvest figures. Its headline job is telling him how many birds to place next and when, under three named strategies.
 
@@ -27,12 +40,23 @@ npm monorepo: a pure TypeScript engine (`packages/engine`) behind a Next.js app 
 - **Status:** 348 unit tests. Golden 11 written / 11 passing / 1 held. Lint, typecheck, build clean.
 
 ## In progress
-**U6**, planning. Task 0 done: one shared refusal list, `missingInputsFor` in `refusals.ts` (TD-4 #8, AD-60). Spec in `context/plans/u6-supabase-schema.md`: chunk 1 (framing, dev project) and chunk 2 (parameters, opening cash) are drafted, chunks 3-7 to come. No schema code yet. The `supabase` MCP server needs the user to authenticate it (`/mcp` in a terminal) before any migration runs.
+**U6**, planning. Spec: `context/plans/u6-supabase-schema.md`. No schema code yet.
+- **Task 0 done:** one shared refusal list, `missingInputsFor` in `refusals.ts` (TD-4 #8, AD-60).
+- **Chunk 1** (framing, dev project): drafted.
+- **Chunk 2** (parameters, opening cash, D4-D8): approved, AD-61 to AD-67.
+- **Chunk 3** (parameter tables, D9-D12): **approved 2026-09-14**, AD-68 to AD-72.
+  - D9 `create_parameter_set` in one transaction (AD-68). D10 `revision`, amends D7 (AD-69). D11 breed curves immutable, pinned by the batch (AD-70). D12 `bag_kg` on `feed_prices`, amends D6 (AD-71).
+  - The approval named "D9-D15" and enums `overhead_line_type` / `contract_type` / `timing_basis`; mapped in the spec and in AD-63. If it was meant for a different draft, revert AD-68 to AD-72.
+  - **T-RT1** (overhead round trip, test-first) plus an exhaustive `timing` check that throws in `cash.ts` (AD-72). Not built.
+  - **AD-63** names every governed constraint; any value change is engine + schema in one commit.
+  - `gate_price_cents_per_bird` **stays** (live field). The confirmed "orphaned key" is `mortality_history`: delete it from `MissingInputKey`, TDD, in the build.
+- **Chunk 4** (recorded facts, D13-D19): **drafted, awaiting sign-off.** Batches as identity + placement fact; corrections append (`supersedes_id`, `voided`, `current_*` views, idempotency key); integrity in deferred triggers; dates and grams stored; part bags recordable; forward sales orders stored; payments, receipts, facilities, expenses, offal deferred. Proposed OQ-32 (shared collection across batches) and OQ-33 (booked bulk runs), not yet logged.
+- **Chunks 5-8** to come: access, repositories, seed, build order.
 
 ## Blockers
 | Blocker | Blocks | Who resolves |
 |---|---|---|
-| OQ-25: engine holds no opening cash balance | M5b Task 9, wiring `decision.allocation` (getter throws) | Us, U6. Proposed in spec chunk 2 D8, not yet signed off |
+| OQ-25: engine holds no opening cash balance | M5b Task 9, wiring `decision.allocation` (getter throws) | Us, U6. Design approved (D8, AD-67); not built |
 | OQ-26: Cover Fast can't answer structurally (candidates have no forecast sales) | 1 of 3 modes | Us, via M6 |
 | OQ-31: Build Reserve pinned null for the same reason (AD-59) | 1 of 3 modes. Only Maximum Growth answers | Us, via M6 |
 | OQ-29: `computeAllocation` takes 20.8 s at 5k birds, ~2 min at 30k | **U9, hard.** Needs a design answer, not "consider performance" | Us: profile first |
@@ -70,7 +94,7 @@ Full log: `progress-tracker.md` § Architecture Decisions.
 8. `context/ui-context.md`, `ui-build-playbook.md`, `card-system-and-decision-ux.md`: only for UI units (U7-U11). For U9, read the OQ-29 section first.
 
 ## Recommended next action
-Get sign-off on U6 spec chunks 1-2 (`context/plans/u6-supabase-schema.md`), then draft chunks 3-7. Update this file when planning ends, before any schema code.
+Get sign-off on chunk 4 (facts, D13-D19). On approval: log ADs, add its constraints to AD-63, log OQ-32/33 in `current-issues.md`. Then draft chunk 5 (access). The user must reconnect `supabase` in `/mcp` and pass the step-3 read-only check before any MCP call. Update this file when planning ends, before any schema code.
 
 ## Maintaining this file
 - Update at the end of every unit, and on any commit that changes state a future session needs.

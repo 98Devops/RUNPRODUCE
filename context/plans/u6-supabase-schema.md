@@ -58,7 +58,7 @@ longer needed for U6.
   target and deploy script defaults to dev. This is a hard rule in `SESSION.md`.
 - **CI's database job** runs against a separate CI-only project or a throwaway
   branch of the dev project. It never runs against dev directly, and never against
-  production. Which of the two is chosen in chunk 7.
+  production. Which of the two is chosen in chunk 8.
 - **The claude.ai Supabase connector is not used for U6.** It is account-wide, and
   on 2026-09-14 it listed two unrelated projects (`trevis-app`, `Fuel-track`) and not
   the dev project. Only the project-pinned `supabase` server is.
@@ -72,7 +72,7 @@ longer needed for U6.
   `@supabase/supabase-js`, not Next.js). No UI of any kind. No scheduled
   functions (U11).
 - **Resolved in chunk 2 (D8):** how the balance is stored and reaches the engine.
-  Task 9's placement is in chunk 7.
+  Task 9's placement is in chunk 8.
 
 *Recommended as written.* Keeping the scaffold out means U6's diff is schema
 and data access only, and its tests don't depend on a framework.
@@ -80,6 +80,10 @@ and data access only, and its tests don't depend on a framework.
 ---
 
 ## Chunk 2 — Parameters, overheads, curves, and the opening cash balance
+
+**Approved 2026-09-14 (D4-D8), logged as AD-61, AD-62, AD-64, AD-66, AD-67.**
+Attached on approval: the enum-drift protocol (AD-63) and the display-column
+rule for engine-shaped tables (AD-65).
 
 ### What a parameter set has to hold
 
@@ -132,9 +136,12 @@ since Daniel has answered both.
 - An empty `overhead_lines` set means "charge no overheads". That is the
   engine's own meaning for an empty `lines` array, and nothing can reach the
   "absent" case.
-- `max_placement_birds` has no seed (OQ-23) and stays nullable. Null reaches
-  `computeAllocation` as absent, and today `requirePlacementCeiling` **throws**
-  on that instead of refusing. Logged for Task 9, not fixed in U6.
+- `max_placement_birds` has no seed (OQ-23) and stays nullable. The engine
+  field is optional (`?: number`), not `| null`, so the repository must map a
+  null column to an **omitted** field. Passed through as `null`, it slips past
+  `requirePlacementCeiling`'s `=== undefined` check and throws "must be positive,
+  got null". Either way the ceiling check **throws** rather than refusing.
+  Logged for Task 9, not fixed in U6.
 
 *Recommended.*
 
@@ -198,6 +205,18 @@ Cover Fast and Build Reserve, and still answers Maximum Growth with
 `reserve_floor_checked: false`. **No whole-result refusal shape is needed**,
 which was option 1's main cost.
 
+*Two points checked against the code (2026-09-14):*
+- `'opening_cash'` is added **inside `computeAllocation`**, joined with
+  `missingInputsFor(input)`. It does **not** go in the shared list in
+  `refusals.ts`, because `decision` and the cash calendar read that list too
+  (AD-60), and a null balance must not refuse them.
+- `computeAllocation(input, feed, harvest, openingCents)` loses its fourth
+  argument and reads `input.opening_cash_cents` instead. That argument is
+  exactly the value `handoffAtPlacement` feeds the running batch's calendar from
+  its placement day (`allocation.ts`), so the meaning does not change. Only
+  allocation tests call it today, since the `decision.allocation` getter still
+  throws, so no golden fixture changes.
+
 *What it does not solve, stated so it isn't mistaken for solved:* the projection
 from placement forward is the engine's model of the batch, not the bank. Actual
 payments that differ from projected ones, and spending unrelated to the batch,
@@ -211,24 +230,535 @@ is exactly the entered one.
 
 *Recommended.* **Moves into U6's build:** the engine function, the new key and
 the `EngineInput` field (TDD, engine side), and the tables. **Task 9** (reading
-it in the `decision.allocation` getter) is placed in chunk 7.
+it in the `decision.allocation` getter) is placed in chunk 8.
+
+---
+
+## Before chunk 3 — the `gate_price_cents_per_bird` question
+
+Asked 2026-09-14: is it (a) a refusal with no emitting code path, or (b) an
+orphaned key superseded when gate orders began carrying their own price?
+Traced through git history and every read site. **Neither.** It is a live
+`Parameters` field with a refusal that is emitted.
+
+- **It is not a refusal key.** `MissingInputKey` has no member of that name,
+  and never had one (`git log -S` over `packages/engine/src`). The refusal is
+  `'gate_price'`.
+- **The refusal is emitted.** `refusals.ts` `inputOnlyMissingInputs` emits
+  `'gate_price'` when the rate for `gate_pricing_basis` is null, and two more
+  sites refuse a gate order with no usable price. Tests assert it in
+  `decision`, `harvest`, `cash` and `allocation`.
+- **The field is read.** `harvest.ts` `gateValueCents` values a bird with it
+  for the gate window and hold cost (fixture 7), throwing if a caller skipped
+  `missingInputsFor`.
+- **Order prices did not supersede it.** `ac800da` and AD-57 put a price on
+  each order to value **actual** receipts. This field prices the **forecast**,
+  for a sale that has no order yet. That is the same split as
+  `Parameters.bulk_bands` and `SalesOrder.bands`.
+- History: added in `5ec4e58` (U1 types), gained its refusal in `66bc1da` (M4
+  review), consolidated in `0b8758c` (AD-60). No commit removed a reader.
+
+**The key that does fit (b) is `mortality_history`.** It was declared in the U1
+plan (`14c6dbf`) before calibration existed. It became unnecessary when M4
+chose to fall back to the assumed mortality ramp, with `source: 'assumed'`,
+when own-batch history is short (`architecture.md` invariant 14,
+`calibrateMortality`). No code emits it. It is already logged in `current-issues.md` (due-diligence gap table, row 9),
+"wire or delete". **Delete it** from `MissingInputKey` before any refusal is
+stored, so it never enters a constraint (AD-63). Confirmed with the chunk 3
+approval.
+
+---
+
+## Chunk 3 — Parameter table structure
+
+Turns D4-D8 into tables. Columns listed here; DDL is written in the build.
+
+### Conventions (AD-65, restated as rules for every table in U6)
+
+- `id uuid primary key default gen_random_uuid()`, child tables included.
+- `org_id uuid not null references organizations(id)` on every row. Parents
+  also have `unique (id, org_id)`, and children reference
+  `(parent_id, org_id)`, so a child cannot belong to a different org than its
+  parent.
+- `created_at timestamptz not null default now()` and
+  `created_by uuid references auth.users(id)` on every row. Business dates are
+  `date`.
+- Enum-like columns: `text` with a named `CHECK` (AD-63).
+- `organizations (id, name, created_at)` is created here only as the foreign
+  key target. Memberships and roles are chunk 5.
+
+### D9 · A parameter set is created by one database function, in one transaction
+
+A set is a row in `parameter_sets` plus its `overhead_lines`,
+`planning_bulk_bands` and 3 `feed_prices`. `supabase-js` cannot wrap several
+table inserts in one transaction. If the repository inserted them one at a time,
+a failure part-way through would leave a set with no feed prices. Worse, that
+set would be in force (D7) the moment its row landed, because being in force
+depends only on `effective_from`.
+
+So there is one insert path, `create_parameter_set(payload jsonb) returns uuid`.
+It validates the whole set (exactly one price per phase; bands with distinct
+floors), assigns the revision (D10), and inserts every row atomically. No
+client role gets `INSERT`, `UPDATE` or `DELETE` on the four tables directly.
+The function is therefore `SECURITY DEFINER` with `set search_path = ''`, since
+an invoker function could not insert without those grants. Because a definer
+function bypasses RLS, it checks for itself that the caller is a member of
+`payload.org_id` with a role allowed to change parameters (the roles are
+chunk 5). A `BEFORE UPDATE OR DELETE` trigger raises an error, because the
+service role bypasses RLS and grants, and immutability must hold for it too.
+
+| Option | Against |
+|---|---|
+| Repository inserts each table | No transaction. A half-written set can be read as in force |
+| Parent row with an `is_complete` flag | Every read must remember the flag; forgetting it is silent |
+
+*Recommended.* Money travels inside `payload` as strings, the chunk 6 rule.
+
+### D10 · Amend D7: `revision`, so a same-day mistake can be corrected
+
+D7's `UNIQUE (org_id, effective_from)` means a set entered today with a wrong
+gate price cannot be replaced today. The only way out would be a set effective
+tomorrow, which leaves today's forecast wrong, or deleting the set, which D9
+forbids.
+
+`parameter_sets.revision smallint not null`, with
+`UNIQUE (org_id, effective_from, revision)`. The set in force is the latest
+`effective_from <= asOf`, then the highest `revision`. The function assigns the
+revision (max + 1 for that date), so callers never choose it. The superseded
+revision stays readable, which gives a UI "corrected on …" history for free
+(AD-65). Index `(org_id, effective_from desc, revision desc)`.
+
+*Recommended.* Rejected: breaking ties on `created_at`. That is also
+deterministic, but a revision number is explicit and can be tested.
+**This changes an approved decision, so it needs its own sign-off.**
+
+### `parameter_sets`
+
+| Column | Type | Null | Constraint | Seeded (D5) |
+|---|---|---|---|---|
+| `effective_from` | `date` | no | | |
+| `revision` | `smallint` | no | `>= 1` | |
+| `note` | `text` | yes | why this set exists; free text for the operator | |
+| `mortality_base_rate_bp_daily` | `integer` | no | `>= 0` | |
+| `mortality_ramp_start_day` | `smallint` | no | `>= 1` | |
+| `mortality_ramp_rate_bp_daily` | `integer` | no | `>= 0` | |
+| `slaughter_target_g` | `integer` | no | `> 0` | |
+| `gate_pricing_basis` | `text` | no | `PER_BIRD`, `PER_KG` | |
+| `gate_price_cents_per_bird` | `bigint` | **yes** | `> 0` | |
+| `gate_price_cents_per_kg` | `bigint` | **yes** | `> 0` | |
+| `gate_capacity_per_day` | `integer` | no | `> 0` | |
+| `abattoir_fee_cents` | `bigint` | **yes** | `>= 0` | 10 |
+| `transport_cents_per_bird` | `bigint` | **yes** | `>= 0` | 10 |
+| `delivery_mode` | `text` | no | `ABATTOIR`, `DIRECT` | |
+| `feed_terms_days` | `smallint` | no | `>= 0` | |
+| `delivery_cents_per_tonne` | `bigint` | no | `>= 0` | 4000 |
+| `reserve_floor_cents` | `bigint` | no | `>= 0` | |
+| `dressing_yield_pct` | `smallint` | no | `1..100` | 62 |
+| `calibration_trailing_days_min` | `smallint` | no | `>= 1` | 3 |
+| `placement_step_birds` | `integer` | no | `> 0` | 1 |
+| `max_placement_birds` | `integer` | **yes** | `> 0` | none (OQ-23) |
+
+Notes on the choices:
+- **Gate prices are `> 0`, not `>= 0`.** A zero price is the value
+  `harvest.ts` refuses to invent ("zero is a number the client never gave
+  us"). Unknown is null, and null refuses.
+- **No cross-column CHECK that the price for the chosen basis is present.** Null
+  there is a legitimate "not supplied", and refusing it is the engine's job
+  (`'gate_price'`). A CHECK would stop an operator saving a partial set.
+- **Mortality basis points are `integer`.** `BasisPoints` is typed `number`, so
+  the database is narrower than the engine. Every stored value today is whole
+  (15, 35), and a calibrated rate, which has decimals, is derived and never
+  stored. Zod rejects a fraction at the boundary.
+- **`dressing_yield_pct` is a whole `smallint`.** Daniel's figure is ~62, and
+  OQ-17's measured replacement may have a decimal. If it does, the column
+  becomes basis points in an additive migration. The engine type is `number`
+  today.
+
+### `overhead_lines`
+
+`parameter_set_id`, `position smallint` (array order, which the engine's
+charges and a screen both follow), `key` (`vaccine`, `electricity_heating`,
+`labour`, `transport_other`), `label text`, `basis` (`PER_BIRD`, `PER_BATCH`),
+`timing` (`PLACEMENT`, `MONTHLY`, `HARVEST_COMPLETE`), `amount_cents bigint >= 0`,
+`measured_at_flock_size integer > 0`, `confidence` (`measured`, `calibrated`,
+`assumed`), `source text not null`.
+`UNIQUE (parameter_set_id, key)` mirrors the engine's own duplicate-key refusal
+(`overheads.ts`). `UNIQUE (parameter_set_id, position)`.
+
+### `planning_bulk_bands`
+
+`parameter_set_id`, `dressed_floor_g integer > 0`,
+`price_cents_per_bird bigint > 0`, `UNIQUE (parameter_set_id, dressed_floor_g)`.
+Zero rows means the set has no planning schedule, so the bulk value is blank.
+It never means "use the seed" (D5).
+
+### `feed_prices`
+
+`parameter_set_id`, `phase` (`STARTER`, `GROWER`, `FINISHER`),
+`price_per_bag_cents bigint > 0`, `UNIQUE (parameter_set_id, phase)`. Exactly
+three rows per set, enforced by D9's function because a CHECK cannot count rows.
+
+### D11 · Breed curves: immutable, created whole, pinned by the batch
+
+`breed_curves (name, source text not null)`,
+`breed_curve_points (curve_id, day_number smallint >= 1, weight_g integer > 0,
+feed_g integer >= 0, phase)` with `UNIQUE (curve_id, day_number)`, and
+`breed_curve_phases (curve_id, phase, first_day smallint, last_day smallint)`
+with `UNIQUE (curve_id, phase)` and `CHECK (first_day <= last_day)`.
+
+- **Created whole** by `create_breed_curve(payload jsonb)`, for D9's reasons,
+  plus two rules no CHECK can express, both of which the engine already enforces
+  on its seed: days contiguous from 1, and each point's phase agreeing with the
+  phase ranges.
+- **Immutable.** A calibrated curve is a new curve.
+- **Pinned by the batch** (`batches.breed_curve_id not null`, built in chunk
+  4). This is the opposite of D7, on purpose. A price changes during a batch
+  and should reach its forecast. The genetics of the chicks already placed do
+  not change.
+
+*Recommended.*
+
+### D12 · Amend D6: `bag_kg` moves to `feed_prices`
+
+D6 put `bag_kg` on `breed_curve_phases` as packaging. But bag size is set by
+the supplier together with the price, and `PhasePricing`'s own comment says the
+price "is meaningless without" it. If a supplier moves from 50 kg to 25 kg bags,
+D6 as approved would require a new breed curve, which is exactly the coupling D6
+was written to remove. With `feed_prices (parameter_set_id, phase,
+price_per_bag_cents, bag_kg integer > 0)`, the curve holds only day ranges.
+`costing.ts` already requires a whole, positive `bag_kg`. No engine change.
+
+*Recommended.* **This changes an approved decision, so it needs its own sign-off.**
+
+### Sign-off status: approved 2026-09-14, logged as AD-68 to AD-72
+
+The approval message read "All seven decisions approved (D9-D15)". This chunk
+has four decisions, D9-D12, so the approval is recorded as covering **D9, D10
+(amends D7), D11, D12 (amends D6) and the column types above**, as written. The
+message's names map as follows: D11 "overhead cadences" is T-RT1 below;
+`overhead_line_type` is `key` / `basis`; `timing_basis` is `timing`; and
+`contract_type` is the sales order's `channel` / `pricing_basis`, which are
+chunk 4 constraints. **If the approval was meant for a different draft, say so
+and the ADs are reverted.**
+
+The same message confirmed removing "`gate_price_cents_per_bird` (orphaned key,
+no schema impact)". That description fits `mortality_history`, not the field
+(see "Before chunk 3"). So **`gate_price_cents_per_bird` stays**, and
+`mortality_history` is deleted from `MissingInputKey` as an engine task (TDD),
+placed in chunk 8 before any constraint on stored refusals is written.
+
+### T-RT1 · Overhead round-trip test, written before any code that makes it pass
+
+**Why it exists.** `cash.ts` dates an overhead with `if (timing ===
+'HARVEST_COMPLETE')`, then `if (timing === 'MONTHLY')`, and dates **anything
+else** at placement. So a stored `'monthly'` or `'HARVEST-COMPLETE'` would not
+throw. Labour or electricity would silently land on day 1, and the calendar
+would still look plausible.
+
+**The test** (repository integration suite, dev-branch database, chunk 8
+places it first in the build order):
+1. **Seed parity.** Create a parameter set through `create_parameter_set` with
+   `SEED_OVERHEADS` copied in (D5). Read it back through the repository and
+   assemble `EngineInput`. Assert that `batchCashFlows` deep-equals the
+   calendar from the same input with `overheads` omitted, which is the engine's
+   seeded default today. `SEED_OVERHEADS` holds one line per cadence:
+   `PLACEMENT` (vaccine), `MONTHLY` (electricity, split by housed days) and
+   `HARVEST_COMPLETE` (labour). So every timing value's dating path is compared,
+   and every `bigint` amount is checked through the string transport.
+2. **Every value, not just the seed's.** The same round trip for a set that
+   uses every `OverheadTiming` × `OverheadBasis` pair and every `Confidence`.
+   The seed never pairs `PER_BIRD` with `MONTHLY`, for example. Assert
+   calendar equality against the in-memory set.
+3. **The spelling is rejected, not stored.** Writing `timing: 'monthly_split'`
+   (and a case variant) fails on `overhead_lines_timing_values`, with no row
+   written.
+
+It is written and run red first: no table, function or repository exists
+until it fails for the right reason.
+
+**Engine change, adopted with the chunk 3 approval (AD-72), built test-first:**
+make the placement branch `if (timing === 'PLACEMENT')` and end with an
+exhaustive `never` check that throws on any other value. The database CHECK
+stops a bad value at the door, and this closes the same fallthrough for any
+input that does not come from the database. The failing test comes first (an
+unknown timing currently dates at placement without error). Fixture results are
+unchanged, because every existing line has a valid timing.
+
+### AD-63 applied to this chunk: the governed constraints, by name
+
+Each constraint below mirrors an engine union. Any addition, removal or rename
+of a value is an engine and schema change **in the same commit**, and the CI
+drift test fails if one side changes alone.
+
+| Constraint | Engine union | Values today |
+|---|---|---|
+| `parameter_sets_gate_pricing_basis_values` | `PricingBasis` | `PER_BIRD`, `PER_KG` |
+| `parameter_sets_delivery_mode_values` | `DeliveryMode` | `ABATTOIR`, `DIRECT` |
+| `overhead_lines_key_values` | `OverheadKey` | `vaccine`, `electricity_heating`, `labour`, `transport_other` |
+| `overhead_lines_basis_values` | `OverheadBasis` | `PER_BIRD`, `PER_BATCH` |
+| `overhead_lines_timing_values` | `OverheadTiming` | `PLACEMENT`, `MONTHLY`, `HARVEST_COMPLETE` |
+| `overhead_lines_confidence_values` | `Confidence` | `measured`, `calibrated`, `assumed` |
+| `feed_prices_phase_values` | `Phase` | `STARTER`, `GROWER`, `FINISHER` |
+| `breed_curve_points_phase_values`, `breed_curve_phases_phase_values` | `Phase` | same |
+
+The names in the approval message map as follows: `overhead_line_type` is
+`key` / `basis`, `timing_basis` is `timing`, and `contract_type` has no chunk 3
+column. The nearest match, the sales order's `channel` and `pricing_basis`,
+comes in chunk 4 and joins this table there.
+
+`transport_other` is retired in the seed (2026-09-12) but still in
+`OverheadKey`. Whether it stays in the constraint is decided by the engine type,
+not here.
+
+---
+
+## Chunk 4 — Recorded facts: batches, daily records, feed draws, sales orders
+
+**Status: draft, awaiting sign-off.** This is what Daniel enters day to day.
+Conventions from chunk 3 apply to every table: uuid `id`, `org_id` with composite
+foreign keys, `created_at` / `created_by`, and `text` + named CHECK.
+
+### What the engine reads, and what it does not
+
+| `EngineInput` field | Shape the engine needs | Notes that shape the tables |
+|---|---|---|
+| `batch` | placement date, chick count, extra chicks, chick price | No status, no code, no curve (the curve is `input.curve`) |
+| `records` | `day_number`, both cumulatives, 3 feed kg, weight + sample size | Filtered to `day_number <= asOf` by the engine. Gaps carry forward. A non-monotonic cumulative or an over-flock total **throws** |
+| `draws` | collection date, phase, bags, kg, price per bag, terms | Filtered to `collection_date <= asOf` by the engine. Fractional bags refuse (`feed_draw_bags`). `kg` is compared with bags × 50 |
+| `sales` | channel, date, count, live weight, dressed weight, basis, prices, bands, terms | **Not** filtered by asOf: forward-dated orders are meant to reach the calendar (`cash.ts`). Counts refuse against the flock and survivors |
+
+The sketch's derived columns are dropped, per "never store a value that can be
+computed": `day_number`, `total_cents`, `gross_cents`, `net_cents`, and sales
+`status`. Its `feed_draws.due_date` stays, as the generated column
+`code-standards.md` names. The engine ignores it and computes its own.
+
+### D13 · A batch is an identity row plus a placement fact
+
+`batches (id, org_id, code, breed_curve_id)` is the identity. It never changes,
+and every other fact references it. `UNIQUE (org_id, code)`.
+`breed_curve_id` is pinned here (D11).
+
+`batch_placements (batch_id, placement_date, chick_count integer > 0,
+extra_chick_count integer >= 0, chick_price_cents bigint > 0)` holds the numbers,
+and follows the correction rule (D14). A typo in the chick count is realistic,
+and fixing it must not change the batch's identity, which every record, draw and
+sale points at.
+
+`batch_closures (batch_id, closed_on date)` is a fact too, also under D14, so
+reopening a batch is a correction. D7 needs `closed_on`: a report on a closed
+batch passes `asOf = closed_on`.
+
+**Status is not stored.** The sketch's `PLANNED | ACTIVE | HARVESTING | CLOSED`
+is derived from placement date, closure and sales against `asOf`.
+
+*Recommended.* Rejected: one mutable `batches` row with an audit trigger. That
+would make batches the only fact that updates in place.
+
+### D14 · Corrections append; nothing is updated or deleted
+
+This resolves "facts are immutable and append-only" (`architecture.md`) against
+"a repeated daily record upserts" (`code-standards.md`). The two are
+reconciled, not traded off.
+
+- **Every fact table has `supersedes_id uuid null` referencing its own table**,
+  with `UNIQUE (supersedes_id)`, so a row is superseded at most once and a
+  correction history is one straight chain. A correction inserts a new row
+  pointing at the row it replaces.
+- **Removing an entry made in error** inserts a superseding row with
+  `voided boolean not null default false` set to true. Nothing is deleted.
+- **The current row** is one that nothing supersedes and that is not voided.
+  Each table gets a `current_<table>` view, and repositories read only views.
+- **One chain per natural key**, where a key exists: daily records have
+  `UNIQUE (batch_id, record_date) WHERE supersedes_id IS NULL`, so a second
+  entry for a date must be a correction of the first. Draws and sales orders
+  have no natural key: two identical draws on one day can both be real.
+- **The upsert rule becomes idempotency.** Each fact row carries
+  `client_request_id uuid not null unique`, the `Idempotency-Key`. A repeated
+  submission returns the existing row and writes nothing. A resubmission whose
+  values match the current row also writes nothing, so a double-tap on "save"
+  leaves no history noise.
+- A `BEFORE UPDATE OR DELETE` trigger raises on every fact table, as in D9.
+
+*What it costs:* every read goes through a view, and a correction is an insert
+plus a lookup of the row it replaces. *What it gives:* a "corrected on …, was …"
+history on every fact (AD-65), and no fact can be lost to an update.
+
+*Not provided, on purpose:* reading "what was known at time T". The engine's
+invariant 7 is about business dates, not knowledge time, and exact reproduction
+of a past recommendation is `recommendations.input_snapshot`. `created_at` is on
+every row, so chunk 6 could add a knowledge-time filter later without a
+migration.
+
+| Option | Against |
+|---|---|
+| Update in place, history table by trigger | Breaks "append-only". The history is a side table every "was …" screen must remember to join |
+| `revision` number per natural key (like D10) | Draws and sales have no natural key to number within |
+| Accounting-style reversal rows | A cumulative count cannot be reversed by a negative row without the engine summing them. That is a model change |
+
+*Recommended.*
+
+### D15 · Integrity is checked by deferred triggers; writes go through one function per fact
+
+`code-standards.md` lists four integrity rules. Where each one lands:
+
+| Rule | Database? | How |
+|---|---|---|
+| Mortality cannot exceed birds placed | **Yes** | Current daily records per batch: both cumulatives non-decreasing by `record_date`, and `mortality + cull <= chick_count + extra_chick_count` of the current placement. These are the checks `production.ts` throws on today |
+| Sales cannot exceed birds alive | **Partly** | The database enforces current orders' total `<= chick_count + extra_chick_count`, which can never reject a true fact. **Alive on the order date stays the engine's refusal** (`sales_bird_count`): the database rejecting it would refuse a true mortality record entered after a true sale |
+| Payments cannot exceed a draw total | **Not in U6** | No payments table (D19) |
+| Draws cannot exceed the facility limit | **Not in U6** | No facilities table (D19) |
+
+- **Deferred constraint triggers** (`DEFERRABLE INITIALLY DEFERRED`), checked at
+  commit. Correcting day 5 upward past day 6's total is then possible, as long
+  as day 6 is corrected in the same transaction.
+- **They fire on both sides of each bound.** A placement correction that lowers
+  `chick_count` below recorded removals or sold birds is rejected too.
+- **Each check locks the batch identity row** (`FOR UPDATE`), so two concurrent
+  entries cannot each pass against a stale total.
+- **The error names the day and the numbers**, in the engine's wording, so a
+  capture screen can show it as it stands.
+- **Writes** go through `record_daily_records(batch_id, rows jsonb)`,
+  `record_feed_draw(payload)`, `record_sales_order(payload)` (the order and its
+  bands together) and `record_batch_placement(payload)`. Each is `SECURITY
+  DEFINER` with a membership check, as in D9, and no client role has direct
+  write grants. The function handles `supersedes_id`, `client_request_id` and
+  the no-op rule. The triggers hold the integrity, so the service role cannot
+  bypass it.
+
+*Recommended.* Rejected: integrity only in the write functions, which the
+service role and a future second write path would skip.
+
+### D16 · Daily records store the date and grams, not the day number or kg
+
+`daily_records (batch_id, record_date date, mortality_cumulative integer >= 0,
+cull_cumulative integer >= 0, feed_starter_g, feed_grower_g, feed_finisher_g
+integer >= 0, avg_weight_g integer > 0 null, weight_sample_size integer > 0 null,
+notes text null)` + D14 columns.
+
+- **`record_date`, not `day_number`.** Daniel enters a date, and a corrected
+  placement date must move every day number rather than leave stored numbers
+  pointing at the wrong day. The repository derives `day_number` with the
+  engine's own `dayNumberFor`. A deferred trigger rejects a `record_date`
+  before the current placement date.
+- **Grams, not kg** (CLAUDE.md rule 2). The engine's `DailyRecord` types feed
+  as kg `number`, so the repository divides by 1000. Changing the engine type
+  to grams is not in U6. It is logged as tech debt.
+- **Weight and sample size are null together or present together**
+  (`CHECK ((avg_weight_g IS NULL) = (weight_sample_size IS NULL))`). A weight
+  with no sample size cannot be calibrated.
+
+*Recommended.*
+
+### D17 · A feed draw belongs to one batch, and a part bag is recordable
+
+`feed_draws (batch_id, collection_date, phase, bags numeric(8,2) > 0,
+feed_g integer > 0, price_per_bag_cents bigint > 0, terms_days smallint >= 0,
+reference text null, due_date date GENERATED ALWAYS AS (collection_date +
+terms_days))` + D14 columns.
+
+- **`batch_id not null`.** The engine takes a batch's draws. The sketch's
+  `credit_facilities` + `feed_allocations` (one draw split across overlapping
+  batches) have no engine reader, so they are deferred (D19). Until then, a draw
+  that really serves two batches is recorded as two draws with the same
+  `reference`. **For Daniel (proposed OQ-32):** does one collection ever feed
+  two batches?
+- **`bags` is `numeric`, not `integer`.** OQ-21 is open: a part bag may be real.
+  A whole-number column would make a true invoice unrecordable. Stored as
+  entered, it reaches the engine, which refuses with `feed_draw_bags` and says
+  why, instead of the database rejecting what Daniel typed.
+- **`feed_g` (the draw's kg, in grams) is stored, not derived from bags.** `feed.ts` compares the two to
+  flag a discrepancy, so both are facts.
+- **No `total_cents`**: bags × price is derived.
+
+*Recommended.*
+
+### D18 · Sales orders: forward orders are stored, nothing monetary is derived into a column
+
+`sales_orders (batch_id, channel, order_date, bird_count integer > 0,
+avg_live_weight_g integer > 0, avg_dressed_weight_g integer > 0 null,
+pricing_basis, price_cents_per_bird bigint > 0 null, price_cents_per_kg bigint
+> 0 null, terms_days smallint >= 0)` + D14 columns.
+`sales_order_bands (sales_order_id, dressed_floor_g integer > 0,
+price_cents_per_bird bigint > 0)`, `UNIQUE (sales_order_id, dressed_floor_g)`.
+The bands are written with the order in one function call, and a correction
+supersedes the order with a fresh set of bands.
+
+- **Impossible combinations are rejected; unsupplied values are not.** Named
+  CHECKs:
+  - `sales_orders_banded_is_bulk`: `pricing_basis <> 'BANDED' OR channel =
+    'BULK'`. The engine refuses a BANDED gate order, which is nonsense rather
+    than a gap.
+  - The rule from chunk 3 holds: a null price, or a BANDED order with no
+    dressed weight or no bands, is "not supplied". The engine refuses it with
+    `gate_price`, `bulk_price` or `dressed_weight`. Invoices arrive late.
+- **Forward-dated orders are stored.** `cash.ts` deliberately reads orders past
+  `asOf`, since a booked bulk run is exactly what the calendar should show.
+  **But `avg_live_weight_g` is required**, because the engine types it non-null.
+  For a booked order that is the agreed or expected weight, corrected (D14) when
+  the birds are weighed. **For Daniel (proposed OQ-33):** does he book bulk runs
+  ahead, and does the buyer fix a weight when he does?
+- **Not stored:** `gross_cents`, `net_cents`, `abattoir_fee_cents`,
+  `transport_cents` (the engine derives them from the order and parameters,
+  AD-55 / AD-57), and `status` (derived).
+- **Deferred:** `offal_disposition` and `offal_value_cents` (D19).
+
+*Recommended.*
+
+### D19 · What chunk 4 does not build
+
+Nothing can be entered before a capture screen exists, so a table with no
+engine reader loses no data by waiting. Each addition later is additive (AD-65).
+
+| Sketch table / column | Engine reads it? | Lands |
+|---|---|---|
+| `credit_facilities`, `feed_allocations` | No | With a facility-headroom feature |
+| `feed_payments`, `receipts` | No; the calendar projects payments from terms | U8 ledger capture, with their integrity rule |
+| `expenses` | No; overheads come from parameter sets | U8 |
+| `offal_disposition`, `offal_value_cents` | No | With the sales capture screen. The OQ-2 fact is kept in `architecture.md` until then |
+| `cash_accounts`, `cash_transactions` | **Yes, via D8** | **Built in U6**, with D14's correction columns on transactions. `direction` (`IN`, `OUT`) gets a named CHECK; `category` stays free text until U8 |
+| `recommendations`, `scenarios`, `alerts` | Written by the app, not read by the engine | Chunk 8 decides whether `recommendations` is U6 or U7 |
+
+*Recommended.*
+
+### AD-63 applied to this chunk
+
+These join AD-63's governed list on approval. Any addition, removal or rename is
+an engine + schema change in the same commit, and the CI drift test compares
+them.
+
+| Constraint | Engine union | Values today |
+|---|---|---|
+| `sales_orders_channel_values` | `Channel` | `GATE`, `BULK` |
+| `sales_orders_pricing_basis_values` | `SalePricingBasis` | `PER_BIRD`, `PER_KG`, `BANDED` |
+| `feed_draws_phase_values` | `Phase` | `STARTER`, `GROWER`, `FINISHER` |
+| `cash_transactions_direction_values` | none yet: D8's engine function introduces the union | `IN`, `OUT` |
+
+`sales_orders_banded_is_bulk` is a cross-column rule, not a value list, so it is
+not part of the drift test. Its round-trip test (a BANDED BULK order through the
+repository to the calendar, and a BANDED GATE order rejected on write) is T-RT2,
+built first in the same way as T-RT1.
+
+### The discussion points, in short
+
+1. **D14** is the biggest: append-only correction chains with views, versus
+   updating in place.
+2. **D15**: the database refuses an impossible fact (removals over flock, sales
+   over flock), while the engine refuses one that is merely inconsistent with
+   other facts (sold more than alive that day).
+3. **D17 / D18** leave two questions for Daniel: a collection shared by two
+   batches, and booking bulk runs ahead.
 
 ---
 
 ## Chunks still to come
 
-3. **Facts.** Records, draws, sales and their bands. What is stored and what is
-   derived. How a correction works under "facts are append-only" when the
-   standards also say a repeated daily record upserts. Which of the four
-   integrity rules in `code-standards.md` the database can enforce, and which
-   it cannot (for example, "sales cannot exceed birds alive" needs the mortality
-   model).
-4. **Access.** RLS per table. How WORKER is kept away from financial columns,
-   since RLS filters rows, not columns.
-5. **Repositories and `EngineInput` assembly.** `bigint` through PostgREST
+5. **Access.** RLS per table, memberships and roles, and grants on the D9/D11
+   functions. How WORKER is kept away from financial columns, since RLS filters
+   rows, not columns.
+6. **Repositories and `EngineInput` assembly.** `bigint` through PostgREST
    (JSON numbers lose precision above 2^53, so money travels as strings). Zod
    schemas and their relation to the engine's types. A guard that refuses to
    connect to any project ref other than dev.
-6. **Seed.** Daniel's real figures as the dev dataset.
-7. **Build order (TDD), CI's database target, Task 9's placement**, and the plan
-   task list.
+7. **Seed.** Daniel's real figures as the dev dataset.
+8. **Build order (TDD), CI's database target (including AD-63's drift test),
+   Task 9's placement**, and the plan task list.

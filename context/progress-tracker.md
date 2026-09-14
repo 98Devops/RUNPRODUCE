@@ -675,6 +675,154 @@ Tracked in `current-issues.md`.
 
 ## Architecture Decisions
 
+**AD-72 · Overhead cadences are proven by a round trip, and an unknown cadence throws (U6 T-RT1).**
+Approved 2026-09-14 with chunk 3. Before the first migration, and before any
+table, function or repository that would make it pass, a test writes overhead
+lines through `create_parameter_set`, reads them back through the repository,
+assembles `EngineInput`, and compares `batchCashFlows` against the engine's
+calendar. It runs three cases: `SEED_OVERHEADS` against the seeded default
+(one line per cadence: `PLACEMENT`, `MONTHLY`, `HARVEST_COMPLETE`); every
+`OverheadTiming` × `OverheadBasis` pair and every `Confidence`; and a misspelt
+timing (`monthly_split`, and a case variant), which the database rejects on
+`overhead_lines_timing_values` with no row written. In the engine, `cash.ts`
+gets an exhaustive `timing` check that throws, so an unrecognised value can no
+longer date at placement. The engine change is test-first, with no fixture
+change.
+*Why:* a misspelt cadence passed silently. Labour or electricity landed on day 1
+and the calendar still looked plausible.
+
+**AD-71 · `bag_kg` lives on `feed_prices`, beside the price (U6 D12, amends AD-64).**
+Approved 2026-09-14. The supplier sets bag size together with the price, so a
+move from 50 kg to 25 kg bags is a new parameter set, not a new breed curve.
+`breed_curve_phases` holds only day ranges. No engine change.
+
+**AD-70 · Breed curves are immutable, created whole, and pinned by the batch (U6 D11).**
+Approved 2026-09-14. `create_breed_curve(payload jsonb)` checks that days run
+contiguously from 1 and that each point's phase agrees with the phase ranges. A
+calibrated curve is a new curve. `batches.breed_curve_id` is not null. This
+pinning is the opposite of AD-66 on purpose: a price change should reach a
+running batch, but the genetics of chicks already placed do not change.
+
+**AD-69 · Parameter sets carry a `revision`, so a same-day mistake can be corrected (U6 D10, amends AD-66).**
+Approved 2026-09-14. `UNIQUE (org_id, effective_from, revision)`. The set in
+force is the latest `effective_from <= asOf`, then the highest `revision`. The
+function assigns `revision`, and superseded revisions stay readable.
+
+**AD-68 · A parameter set is written by one database function, in one transaction (U6 D9).**
+Approved 2026-09-14. `create_parameter_set(payload jsonb) returns uuid` is the
+only insert path. It is `SECURITY DEFINER` with `search_path = ''`, and checks
+the caller's membership itself. No client role has direct write grants on the
+four tables. A `BEFORE UPDATE OR DELETE` trigger raises, so immutability holds
+for the service role too.
+*Why:* `supabase-js` has no multi-table transaction, and a half-written set
+would be in force the moment its parent row landed.
+**AD-67 · Opening cash is a ledger fact, summed by the engine, carried in `EngineInput` (U6 D8, OQ-25).**
+Approved 2026-09-14. `EngineInput.opening_cash_cents: Cents | null` is the cash
+held at the start of the running batch's placement day, not today's balance and
+not `reserve_floor_cents`. Stored as `cash_accounts` + `cash_transactions`
+(`batch_id` nullable). A new pure engine function sums opening balances plus
+transactions before placement, excluding the projected batch's own, and refuses
+with `'opening_cash'` when there is no account or one opens after placement.
+The key is checked inside `computeAllocation`, not in the shared `refusals.ts`
+list (AD-60), and `computeAllocation` drops its `openingCents` argument.
+Reconciliation against the real bank balance is a separate OQ, not built.
+Full reasoning: `plans/u6-supabase-schema.md` D8.
+
+**AD-66 · Parameter sets are immutable and effective-dated; a batch does not pin one (U6 D7).**
+Approved 2026-09-14. A change inserts a new set. The set in force is the latest
+with `effective_from <= asOf`. `is_active` and `batches.parameter_set_id` are
+not stored. A report on a closed batch passes `asOf = closed_at`.
+*Amended by AD-69 (D10):* a `revision` column, so a same-day correction is possible.
+
+**AD-65 · Engine-shaped tables leave the door open for display columns (U6, attached to D6).**
+Decided 2026-09-14. U6's tables are shaped by `EngineInput`, and screens will
+later want more: aggregation flags, denormalised totals, display order, labels,
+annotations. **None of that is built in U6.** Instead, the parts expensive to
+change later are chosen now for the shape a UI is likely to need, so each later
+addition is an additive migration (a nullable column, a new table, an index):
+- **Primary keys:** every table, child tables included, has its own
+  `id uuid`. Natural uniqueness is a separate `UNIQUE` constraint. A screen can
+  then reference, annotate or key a single overhead line or curve point without
+  a composite key being threaded through.
+- **Foreign keys:** every row carries `org_id`, and child rows reference their
+  parent by `(parent_id, org_id)`, so RLS and later display tables filter by org
+  without joins, and a child can never claim a different org than its parent.
+- **Time columns:** business dates are `date` (they compare against `asOf`);
+  audit time is `created_at timestamptz` plus `created_by`. "Price history",
+  "what was in force on day X" and "who changed it" are then queries, not
+  migrations.
+*Why:* a display need arriving at U7-U10 should cost one additive migration, not
+a key or FK rewrite under a screen deadline.
+*Not:* a licence to add display columns in U6.
+
+**AD-64 · Feed prices live on the parameter set, not the breed curve (U6 D6).**
+Approved 2026-09-14. `breed_curve_phases` holds day ranges (genetics);
+`feed_prices` holds price per bag per phase (what the supplier charges). The
+repository joins them back into `BreedCurve.phases`. No engine change.
+`bag_kg` moved to `feed_prices` by AD-71 (D12). The display-column rule is
+AD-65.
+
+**AD-63 · Enum-drift protocol: an engine value list and its database constraint change in the same commit.**
+Decided 2026-09-14, attached to D4/D5. **When the engine adds, removes or renames
+a value of a union type that a database column mirrors, the migration that
+adjusts that column's constraint lands in THE SAME COMMIT.** Not a follow-up
+commit, and not "when we get to it".
+- **Covers** every column constrained to an engine union: `Phase`, `Channel`,
+  `PricingBasis`, `SalePricingBasis`, `Confidence`, `DeliveryMode`,
+  `OverheadKey`, `OverheadBasis`, `OverheadTiming`, and `MissingInputKey`
+  wherever refusals are stored (recommendations, chunk 4 onward).
+- **Governed by name, as of chunk 3** (added 2026-09-14, approved with chunk 3).
+  This is not only "the protocol exists": **each constraint below is governed by
+  it, so any addition, removal or rename of any of its values requires the engine
+  change and the schema change in the same commit.** In the approval's own names,
+  `overhead_line_type` is `overhead_lines_key_values` and
+  `overhead_lines_basis_values`, `timing_basis` is `overhead_lines_timing_values`,
+  and `contract_type` is chunk 4's `sales_orders_channel_values` and
+  `sales_orders_pricing_basis_values`:
+  - `parameter_sets_gate_pricing_basis_values` (`PricingBasis`)
+  - `parameter_sets_delivery_mode_values` (`DeliveryMode`)
+  - `overhead_lines_key_values` (`OverheadKey`)
+  - `overhead_lines_basis_values` (`OverheadBasis`)
+  - `overhead_lines_timing_values` (`OverheadTiming`)
+  - `overhead_lines_confidence_values` (`Confidence`)
+  - `feed_prices_phase_values`, `breed_curve_points_phase_values` and
+    `breed_curve_phases_phase_values` (`Phase`)
+
+  Chunk 4 adds its constraints, including the sales contract's basis and
+  channel, to this list when it is approved. The overhead cadences are also
+  covered by a behavioural round-trip test, T-RT1 in the U6 spec (AD-72). That test is
+  needed because `cash.ts` dates an unrecognised timing at placement rather than
+  throwing.
+- **Mechanism:** `text` with a named `CHECK` (`<table>_<column>_values`), not a
+  Postgres `ENUM`. A Postgres enum cannot drop a value, so removing a key, the
+  direction this protocol exists for, would need a type rebuild.
+  Removing a value that rows still hold makes the migration fail when
+  the constraint is re-added. The same migration must map or delete those rows
+  explicitly.
+- **Enforced, not remembered.** Each mirrored union is exported from the engine
+  as a runtime `as const` array, with the type derived from it. A schema test in
+  CI's database job compares every array against its `CHECK` definition in
+  `pg_constraint` and fails on any difference in either direction. A commit that
+  changes one side only cannot go green.
+*Why:* the value of a database constraint is catching drift structurally. Drift
+where the engine changes and the schema doesn't is the failure it would
+otherwise miss: a new refusal the database rejects on write, or a removed key
+the database still accepts.
+
+**AD-62 · Seeds are copied into the row when a set is created (U6 D5).**
+Approved 2026-09-14. The repository passes every optional `Parameters` field
+explicitly. "Absent means seed" never crosses the database, so changing a seed
+constant cannot silently change stored or closed data. An empty
+`overhead_lines` set means "no overheads". A null `max_placement_birds` is
+mapped to an omitted field, never passed as `null`. The drift protocol for the
+constrained columns is AD-63.
+
+**AD-61 · Typed columns for scalars, child tables for lists (U6 D4).**
+Approved 2026-09-14. One column per `Parameters` scalar, typed as the engine
+types it (money `bigint`, grams `integer`, enums `text` + `CHECK`), nullable
+exactly where the engine type is `| null`. Overheads and planning bands are child
+tables. Key/value rows and JSONB rejected: the database could not check a value.
+
 **AD-60 · Fixture 13's refusal wording is the shared refusal's.**
 Decided 2026-09-14, with TD-4 finding 8. Fixture 13's `kind`, keys and their
 order are unchanged; only the two `why` strings changed. They read "Client has
