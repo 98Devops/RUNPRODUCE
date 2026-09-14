@@ -761,14 +761,19 @@ passes** (`SESSION.md`). Turns D13-D19 (AD-74 to AD-80) into
 tables, the way chunk 3 turned D4-D8 into parameter tables. Columns and named
 constraints are listed here; the DDL is written in the build.
 
-**This chunk rests on three assumed answers from Daniel** (message approved
-2026-09-14, sent by the user):
+**This chunk rests on three assumed answers from Daniel** (open questions,
+logged 2026-09-14):
 - **OQ-32:** one feed collection serves one batch.
 - **OQ-33:** no bulk run is booked with a fixed weight.
 - **OQ-34:** no feed is collected before placement.
 
-A different answer reshapes the section marked for it. The consequences table
-is in `current-issues.md`, under the Daniel message.
+A different answer reshapes the section marked for it. What each answer
+changes is in that OQ's entry in `current-issues.md`.
+
+**Amended by chunk 6 (D22), pending its sign-off:** every integrity trigger
+function below is `SECURITY DEFINER` with `search_path = ''`, because the
+deferred checks run at commit as the caller, and RLS would hide the placement
+row from a WORKER.
 
 ### Schemas (AD-75)
 
@@ -952,8 +957,8 @@ All are `security_invoker = true`.
 
 ### Write functions (AD-76)
 
-All are `SECURITY DEFINER`, `search_path = ''`, and check membership (roles in
-chunk 6). Money travels in the payload as strings.
+All are `SECURITY DEFINER`, `search_path = ''`, and check membership through
+`private.has_role` (chunk 6, D20-D23). Money travels in the payload as strings.
 
 | Function | Writes |
 |---|---|
@@ -1020,19 +1025,287 @@ Each function:
 
 ---
 
+## Chunk 6 — Access: memberships, roles, RLS and grants
+
+**Status: draft, awaiting sign-off.** Planning only. No database work, and no MCP
+call, until the read-only confirmation (which the user handles) and the end of
+planning.
+
+**What `architecture.md` fixes, and this chunk does not reopen:** every user
+signs in through Supabase Auth; every row carries `org_id`; RLS restricts
+access to the caller's organisation; one organisation at MVP, no switching.
+Roles: `OWNER` (full access), `MANAGER` (everything except settings and batch
+close), `WORKER` (daily capture only, cannot see financials).
+
+**What it leaves open, and this chunk decides:** where roles are stored and
+checked, what each role may read and write in the tables of chunks 3 and 5,
+and how WORKER is kept from money. Money matters because RLS filters rows, not
+columns.
+
+### The constraint that shapes everything: one Postgres role for every user
+
+Every signed-in user reaches Postgres as the same role, `authenticated`. OWNER,
+MANAGER and WORKER are rows in a table, not Postgres roles. So:
+- **Column `GRANT`s cannot tell a WORKER from an OWNER.** A column revoked from
+  `authenticated` is revoked from Daniel too.
+- **RLS can hide a row from a WORKER, but not a column of a row it shows.**
+- **A `security_invoker` view shows each reader only the rows RLS lets them
+  see.** A join where one side is hidden does not fail. It returns the other
+  side with blanks. For example, `public.batches` joins identity to placement.
+  If a WORKER could see the identity but not the placement, they would get
+  batches with no placement date: a batch that looks unplaced. That is a wrong
+  answer, not a refusal.
+
+### D20 · Memberships live in a private schema; one function answers "may the caller do this"
+
+- **`public.organizations (id, name, created_at)`**, created in chunk 3 as a
+  foreign key target. RLS: members read their own organisation. No write grant;
+  created by migration or seed.
+- **`private.memberships (org_id, user_id, role, created_at)`**,
+  `PRIMARY KEY (org_id, user_id)`, so one role per user per organisation.
+  `user_id` references `auth.users (id)`. `memberships_role_values` covers
+  `OWNER`, `MANAGER` and `WORKER`.
+  - The `private` schema is not exposed through PostgREST, like `facts`
+    (AD-75), and `authenticated` gets no privilege on the table.
+  - The engine has no role union, so AD-63's drift test does not cover it.
+    Chunk 7's Zod `Role` enum gets the same kind of comparison test.
+- **`private.has_role(p_org uuid, p_roles text[]) returns boolean`**:
+  `STABLE`, `SECURITY DEFINER`, `search_path = ''`. It returns whether a
+  membership exists for `(select auth.uid())` in `p_org` with a role in `p_roles`.
+  - **Every RLS policy and every write function calls it.** A role rule is
+    therefore written in one place and read by name.
+  - **It is `SECURITY DEFINER` so policies need no read access to
+    `memberships`.** That also avoids the policy recursion a membership table
+    reading itself would cause.
+  - **`auth.uid()` is wrapped in `select`** so Postgres evaluates it once per
+    statement, not once per row. An index on `(user_id, org_id)` serves it.
+  - **It lives in `private`, so it cannot be called as an RPC.**
+- **`public.my_memberships()`** returns `(org_id, org_name, role)` for the
+  caller. The app uses it to choose which screens to offer. **It is never
+  authorisation.** The database refuses on its own, so a screen that shows the
+  wrong button still gets an error, not data.
+
+*Membership changes are service-role only in U6.* The seed creates the dev users
+and their memberships. No client function adds, removes or changes a member
+until a settings screen needs one. Its rules come then (for example: an OWNER
+cannot demote the last OWNER). A removed person is banned in Auth, never
+deleted: `created_by` references `auth.users`, so their facts keep their author.
+
+*Recommended.* Rejected: a `memberships` table in `public` with an RLS policy
+that reads itself (recursion, and a membership list readable through the API);
+and roles as a JWT claim (D22).
+
+### D21 · The role matrix
+
+Reads go through views and tables with RLS. Writes go only through the
+`SECURITY DEFINER` functions of chunks 3 and 5 (AD-76), each checking
+`private.has_role` itself.
+
+| Data | Read: OWNER · MANAGER · WORKER | Write function | Write: OWNER · MANAGER · WORKER |
+|---|---|---|---|
+| Parameter sets, overhead lines, planning bands, feed prices | ✓ · ✓ · — | `create_parameter_set` | ✓ · — · — (settings) |
+| Breed curves, points, phases | ✓ · ✓ · — | `create_breed_curve` | ✓ · — · — (settings) |
+| `batches`, `batches_history` (placement, chick price) | ✓ · ✓ · — | `record_batch`, `record_batch_placement` | ✓ · ✓ · — |
+| Batch closure (in `batches`) | ✓ · ✓ · — | `record_batch_closure`, including a void to reopen | ✓ · — · — (batch close) |
+| `daily_records`, `daily_records_history` | ✓ · ✓ · ✓ | `record_daily_records` (new, correction, void) | ✓ · ✓ · ✓ |
+| `feed_draws`, `feed_draws_history` | ✓ · ✓ · — | `record_feed_draw` | ✓ · ✓ · — |
+| `sales_orders`, `sales_orders_history` | ✓ · ✓ · — | `record_sales_order` | ✓ · ✓ · — |
+| `cash_accounts` (opening balance) | ✓ · ✓ · — | `record_cash_account` | ✓ · — · — (settings) |
+| `cash_transactions`, `cash_transactions_history` | ✓ · ✓ · — | `record_cash_transaction` | ✓ · ✓ · — |
+| `capture_batches()` (D22) | ✓ · ✓ · ✓ | none | none |
+| `my_memberships()` | own rows, every role | none | none |
+
+Four readings to check at sign-off:
+- **"Settings" is taken to mean** parameter sets, breed curves and cash account
+  opening balances. These are the rows every forecast is computed from.
+- **A MANAGER can place a batch.** Only the close is withheld.
+- **A WORKER can correct and void daily records, including someone else's.** The
+  history shows who did what (`created_by`). Nothing is lost, because nothing is
+  deleted (AD-75).
+- **A WORKER reads no breed curve.** Capture needs none, and adding a read is a
+  one-line policy later.
+
+### D22 · WORKER is kept from money by whole tables, not columns
+
+**The rule: for each role, a table or view is either wholly readable or returns
+no rows at all.** It is never readable with some columns blanked or some
+joined rows missing.
+- **Every table that holds a money column is readable by OWNER and MANAGER
+  only.** That covers the chunk 3 parameter tables, `batch_placement_versions`
+  (`chick_price_cents`), `feed_draw_versions`, `sales_order_versions` and
+  `sales_order_bands`, and all cash tables.
+- **Tables joined to money-bearing tables in a view take the same rule.**
+  `facts.batches` and `facts.batch_closure_versions` hold no money, but
+  `public.batches` joins them to placement. So they are OWNER and MANAGER only
+  too, and a WORKER gets **zero** batches from `public.batches`, never a batch
+  with a blank placement.
+- **`facts.daily_record_versions` has no money and is readable by all three
+  roles**, so `public.daily_records` works for a WORKER as it stands.
+- **What a WORKER needs beyond that comes from one function.**
+  `public.capture_batches()`: `SECURITY DEFINER`, `search_path = ''`, `STABLE`.
+  - It returns, for each batch in the caller's organisation with a current
+    placement and no current closure: `batch_id`, `code`, `placement_date`,
+    `chick_count` and `extra_chick_count`.
+  - Those are what a capture screen needs to show the day number and to bound the
+    cumulatives. There is no price in its return type, so there is none to leak.
+  - It checks `has_role(org, ARRAY['OWNER','MANAGER','WORKER'])` for each row it
+    returns.
+
+**Integrity triggers run as their owner, not the committer.** This is found by
+following the rule above, and it is a correctness point, not only access. The
+deferred triggers of chunk 5 fire at COMMIT, after the write function has
+returned, so they run as `authenticated`.
+- **What goes wrong otherwise.** A WORKER's commit would read
+  `batch_placement_versions` through RLS and find no placement. Depending on how
+  the check is written, "removals exceed the flock" could then pass against a
+  missing flock size, or reject every entry.
+- **So every integrity trigger function is `SECURITY DEFINER` with
+  `search_path = ''`.** The checks see every current row whoever commits.
+- **Test.** T-DB2 runs as a WORKER as well as an OWNER.
+
+**Consequence for chunk 7, stated here so it is not rediscovered:** a WORKER
+session cannot assemble `EngineInput`, because it reads no parameter set, draw,
+sale or placement. That is correct, but it must fail as a **permission**
+error.
+- **The failure to avoid.** Left to itself, `loadEngineInput` under a WORKER would
+  find "no parameter set in force" and hand the engine nulls. The engine would
+  then refuse with `gate_price` and similar keys: a refusal that says the client
+  never gave us a price, when the truth is that this reader may not see it.
+- **So the repository checks the role first** and throws a typed `Forbidden`,
+  never a `MissingInput`. Tested in T-AC4.
+
+| Option | Against |
+|---|---|
+| Column `GRANT`s | Cannot distinguish app roles: every user is `authenticated` |
+| A Postgres role per app role, set by a custom access token hook (JWT `role` claim), with column grants | A demotion lasts until the token refreshes (up to an hour). The hook is project configuration that migrations do not carry, so dev, CI and production can differ silently. `select *` errors for a WORKER |
+| Split placement into a price table and a count table | A placement correction becomes two chains that can disagree |
+| Money-free views as `security_invoker = false` | They bypass RLS invisibly, which the Supabase security advisor flags. The same rows through a `SECURITY DEFINER` function make the check explicit and testable |
+
+*Recommended.*
+
+### D23 · Write functions trust nothing in the payload about who or where
+
+- **The organisation is taken from the row being written to, never from
+  `payload.org_id`.**
+  - `record_daily_records(batch_id, …)` reads the batch's `org_id`, then checks
+    the caller's role there. The same goes for draws, orders, placements,
+    closures and transactions.
+  - Only functions that create a top-level row take an organisation argument,
+    and they check the role in it: `create_parameter_set`, `create_breed_curve`,
+    `record_batch` and `record_cash_account`.
+- **`created_by` is `auth.uid()`, set inside the function.** A payload value is
+  not read.
+- **A caller with no `auth.uid()` is refused.** That covers anon, and the service
+  role calling a function. The seed and tests write as the service role directly
+  into `facts`, and their rows carry `created_by = null`. The triggers still
+  hold integrity for those writes (AD-76).
+- **One refusal for "not permitted" and "does not exist".**
+  - Both raise `ERRCODE 42501` (`insufficient_privilege`) with the message "not
+    permitted".
+  - So a member of another organisation cannot probe for batch ids.
+  - The repository maps it to `Forbidden`.
+
+*Recommended.*
+
+### D24 · The grants baseline, in the first migration
+
+Supabase's defaults grant `anon` and `authenticated` table privileges in
+`public`, and `EXECUTE` on new functions to `PUBLIC`. Every one of those is
+revoked explicitly, including through `ALTER DEFAULT PRIVILEGES`, so a later
+migration cannot quietly inherit them.
+
+| Role | `public` | `facts` | `private` |
+|---|---|---|---|
+| `anon` | nothing | nothing | nothing |
+| `authenticated` | `SELECT` on views, parameter and curve tables, and `organizations`. `EXECUTE` on the write functions, `capture_batches` and `my_memberships` | `USAGE`; `SELECT` on tables (the `security_invoker` views need it). Rows are limited by RLS | `USAGE`; `EXECUTE` on `has_role` (policies call it). No table privilege |
+| `service_role` | as Supabase provides | `INSERT` for seed and tests | full, for membership changes |
+
+- **Clients get no `INSERT`, `UPDATE` or `DELETE` in any schema.**
+- **RLS is enabled on every table in all three schemas**, including
+  `organizations` and `memberships`. A table with RLS enabled and no policy
+  returns nothing, which is the safe default for a table added without one.
+- **Every `SECURITY DEFINER` function sets `search_path = ''`**, and `EXECUTE`
+  is revoked from `PUBLIC` and `anon` before `authenticated` is granted it.
+- **Sign-ups are disabled.** This is an Auth setting, not a migration, so it goes
+  on chunk 9's per-project checklist (dev, CI; production in U11). People are
+  invited. A stranger who signs up anyway has no membership and sees nothing
+  (T-AC2).
+
+*Recommended.*
+
+### Tests this chunk adds to the build (test-first)
+
+Each runs against the CI database target (chunk 9), with two organisations.
+Each test user is signed in through Auth, not impersonated by SQL.
+
+- **T-AC1 · Write matrix.** Table-driven from D21. Callers: OWNER, MANAGER,
+  WORKER, a member of the other organisation, a signed-in non-member, and anon.
+  For each write function, an allowed call succeeds and a denied call raises
+  42501 and writes nothing. The table in the test is the table in D21, so a
+  change to one without the other fails.
+- **T-AC2 · Read matrix and no partial rows.**
+  - Every view, table and function by the same callers.
+  - A WORKER gets **zero rows** from `batches`, `feed_draws`, `sales_orders`,
+    cash views and parameter tables, and full rows from `daily_records` and
+    `capture_batches()`.
+  - `capture_batches()`'s result has no column whose name ends in `_cents`.
+  - A non-member and anon get zero rows, or an error, everywhere.
+- **T-AC3 · Cross-organisation.**
+  - An OWNER of org B passes an org A `batch_id` to every write function and
+    gets 42501. The message is identical to the one for a random uuid.
+  - Org B reads nothing of org A's through any view.
+- **T-AC4 · Permission is not a missing input.** `loadEngineInput` under a
+  WORKER throws `Forbidden`. It never returns a result the engine would refuse
+  with a `MissingInput` key.
+- **T-AC5 · Catalog lint, as SQL in CI.** It fails the build if:
+  - any table in `public`, `facts` or `private` has RLS disabled;
+  - `anon` or `authenticated` holds `INSERT`, `UPDATE` or `DELETE` anywhere;
+  - a `SECURITY DEFINER` function lacks `search_path = ''`, or is executable by
+    `PUBLIC` or `anon`;
+  - a `public` view is not `security_invoker`;
+  - `private` or `facts` appears in the exposed schemas.
+- **T-DB2 extended.** Its integrity cases run as a WORKER too (D22's trigger
+  point). Removals over the flock are rejected for a WORKER exactly as for an
+  OWNER.
+
+### What this chunk depends on from the client
+
+Nothing blocks it. The role set is `architecture.md`'s own. **OQ-5** (who does
+daily capture) decides which memberships the production seed creates, not the
+schema. It now carries a proposed question.
+
+### The discussion points, in short
+
+1. **Whole tables, not columns (D22).** A WORKER sees a table entirely or not
+   at all, and reads capture context through `capture_batches()`. The JWT-role
+   alternative is rejected on stale demotions and per-project drift.
+2. **The matrix readings (D21):**
+   - "settings" means parameter sets, curves and cash opening balances;
+   - a MANAGER can place a batch;
+   - a WORKER can correct and void any daily record;
+   - a WORKER reads no curve.
+3. **Integrity triggers become `SECURITY DEFINER` (D22).** This is a correction
+   to chunk 5, found here.
+4. **Membership changes are service-role only in U6 (D20).** There is no settings
+   function until a screen needs it.
+
+---
+
 ## Chunks still to come
 
-6. **Access.** RLS per table, memberships and roles, and grants on the D9/D11
-   functions. How WORKER is kept away from financial columns, since RLS filters
-   rows, not columns.
 7. **Repositories and `EngineInput` assembly.** `bigint` through PostgREST
    (JSON numbers lose precision above 2^53, so money travels as strings). Zod
    schemas and their relation to the engine's types. A guard that refuses to
-   connect to any project ref other than dev.
-8. **Seed.** Daniel's real figures as the dev dataset.
+   connect to any project ref other than dev. From chunk 6: user requests use
+   the caller's session, never the service role; a WORKER's `loadEngineInput`
+   throws `Forbidden`, not a `MissingInput` (T-AC4); the Zod `Role` enum is
+   compared with `memberships_role_values`.
+8. **Seed.** Daniel's real figures as the dev dataset. Two organisations and one
+   user per role for the access tests (chunk 6).
 9. **Build order (TDD), CI's database target (including AD-63's drift test),
-   Task 9's placement**, and the plan task list. Already owed a slot: T-RT1 to T-RT3 and
-   T-DB1 to T-DB3 first, the `overhead_line` refusal (AD-73), deleting
+   Task 9's placement**, and the plan task list. Already owed a slot: T-RT1 to T-RT3,
+   T-DB1 to T-DB3 and T-AC1 to T-AC5 first, the per-project Auth checklist
+   (sign-ups disabled), the `overhead_line` refusal (AD-73), deleting
    `mortality_history`, and the TD-5 decision not to retype feed in U6 (it must
    close before U9 starts). **Gate before the first migration:** the MCP
    read-only check in `SESSION.md` has passed.

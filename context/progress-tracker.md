@@ -699,8 +699,8 @@ nothing refuses. Adding a refusal for a case no one has reported is speculation.
 *Revisit when:* Daniel reports a docket that arrives without its price, or any
 answer implies one. Then: the column becomes nullable (additive under AD-65), and
 the engine gains a typed `feed_draw_price` refusal in `missingInputsFor` under
-AD-73's standing rule, test-first. No question in the 2026-09-14 message asks
-this directly; Q4 (part bags) is about quantity, not price.
+AD-73's standing rule, test-first. No open OQ asks this directly; OQ-21 (part
+bags) is about quantity, not price.
 
 **AD-82 · Feed amounts on a daily record are required, with no default (U6 chunk 5).**
 Approved 2026-09-14. `feed_starter_g`, `feed_grower_g` and `feed_finisher_g`

@@ -295,104 +295,34 @@ first pass was itself incomplete. Items 5 and 6 were only visible by executing
 the engine rather than reading it. **Treat any NEW client question arising on
 this topic as evidence this pass missed something**, and check here first.
 
-## DANIEL MESSAGE — how things get recorded, drafted 2026-09-14 (APPROVED, NOT YET SENT — the user sends it)
+## Client questions outstanding — index, 2026-09-14
 
-Written for Daniel. Questions 1-3 are new (OQ-32, OQ-34, OQ-33) and shape the
-database U6 is building. 4-9 are older client questions, bundled so he is not
-asked twice. **Approved to send unchanged, 2026-09-14.**
+**How client questions work (standing rule, 2026-09-14):** a gap that needs
+Daniel is logged here as an OQ with proposed question wording, and stops there.
+The user handles every question to Daniel, out of band and in a format they
+control. Nothing in this repository is a message to him.
 
-**Q4-9 checked against this file on 2026-09-14, before sending. All six are still
-open; none is dropped:**
+Every client question still open, checked against this file on 2026-09-14:
 
-| Q | Entry | Status in this file | Why it is not answered |
-|---|---|---|---|
-| 4 | OQ-21 | Crash fixed, client half open | Not among the six answers of 2026-09-12 (AD-52 to AD-57) |
-| 5 | OQ-17 | Open | No paired weights received |
-| 6 | OQ-15 | Open | Not among the six answers |
-| 7 | OQ-19 | Narrowed, still open | He gave the cadence ("when the batch is done"), not the day |
-| 8 | OQ-8 | Open, provisional | Not among the six answers |
-| 9 | OQ-6 | Unconfirmed | Not among the six answers |
-
-**Found in the same check: three client questions still open and NOT in this
-message.** All were on the 2026-09-12 list and are not among the six answers:
-- **#2, what a bird over 1.3 kg dressed pays** (OQ-30, closed on our side by
-  AD-58; the client half is unasked, and TD-4 #9 hangs off it).
-- **#8, whether the bulk buyer caps how many birds he takes.**
-- **#11, whether transport is the same per bird on a direct delivery**
-  (`cash.test.ts`, "whether transport is the SAME per bird is unanswered").
-
-Held for the user's decision: add them to this message, or leave them out. Asking
-them in a later message is the drip this bundle exists to avoid.
-
-> **Subject: Nine quick questions, most are pick-a-letter**
->
-> Hi Daniel,
->
-> We're now building the part of the system where your daily records, feed collections and sales get saved. Three questions about how those happen in practice decide how we store them. Getting them right now is cheap; getting them wrong means rebuilding later. The rest are older questions that are still open, bundled here so we don't keep coming back.
->
-> Just reply with the number and a letter, e.g. "1a, 2b, 3c". Add a line if none of the letters fit.
->
-> **How you record things (these three first, please)**
->
-> **1. Feed shared between flocks.** When one batch is still being sold and the next one is already placed, does one feed collection ever feed both?
-> a) No. Each collection is for one flock.
-> b) Sometimes. I split the bags between the two flocks.
-> c) Sometimes, but I don't keep track of which flock gets how much.
->
-> **2. Feed before the chicks.** Do you ever collect starter feed before the chicks arrive?
-> a) No. Same day or after.
-> b) Yes, a day or two before.
-> c) Yes, sometimes a week or more before.
->
-> **3. Booking a bulk sale ahead.** When you sell a run to a bulk buyer, how far ahead is it agreed?
-> a) Not ahead. It's arranged on the day, or once the birds are weighed.
-> b) Booked ahead with a date and a number of birds. The weight and money are settled when the birds are weighed.
-> c) Booked ahead with a weight (or weight range) fixed in the deal.
->
-> **Still open from before**
->
-> **4. Part bags.** Does the feed supplier ever charge you for part of a bag?
-> a) Never. Always whole 50 kg bags.
-> b) Sometimes.
->
-> **5. Dressing percentage.** This one is a measurement, not a letter. On your next batch, could you weigh about 20 birds live, then the same birds after dressing, and send us both lists? Every bulk figure currently rests on a rough 62%.
->
-> **6. Labour and electricity at a bigger flock.** If you ran 30,000 birds instead of 3,000, would labour and electricity:
-> a) stay about the same per batch
-> b) go up roughly in line with the number of birds
-> c) go up, but by less than that (a rough figure helps if you have one)
->
-> **7. Paying labour.** You said labour is paid when the batch is done. Which day is that in practice?
-> a) The day the last birds leave.
-> b) At the end of that month.
-> c) Some other day (please say).
->
-> **8. The 2,675-bird break-even.** For a 5,000 flock at day 30, we get 2,675 birds only at 85 cents a chick; at $1.00 a chick it comes out at 2,850. Was your figure worked out at:
-> a) 85 cents a chick
-> b) $1.00 a chick
-> c) Not sure
->
-> **9. Day 40 weight.** Your growth figures jump from 2,562 g on day 39 to 2,789 g on day 40, about 227 g in a day, against roughly 90 g on every other day. Is day 40:
-> a) a typo (about 2,650 g)
-> b) correct
->
-> Thanks. If you only have a minute, 1 to 3 are the ones that matter right now.
-
-**What each answer does to the build:**
-
-| Q | Answer | Consequence |
+| OQ | The gap | Shapes |
 |---|---|---|
-| 1 | a | Chunk 5 as drafted: a draw belongs to one batch |
-| 1 | b | Feed collections become their own table, with a per-batch split in bags or kg. A split by bags can produce part bags, which the engine refuses (OQ-21). The engine's `FeedDraw` may need a share field |
-| 1 | c | No per-batch feed cost is recordable at all. Per-batch costing needs a new allocation rule, which is an engine and client decision |
-| 2 | a | A trigger rejects a draw dated before placement |
-| 2 | b or c | Engine change: pre-placement draws fold into opening cash (AD-67) or the calendar starts earlier. Today `buildDays` throws |
-| 3 | a or b | Chunk 5 as drafted: one live weight, corrected when the birds are weighed |
-| 3 | c | `sales_order_versions` gains a contracted weight separate from the weighed one. The engine prices off whichever is known, and says which |
+| OQ-32 | Does one feed collection ever serve two batches? | U6 chunk 5 feed draws |
+| OQ-33 | Are bulk runs booked ahead with a fixed weight? | U6 chunk 5 sales orders |
+| OQ-34 | Is feed ever collected before the chicks arrive? | U6 chunk 5; `buildDays` throws on it |
+| OQ-35 | What does a bird over 1.3 kg dressed pay? | Bulk value past the top band (AD-58), TD-4 #9 |
+| OQ-36 | Does the bulk buyer cap how many birds he takes? | Whether bulk can absorb a whole flock |
+| OQ-37 | Is transport the same per bird on a direct delivery? | Bulk net when `delivery_mode = DIRECT` |
+| OQ-21 | Does the supplier ever charge for part of a bag? | Pricing a part-bag draw (refused today) |
+| OQ-17 | ~20 paired live and dressed weights | The bulk harvest day, every dressed price |
+| OQ-15 | Do labour and electricity scale at 30,000 birds? | Overheads at any scale but 3,000 |
+| OQ-19 | Which day is labour paid, "when the batch is done"? | Overhead cash dates |
+| OQ-8 | Was the 2,675 break-even worked at 85c a chick? | Fixture 6 |
+| OQ-6 | Is day 40's 2,789 g a typo? | Curve past day 39 |
+| OQ-5 | Who does daily capture, and who else sees money? | Which memberships are created (U6 chunk 6) |
 
 ---
 
-## THE DANIEL LIST — bulk revenue, complete, 2026-09-12
+## THE DANIEL LIST — bulk revenue, complete, 2026-09-12 (historical: six answered 2026-09-12; what is still open is in the index above)
 
 ### SEND FIRST, ALONE — the pricing question
 
@@ -666,8 +596,40 @@ same truck twice. An answered OQ-2 is **not** sufficient to proceed.
 
 ## Open questions — blocking
 
-### OQ-34 · Is feed ever collected before the chicks arrive? 🟠 SHAPES U6 — ASKED 2026-09-14
-**Status:** drafted for Daniel (message above, Q2). **Raised:** 2026-09-14,
+### OQ-37 · Is transport the same per bird on a direct delivery? 🟡 OPEN
+**Status:** open, never answered. **Raised:** 2026-09-12 (Daniel list #11), logged
+as an OQ 2026-09-14. **Affects:** bulk net when `delivery_mode = DIRECT`.
+`bulkNetCentsPerBird` drops the abattoir fee on a direct delivery but charges
+the same `transport_cents_per_bird` (`cash.test.ts`: "whether transport is the
+SAME per bird is unanswered"; due-diligence item 7 above).
+**Proposed question:** *"If you ever deliver birds straight to the buyer instead
+of the abattoir, does transport cost the same per bird, more, or less?"*
+**Meanwhile:** one transport rate for both modes, as built. **If different:** a
+second parameter, `direct_transport_cents_per_bird`, nullable and refused when
+null on a DIRECT order.
+
+### OQ-36 · Does the bulk buyer cap how many birds he takes? 🟡 OPEN
+**Status:** open, never answered. **Raised:** 2026-09-12 (Daniel list #8), logged
+as an OQ 2026-09-14. **Affects:** the gate/bulk split. The brief calls bulk a
+"guaranteed outlet" with no ceiling, and the allocation treats it as unbounded.
+**Proposed question:** *"Is there a limit on how many birds the bulk buyer will
+take from one batch, or in one week?"*
+**Meanwhile:** no cap. **If capped:** a nullable `bulk_capacity` parameter that
+bounds the split, beside `gate_capacity_per_day`.
+
+### OQ-35 · What does a bird over 1.3 kg dressed pay? 🟡 OPEN
+**Status:** open, never asked. **Raised:** 2026-09-12 as OQ-30's client half
+(Daniel list #2). OQ-30 closed on our side by AD-58; this is what it left.
+Logged as its own OQ 2026-09-14. **Affects:** bulk value past the top band,
+blank from day 34 today; TD-4 #9 (whether "1.3 kg" is a floor or a range).
+**Proposed question:** *"Your contract pays $3.90 at 1.1 kg dressed, $3.80 at
+1.2 and $3.70 at 1.3. What does it pay for a bird over 1.3 kg dressed? And does
+1.3 kg mean exactly 1.3, or anything from 1.30 to 1.39?"*
+**Meanwhile:** planning and sales both refuse past the top band (AD-58). **When
+answered:** both paths change together, since there is only one.
+
+### OQ-34 · Is feed ever collected before the chicks arrive? 🟠 SHAPES U6
+**Status:** open. **Raised:** 2026-09-14,
 while drafting U6 chunk 5. **Affects:** `feed_draw_versions`, and today's engine.
 
 `cash.ts` `buildDays` **throws** on any flow dated before placement. A draw
@@ -677,19 +639,27 @@ throw assumes such a flow was folded into `openingCents`. Under AD-67 that fold
 covers `cash_transactions`, but not feed draws.
 **Assumed for chunk 5:** never (answer a). A trigger rejects a draw before the
 current placement date, which keeps the engine's precondition true. **If b or
-c:** an engine change, decided then.
+c:** an engine change, decided then: pre-placement draws fold into opening
+cash (AD-67), or the calendar starts earlier.
+**Proposed question:** *"Do you ever collect starter feed before the chicks
+arrive? (a) No, same day or after; (b) yes, a day or two before; (c) yes,
+sometimes a week or more before."*
 
-### OQ-33 · Are bulk runs booked ahead with a fixed weight? 🟠 SHAPES U6 — ASKED 2026-09-14
-**Status:** drafted for Daniel (Q3). **Raised:** 2026-09-14, U6 D18 (AD-79).
+### OQ-33 · Are bulk runs booked ahead with a fixed weight? 🟠 SHAPES U6
+**Status:** open. **Raised:** 2026-09-14, U6 D18 (AD-79).
 **Affects:** `sales_order_versions`. `SalesOrder.avg_live_weight_g` is
 non-null, and forward-dated orders reach the calendar by design.
 **Assumed for chunk 5:** not booked with a fixed weight (a or b). One live-weight
 column, entered as the expected weight and corrected (AD-75) once weighed.
 **If c:** a contracted weight column separate from the weighed one, and an
 engine decision on which prices the order.
+**Proposed question:** *"When you sell a run to a bulk buyer, how far ahead is
+it agreed? (a) Not ahead, arranged on the day or once weighed; (b) booked ahead
+with a date and a number of birds, weight and money settled when weighed;
+(c) booked ahead with a weight or weight range fixed in the deal."*
 
-### OQ-32 · Does one feed collection ever serve two batches? 🟠 SHAPES U6 — ASKED 2026-09-14
-**Status:** drafted for Daniel (Q1). **Raised:** 2026-09-14, U6 D17 (AD-78).
+### OQ-32 · Does one feed collection ever serve two batches? 🟠 SHAPES U6
+**Status:** open. **Raised:** 2026-09-14, U6 D17 (AD-78).
 **Affects:** whether feed draws are one-to-one with a batch or need a collection
 table plus a per-batch split. `EngineInput.draws` is per batch, and the
 architecture sketch assumed a split (`feed_allocations`).
@@ -697,6 +667,9 @@ architecture sketch assumed a split (`feed_allocations`).
 where a split by bags can create part bags (OQ-21). **If c:** per-batch feed
 cost has no recorded basis. That needs a new allocation rule, which is an
 engine and client decision.
+**Proposed question:** *"When one batch is still being sold and the next is
+already placed, does one feed collection ever feed both? (a) No; (b) sometimes,
+and I split the bags between them; (c) sometimes, and I don't track the split."*
 
 ### OQ-21 · A fractional-bag draw crashes the engine 🟠 CRASH FIXED — CLIENT HALF OPEN
 **Status:** **The crash is fixed** (2026-09-11). The engine now refuses with a
@@ -2159,6 +2132,15 @@ across the two columns — see invariant 13.
 
 ### OQ-5 · Who performs daily capture 🟡
 **Status:** Named as "someone on the farm," no individual identified.
+
+**Also affects U6 chunk 6 (2026-09-14):** which memberships the production seed
+creates. The schema builds `OWNER`, `MANAGER` and `WORKER` as `architecture.md`
+specifies either way; a WORKER sees no money (D22).
+**Proposed question:** *"Who will enter the daily records: you, or someone on
+the farm? And apart from you, does anyone need to see prices, costs or the cash
+position, for example a farm manager?"*
+**Meanwhile:** Daniel is the only OWNER; no MANAGER or WORKER is seeded in
+production until answered.
 
 If the owner ends up doing capture himself, it will happen in bursts
 from memory rather than daily, and the forecast degrades.

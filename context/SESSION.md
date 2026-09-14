@@ -19,12 +19,7 @@ Last updated: 2026-09-14 · Branch: `u6-supabase-schema`
   - A write window never stays open across a planning step, a commit or the end of a session. `.mcp.json` is never committed without `read_only=true`.
   - Before any MCP call, check that the URL still reads `project_ref=zlvjmaorlxrjnuxhykuh`.
 - **Read-only is NOT yet confirmed in effect.** At the end of chunk 3 the live connection predated the URL change (`transaction_read_only` = `off`, user `postgres`; `apply_migration` offered). **Re-checked 2026-09-14 after chunk 5 approval:** `claude mcp list` shows `supabase` (URL with `project_ref=zlvjmaorlxrjnuxhykuh&read_only=true`) as **"Needs authentication"**, so no `supabase` tools are loaded and the check could not run. The claude.ai Supabase connector shows connected; it is denied and was not used.
-- **PRE-FLIGHT GATE, required by the user before any migration runs** (same discipline as CD-1 and the target check):
-  1. The user authenticates `supabase` in `/mcp`.
-  2. Confirm the tool list offers no `apply_migration`.
-  3. `execute_sql`: `CREATE TABLE _readonly_test (id int)` must be **rejected** (expected: "cannot execute CREATE TABLE in a read-only transaction"). If it succeeds, read-only is not in effect: drop the table, stop, report.
-  4. `execute_sql`: `SELECT 1` must **succeed**, and `select current_setting('transaction_read_only')` reads `on`.
-  5. Report both results to the user. Nothing in chunk 5 is built until then.
+- **PRE-FLIGHT GATE before any migration runs. The user handles this step (2026-09-14); make no MCP call for it.** The check: no `apply_migration` in the tool list; `CREATE TABLE _readonly_test (id int)` rejected; `SELECT 1` succeeds and `transaction_read_only` reads `on`. No schema code from any chunk until the user reports it passed and planning has ended.
 - **Writes so far: none.** Dev has 0 migrations and 0 `public` tables. Every MCP call in this session was read-only by nature: `get_project_url`, `list_tables`, `list_migrations`, and one `SELECT` of settings. No MCP call was made during chunks 3 to 5.
 
 ## What this is
@@ -61,14 +56,15 @@ npm monorepo: a pure TypeScript engine (`packages/engine`) behind a Next.js app 
   - D17 / AD-78: a draw belongs to one batch; `bags numeric`, at most 2 decimals by CHECK (never silently rounded), part bags recordable.
   - D18 / AD-79: forward sales orders stored; no derived money; BANDED only on BULK.
   - D19 / AD-80: payments, receipts, facilities, allocations, expenses, offal deferred; cash accounts and transactions built.
-- **Daniel message approved to send unchanged** (`current-issues.md`, "DANIEL MESSAGE — how things get recorded"): OQ-32, OQ-34, OQ-33, plus Q4-9. Q4-9 checked 2026-09-14: all six still open (OQ-21, OQ-17, OQ-15, OQ-19, OQ-8, OQ-6), none dropped. The user sends it. **Open call for the user:** three open client questions from the 2026-09-12 list are not in it (over 1.3 kg dressed, bulk buyer cap, direct-delivery transport).
+- **Client questions:** never drafted or sent from here. Gaps are logged as OQs with proposed wording; the user handles Daniel. Index: `current-issues.md`, "Client questions outstanding". Logged 2026-09-14: OQ-32 to OQ-34 (chunk 5 assumptions), OQ-35 to OQ-37 (left over from the 2026-09-12 list), OQ-5 extended for chunk 6.
 - **Chunk 5** (fact table structure): **approved 2026-09-14**, AD-81 to AD-84. Built on assumed answers OQ-32 a, OQ-33 a/b, OQ-34 a. Tests T-RT2, T-RT3, T-DB1 to T-DB3.
   - AD-81: `facts` holds identities and versions; parameter tables stay in `public`.
   - AD-82: feed grams `not null`, no default. A blank fails to save.
   - AD-83: a draw's price is required for now; the refusal is added only if "price not known yet" proves real.
   - AD-84: a daily record on the wrong date is voided and re-entered, never moved along a chain.
 - **TD-5** (engine feed in kg, database in grams): deferred out of U6, **must close before U9 starts**.
-- **Chunks 6-9** to come: access, repositories, seed, build order.
+- **Chunk 6** (access, D20-D24): **drafted, awaiting sign-off.** Roles in `private.memberships`, checked by `private.has_role`; a role sees a table whole or not at all; WORKER reads `daily_records` and `capture_batches()` only; integrity triggers become `SECURITY DEFINER` (amends chunk 5); a WORKER's engine load throws `Forbidden`, not a refusal. Tests T-AC1 to T-AC5.
+- **Chunks 7-9** to come: repositories, seed, build order.
 
 ## Blockers
 | Blocker | Blocks | Who resolves |
@@ -77,7 +73,7 @@ npm monorepo: a pure TypeScript engine (`packages/engine`) behind a Next.js app 
 | OQ-26: Cover Fast can't answer structurally (candidates have no forecast sales) | 1 of 3 modes | Us, via M6 |
 | OQ-31: Build Reserve pinned null for the same reason (AD-59) | 1 of 3 modes. Only Maximum Growth answers | Us, via M6 |
 | OQ-29: `computeAllocation` takes 20.8 s at 5k birds, ~2 min at 30k | **U9, hard.** Needs a design answer, not "consider performance" | Us: profile first |
-| OQ-32 / OQ-33 / OQ-34: feed shared across batches; booked bulk weight; feed before placement | Shape of U6 chunk 5 (assumed simple answers) | Daniel (message approved, user sends) |
+| OQ-32 / OQ-33 / OQ-34: feed shared across batches; booked bulk weight; feed before placement | Shape of U6 chunk 5 (assumed simple answers) | Daniel (logged as OQs; the user handles) |
 | MCP read-only unverified: `supabase` needs authentication | **Any migration** (chunk 5 onward) | User authenticates in `/mcp`; then the pre-flight gate above |
 | TD-5: engine feed kg vs database grams | **U9 start** | Us, before U9 |
 | OQ-8: fixture 6 chick price ($0.85 vs $1.00) | Golden completeness hold | Daniel |
@@ -117,7 +113,7 @@ Full log: `progress-tracker.md` § Architecture Decisions.
 8. `context/ui-context.md`, `ui-build-playbook.md`, `card-system-and-decision-ux.md`: only for UI units (U7-U11). For U9, read the OQ-29 section first.
 
 ## Recommended next action
-User authenticates `supabase` in `/mcp`; run the pre-flight gate above and report both results. User decides on the three extra Daniel questions and sends the message. On a surprising Daniel answer, reshape chunk 5 per the consequences table. Draft chunk 6 (access: RLS, roles, WORKER and financial columns). No migration before the gate passes and planning ends.
+Get sign-off on chunk 6 (access). Then draft chunk 7 (repositories and `EngineInput` assembly). The user confirms MCP read-only mode; no migration before that and before planning ends. On a surprising Daniel answer, reshape chunk 5 per that OQ's entry.
 
 ## Maintaining this file
 - Update at the end of every unit, and on any commit that changes state a future session needs.
