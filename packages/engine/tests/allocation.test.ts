@@ -545,6 +545,32 @@ describe('computeAllocation — the two-blocked-one-working asymmetry', () => {
   });
 });
 
+describe('computeAllocation — invariant 16 counts from the last bird that actually left', () => {
+  it('holds the 14-day floor from a real sale later than the planned gate window', () => {
+    // The planned gate window ends day 31 (2026-03-08), but a real order goes on
+    // 2026-03-15. The floor is 14 days after the LAST birds leave, so nothing may
+    // be placed before 2026-03-29 — not 2026-03-22.
+    const late = () =>
+      baseInput({ reserve_floor_cents: -10_000_000n as Cents }, [
+        {
+          channel: 'GATE',
+          order_date: '2026-03-15' as IsoDate,
+          bird_count: 2900,
+          avg_live_weight_g: 1770 as Grams,
+          avg_dressed_weight_g: null,
+          bands: null,
+          pricing_basis: 'PER_BIRD',
+          price_cents_per_bird: 425n as Cents,
+          price_cents_per_kg: null,
+          terms_days: 0
+        }
+      ]);
+    const result = computeAllocation(late(), feedFor(late()), harvestOf(late()), 0n as Cents);
+    const won = result.maximum_growth as ModeWinner;
+    expect(won.winner.candidate.placement_date).toBe('2026-03-29');
+  });
+});
+
 describe('computeAllocation — an unpriced gate order', () => {
   it('refuses with a typed gate_price rather than throwing mid-projection', () => {
     const unpriced = () =>

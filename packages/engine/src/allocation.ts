@@ -427,12 +427,17 @@ export function computeAllocation(
   harvest: HarvestPlan,
   openingCents: Cents
 ): AllocationResult {
-  // Harvest COMPLETION, not first sale (invariant 16). The gate window's last
-  // day is the day the last bird goes.
-  const harvestCompletionDate = addDays(
+  // Harvest COMPLETION, not first sale (invariant 16): the day the last bird
+  // goes. The planned gate window says when that SHOULD be; a real order dated
+  // later says it was not, and the biosecurity floor (AD-40, never tradeable)
+  // must count from the later of the two, never the plan.
+  let harvestCompletionDate = addDays(
     input.batch.placement_date,
     harvest.gate_window.last_day - 1
   );
+  for (const sale of input.sales) {
+    if (sale.order_date > harvestCompletionDate) harvestCompletionDate = sale.order_date;
+  }
 
   const maxChickCount = requirePlacementCeiling(input.parameters);
   const candidates = enumerateCandidates(input, harvestCompletionDate, maxChickCount);
