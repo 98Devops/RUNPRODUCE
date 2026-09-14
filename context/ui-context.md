@@ -262,15 +262,18 @@ document already draws between *"we could not work this out"* and *"we worked it
 out and the answer is nothing"*. A spinner does not fix a two-minute wait, and a
 confident label does not fix a heuristic.
 
-### Cover Fast specifically — U9 MUST handle this
+### Cover Fast and Build Reserve — U9 MUST handle this
 
-`decision.allocation.cover_fast` is `null` for every input today, and this is
-**structural, not a data gap** — see **OQ-26**. A candidate batch carries no
+`decision.allocation.cover_fast` **and `decision.allocation.build_reserve`**
+are `null` for every input today, and this is **structural, not a data gap** —
+see **OQ-26** and **OQ-31** (AD-59). Build Reserve's null is the same gap: it
+used to answer "place 1 bird", because a candidate with no forecast sales always
+closes higher the smaller it is. A candidate batch carries no
 forecast sales, so receipts never clear core credit and the scalar cannot fire
 until M6 models the channel split.
 
-**U9 must render that null as "not enough information yet — we cannot project
-this batch's own sales", or name OQ-26 directly.** It must NOT render it as a
+**U9 must render either null as "not enough information yet — we cannot project
+this batch's own sales", or name OQ-26 / OQ-31 directly.** It must NOT render it as a
 blank, a dash, a zero, or an empty recommendation card.
 
 **Why this is written down before the screen exists:** a farm owner reading an
@@ -282,8 +285,9 @@ exact failure the explainability pattern exists to prevent, and it is cheaper to
 require now than to rediscover as a UX bug after U9 ships.
 
 **Applies to all three modes**, not only Cover Fast: any mode returning
-`missing_input` (Cover Fast and Build Reserve, for any bulk-inclusive candidate,
-pending OQ-2 and OQ-16) renders the refusal text the engine supplies. That text
+`missing_input` (Cover Fast and Build Reserve, whenever `cashFlowsMissingInputs`
+names a gap — an unsupplied fee or transport rate, an incomplete bulk contract, an
+unpriced gate order) renders the refusal text the engine supplies. That text
 already explains the asymmetry — that Maximum Growth answering while the others
 refuse is expected — so surface it rather than writing a new one.
 

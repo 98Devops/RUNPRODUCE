@@ -246,7 +246,17 @@ export function scoreCandidate(
     calendar,
     cover_fast_days,
     maximum_growth_birds: candidate.chick_count,
-    build_reserve_cents: calendar.closing_cents,
+    /**
+     * Null, not `calendar.closing_cents` (OQ-31). Structurally the same gap as
+     * Cover Fast above: a candidate carries no forecast sales, so its closing
+     * balance is the handoff minus its own costs, and costs only grow with
+     * size. Ranked on that, Build Reserve picked the smallest batch every time:
+     * "place 1 bird", closing below what placing nothing would leave. That is a
+     * confident wrong answer, which is worse than Cover Fast's honest null.
+     * The closing balance stays on `calendar`; it is only not a score until M6
+     * forecasts what a candidate sells.
+     */
+    build_reserve_cents: null,
     breaches_reserve_floor: calendar.breaches_reserve_floor
   };
 }

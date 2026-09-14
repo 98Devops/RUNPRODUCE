@@ -1649,6 +1649,35 @@ module was checked. Exactly one other export was unreachable —
 identically in both), now allowlisted. So: nearly a one-off, and worth
 confirming. Written up in `code-standards.md` under Testing.
 
+### OQ-31 · Build Reserve recommended a 1-bird batch 🔴 INTERNAL — PINNED NULL 2026-09-14
+**Status:** Open, **pinned null by AD-59**. **Raised:** 2026-09-14, by the
+pre-merge review of `u5-m5b-allocation-enumeration`.
+**Affects:** a second of the three headline modes. **Ours, not Daniel's.**
+
+**The finding, reproduced.** Running batch sells 2,900 birds at the gate, floor
+out of reach, ceiling 300, step 1. Build Reserve's winner was **"place 1 bird on
+2026-03-22"**, closing at **−$507.85**, with 31 dates tied. `place_nothing`
+closed at **+$275.96**. The recommendation was strictly worse than not placing.
+
+**Same root cause as OQ-26.** A candidate carries no forecast sales
+(`candidateInput` empties `sales`), so its closing balance is the handoff minus
+its own costs, and costs only grow with size. The smallest batch always wins.
+
+**Why it is worse than OQ-26, and why it is now null.** Cover Fast failed
+honestly: null. Build Reserve failed confidently: a real-looking winner. That is
+the wrong number invariant 5 forbids, and an existing test pinned it as
+acceptable. AD-59 sets `build_reserve_cents` to null for every candidate, so
+`pickWinner('BUILD_RESERVE')` returns null exactly as Cover Fast does. The
+closing balance stays on the candidate's `calendar`.
+
+**What closing it needs.** The same thing as OQ-26: M6's forecast of a
+candidate's own sales. **Do not close it by comparing against `place_nothing`**
+— that would make "place nothing" Build Reserve's answer every time, which is the
+same artefact read from the other side.
+
+**U9 is bound on it** — `ui-context.md`'s null-state rule now covers Build
+Reserve as well as Cover Fast. Only Maximum Growth answers until M6.
+
 ### OQ-26 · Cover Fast structurally cannot answer 🔴 INTERNAL
 **Status:** Open, **pinned by a test rather than left to be discovered**.
 **Raised:** 2026-09-11, from reviewing M5b's own output after Task 8.
@@ -2252,6 +2281,7 @@ recommendation — divergences are the most valuable data available.
 |---|---|
 | Calibrated `MaxSafeBatchSize` | OQ-1 (mortality data) |
 | ~~M5b · Task 8, the enumeration ceiling~~ | **UNBLOCKED 2026-09-11.** ~~OQ-23~~ answered: the ceiling is an operator-entered `max_placement_birds`, no derived cap. Tasks 1-8 built; Task 9 now blocked on OQ-25 below |
+| M5b · the Build Reserve mode | **OQ-31** — pinned null by AD-59: without a candidate's forecast sales it recommended the smallest batch. Needs M6 |
 | M5b · the Cover Fast mode | **OQ-26** — structurally cannot answer: a candidate has no forecast sales, so receipts never clear core credit. Needs M6 |
 | M5b · Task 9, wiring `decision.allocation` | **OQ-25** — the engine holds no cash balance to pass as `openingCents`, and the plan passed `reserve_floor_cents`, a different quantity. Recommendation: leave the getter throwing until U6 |
 | **U9 · the mode-selector / recommendation screen** | **OQ-29 — HARD BLOCKER, not an optimisation.** `computeAllocation` takes **20.8 s** at Daniel's realistic 5,000-bird ceiling and ~2 min at the brief's 30,000. U9 is a click-and-see screen; two minutes is not usable and no spinner makes it so. **U9 planning must produce a real design answer** — see OQ-29 for the three candidates and what each costs. A plan that says "consider performance" does not clear this |

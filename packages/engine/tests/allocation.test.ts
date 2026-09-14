@@ -333,7 +333,7 @@ describe('scoreCandidate', () => {
     expect(scoreCandidate(baseInput(), c, handoff).maximum_growth_birds).toBe(2500);
   });
 
-  it('scores Build Reserve in integer cents, never a float', () => {
+  it('does not score Build Reserve while a candidate has no forecast sales (OQ-31)', () => {
     const c: Candidate = { placement_date: '2026-04-03' as IsoDate, chick_count: 2500 };
     const handoff = handoffAtPlacement(
       baseInput(),
@@ -341,8 +341,13 @@ describe('scoreCandidate', () => {
       0n as Cents,
       c.placement_date
     );
+    const scored = scoreCandidate(baseInput(), c, handoff);
 
-    expect(typeof scoreCandidate(baseInput(), c, handoff).build_reserve_cents).toBe('bigint');
+    // The closing balance is still a real fact on the calendar, in integer
+    // cents. It is just not a Build Reserve score: with no receipts it is costs
+    // only, and ranking on it prefers the smallest batch every time.
+    expect(scored.build_reserve_cents).toBeNull();
+    expect(typeof scored.calendar?.closing_cents).toBe('bigint');
   });
 
   it('reports a floor breach rather than scoring it', () => {
@@ -593,7 +598,7 @@ describe('computeAllocation — an unpriced gate order', () => {
   });
 });
 
-describe('computeAllocation — a gate-only batch answers everything', () => {
+describe('computeAllocation — a gate-only batch is not refused', () => {
   // A floor low enough that candidates are affordable. baseInput carries NO
   // sales, so the running batch spends a whole cycle and earns nothing; against
   // a zero floor every candidate breaches and every mode correctly returns
@@ -603,11 +608,14 @@ describe('computeAllocation — a gate-only batch answers everything', () => {
   const run = () =>
     computeAllocation(affordable(), feedFor(affordable()), harvestOf(affordable()), 0n as Cents);
 
-  it('answers all three modes', () => {
+  it('refuses nothing: Maximum Growth answers, and the other two are null rather than missing_input', () => {
+    // Null here is OQ-26 and OQ-31, pinned below, not a refusal. The old
+    // version of this test only checked "not an array", which a null passes.
     const result = run();
-    expect(Array.isArray(result.cover_fast)).toBe(false);
-    expect(Array.isArray(result.build_reserve)).toBe(false);
+    expect(result.maximum_growth).not.toBeNull();
     expect(Array.isArray(result.maximum_growth)).toBe(false);
+    expect(result.cover_fast).toBeNull();
+    expect(result.build_reserve).toBeNull();
   });
 
   it('checks the reserve floor for real, and says so', () => {
@@ -641,6 +649,36 @@ describe('computeAllocation — a gate-only batch answers everything', () => {
     expect(broke.build_reserve).toBeNull();
     // The candidates were still enumerated and considered; none survived.
     expect(broke.candidates_considered).toBe(9300);
+  });
+});
+
+describe('Build Reserve cannot currently answer — pinned, not accepted (OQ-31)', () => {
+  it('does not recommend a 1-bird batch that closes below placing nothing', () => {
+    // Before OQ-31 this returned "place 1 bird", closing at -$507.85, while
+    // place_nothing closed at +$275.96. A candidate carries no forecast sales,
+    // so its closing balance is its costs, and the smallest batch always won.
+    const selling = () => ({
+      ...baseInput({ reserve_floor_cents: -10_000_000n as Cents }, [
+        {
+          channel: 'GATE' as const,
+          order_date: '2026-03-08' as IsoDate,
+          bird_count: 2900,
+          avg_live_weight_g: 1770 as Grams,
+          avg_dressed_weight_g: null,
+          bands: null,
+          pricing_basis: 'PER_BIRD' as const,
+          price_cents_per_bird: 425n as Cents,
+          price_cents_per_kg: null,
+          terms_days: 0
+        }
+      ]),
+      asOf: '2026-03-08' as IsoDate
+    });
+    const result = computeAllocation(selling(), feedFor(selling()), harvestOf(selling()), 0n as Cents);
+
+    expect(result.build_reserve).toBeNull();
+    // Placing nothing is still reported, with its real closing balance.
+    expect(result.place_nothing.closing_cents).toBe(27596n);
   });
 });
 
@@ -678,6 +716,6 @@ describe('Cover Fast cannot currently answer — pinned, not accepted', () => {
     // never clears core credit. The other two modes answer normally.
     expect(result.cover_fast).toBeNull();
     expect(result.maximum_growth).not.toBeNull();
-    expect(result.build_reserve).not.toBeNull();
+    expect(result.build_reserve).toBeNull();
   });
 });

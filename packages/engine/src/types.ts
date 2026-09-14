@@ -358,6 +358,10 @@ export interface ScoredCandidate {
   readonly cover_fast_days: number | null;
   /** Placement size. The one scalar that needs no calendar, so never null. */
   readonly maximum_growth_birds: number;
+  /**
+   * Null for every candidate until M6 forecasts a candidate's own sales (OQ-31):
+   * without receipts a closing balance ranks the smallest batch first.
+   */
   readonly build_reserve_cents: Cents | null;
   /**
    * null means UNCHECKED, not "does not breach". Without a calendar there is

@@ -641,6 +641,24 @@ Tracked in `current-issues.md`.
 
 ## Architecture Decisions
 
+**AD-59 · Build Reserve scores null until a candidate has forecast sales.**
+Decided 2026-09-14, from the pre-merge review, closing the confident half of
+OQ-31. `scoreCandidate` sets `build_reserve_cents` to null for every
+candidate, so Build Reserve returns null the way Cover Fast does (OQ-26).
+
+*Why:* with no forecast receipts, a candidate's closing balance is costs only,
+so ranking on it recommended the smallest possible batch — "place 1 bird",
+closing $783.81 below placing nothing. A null is an honest "cannot determine"; a
+winner is a claim. Chose honesty over keeping a second mode visibly answering.
+
+*Rejected:* ranking against `place_nothing` (makes "place nothing" the answer
+every time — the same artefact inverted), and scoring on the running batch's
+receipts alone (ranks on the wrong quantity, the trap OQ-26 already warns off).
+
+*Consequence:* only Maximum Growth answers until M6. U9's null-state rule in
+`ui-context.md` now names both modes. Reversible: restore
+`calendar.closing_cents` once candidates carry forecast sales.
+
 **AD-58 · The planning path refuses past the top band too. One schedule, one
 policy.**
 Decided 2026-09-12, closing OQ-30 the day after AD-57 opened it.
