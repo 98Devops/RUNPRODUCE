@@ -649,7 +649,7 @@ export function batchCashFlows(input: EngineInput, feed: FeedLiability): CashFlo
   const missing = cashFlowsMissingInputs(input);
   if (missing.length > 0) {
     throw new Error(
-      `Cannot project cash: bulk net is unavailable — ${missing.map((m) => m.key).join(', ')}. ` +
+      `Cannot project cash: inputs are missing — ${missing.map((m) => m.key).join(', ')}. ` +
         'Call cashFlowsMissingInputs() first and return missing_input.'
     );
   }

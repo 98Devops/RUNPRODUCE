@@ -404,7 +404,7 @@ describe('projectCashCalendar — receipts', () => {
   it('throws rather than returning a calendar missing a bulk receipt', () => {
     const engineInput = input('2026-03-10', { sales: [bulkOrder] });
     expect(() => projectCashCalendar(engineInput, 35, 0n as Cents, feedFor(engineInput))).toThrow(
-      /bulk net/
+      /inputs are missing — abattoir_fee/
     );
   });
 });

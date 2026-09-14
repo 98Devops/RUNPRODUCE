@@ -2064,6 +2064,8 @@ sales, the null-fee guard, gate-order refusal), as are 6, 7 and 11. These remain
 | 10 | `cash.ts` dates a HARVEST_COMPLETE overhead at the last curve day (or day 1) when the slaughter target is never reached, where `planHarvest` throws. And feed delivery falls back to its seed rate silently while AD-55 refuses a null abattoir fee: two policies for the same kind of client fact | The first is an invented date and should refuse; the second is AD-54 vs AD-55 and needs one policy chosen, not a patch |
 | 12 | `PlaceNothing.overhead_still_incurred_cents` is hard-coded `0n`, copied from the plan with no derivation | Whether labour or any line is paid with no batch housed is unknown (OQ-15 territory). Zero is a claim; this should be null or derived |
 | 13 | A bulk contract grossing under 20c a bird books a negative receipt with no refusal | Unrealistic; noted rather than guarded |
+| R2-a | Invariant 16 now counts from the latest `order_date`, which has no upper bound: a mistyped far-future date silently pushes the placement floor out | Input validation, for U6/U8's sales ledger, not the engine |
+| R2-b | `batchCashFlows` is exported and allowlisted as internal; it can be called without `cashFlowsMissingInputs` first | Acceptable while the allowlist entry stands; do not re-export it from index.ts |
 
 ### TD-1 · `npm audit` critical in the dev toolchain 🟡
 **Raised:** 2026-09-10. **Decision:** accepted, not remediated. **Revisit:** when vitest is next upgraded.

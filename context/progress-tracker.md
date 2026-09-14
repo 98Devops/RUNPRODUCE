@@ -4,6 +4,26 @@ Update this file after every meaningful implementation change.
 
 ## Current Phase
 
+**U5 — pre-merge review fix wave, 2026-09-14.** An independent review of the
+whole branch (base `fd0fa80`) returned "with fixes": 13 findings, the first
+five reproduced. Fixed test-first, one commit each:
+
+| # | Finding | Fix | Commit |
+|---|---|---|---|
+| 1 | Build Reserve recommended "place 1 bird", closing $783.81 below placing nothing | Scores null until M6 (AD-59, OQ-31) | `c1851cb` |
+| 2 | Running-batch flows past `41 + feed_terms_days` dropped from handoff and candidates | Horizon covers the last flow (`batchCashFlows`) | `34f600a` |
+| 3 | 14-day floor counted from the planned gate window, not a later real sale | Completion = later of the two | `656db6e` |
+| 4 | `bulkNetCentsPerBird` netted a null abattoir fee as zero | Throws | `6f6f259` |
+| 5 | Unpriced gate order threw mid-allocation; BANDED gate order ignored its bands | Typed `gate_price` refusal | `ac800da` |
+| 6, 7, 11 | Tests that could not fail; untested band edges; stale comment | Fixed, mutation-checked | `99e63cb` |
+
+8, 9, 10, 12, 13 are logged as **TD-4**; finding 8 (one shared refusal
+function) must land before U6 wires allocation. **344 unit tests**, golden
+unchanged at 11 / 11 / 1 held, lint and build clean. **Only Maximum Growth now
+answers**; Cover Fast and Build Reserve are both null until M6.
+
+---
+
 **U5 — Daniel's six answers wired, 2026-09-12.** Branch
 `u5-m5b-allocation-enumeration`. Six client answers landed in one session and
 became **AD-52 to AD-57**, one commit each, plus a context sync. **330 unit tests
