@@ -16,10 +16,11 @@ npm monorepo: a pure TypeScript engine (`packages/engine`) behind a Next.js app 
 - **U5 M5b Tasks 1-8** Allocation enumeration, scoring, tie-break, place-nothing, `computeAllocation`.
 - **Daniel's six answers** wired as AD-52 to AD-57. Band refusal made consistent (AD-58).
 - **Pre-merge review fix wave** (2026-09-14): 5 findings fixed + 3 minors; rest logged as TD-4.
-- **Status:** 344 unit tests. Golden 11 written / 11 passing / 1 held. Lint, typecheck, build clean.
+- **U6 Task 0** shared refusal list (TD-4 #8, AD-60).
+- **Status:** 348 unit tests. Golden 11 written / 11 passing / 1 held. Lint, typecheck, build clean.
 
 ## In progress
-Nothing. Between units: U5 M5b is reviewed, fixed and merged to `main`. U5's remainder (Task 9, M6) is blocked, see below.
+**U6**, planning. Task 0 done: one shared refusal list, `missingInputsFor` in `refusals.ts` (TD-4 #8, AD-60). U5's remainder (Task 9, M6) is blocked, see below.
 
 ## Blockers
 | Blocker | Blocks | Who resolves |
@@ -27,7 +28,6 @@ Nothing. Between units: U5 M5b is reviewed, fixed and merged to `main`. U5's rem
 | OQ-25: engine holds no opening cash balance | M5b Task 9, wiring `decision.allocation` (getter throws) | Us, via U6 |
 | OQ-26: Cover Fast can't answer structurally (candidates have no forecast sales) | 1 of 3 modes | Us, via M6 |
 | OQ-31: Build Reserve pinned null for the same reason (AD-59) | 1 of 3 modes. Only Maximum Growth answers | Us, via M6 |
-| TD-4 #8: refusal checks split across three functions, drifted | U6 wiring `decision.allocation` | Us, before U6 |
 | OQ-29: `computeAllocation` takes 20.8 s at 5k birds, ~2 min at 30k | **U9, hard.** Needs a design answer, not "consider performance" | Us: profile first |
 | OQ-8: fixture 6 chick price ($0.85 vs $1.00) | Golden completeness hold | Daniel |
 | OQ-10: fixture 8 was blocked on OQ-2, now answered | Golden completeness hold | Us: attempt it |
@@ -48,6 +48,7 @@ Nothing. Between units: U5 M5b is reviewed, fixed and merged to `main`. U5's rem
 - **AD-56:** each overhead line is paid on its own cadence. A MONTHLY line is split across months, never repeated.
 - **AD-58:** past the top band, both planning and sales refuse. Bulk hold cost is blank from day 34.
 - **AD-59:** Build Reserve scores null until a candidate has forecast sales; ranking on costs alone picked a 1-bird batch.
+- **AD-60:** one refusal list (`refusals.ts`) for decision, calendar and allocation; fixture 13's wording follows it.
 
 Full log: `progress-tracker.md` § Architecture Decisions.
 

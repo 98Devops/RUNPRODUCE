@@ -13,7 +13,7 @@ import {
 import { projectCashCalendar } from '../src/cash.js';
 import { planHarvest } from '../src/harvest.js';
 import { computeFeedLiability } from '../src/feed.js';
-import { missingInputsFor } from '../src/index.js';
+import { missingInputsFor } from '../src/refusals.js';
 import { projectProduction } from '../src/production.js';
 import type {
   Candidate,
@@ -543,6 +543,27 @@ describe('computeAllocation — the two-blocked-one-working asymmetry', () => {
     // output rather than having to find the spec.
     expect(why).toMatch(/Maximum Growth/);
     expect(why).toMatch(/expected/i);
+  });
+
+  it('refuses an oversold running batch rather than projecting receipts for birds that do not exist', () => {
+    // TD-4 finding 8: the allocation checked only the cash list, so a batch
+    // computeDecision refuses on sales_bird_count was scored here as if the
+    // orders were real.
+    const oversold: SalesOrder = {
+      ...BULK[0]!,
+      channel: 'GATE',
+      bird_count: 5000,
+      price_cents_per_bird: 425n as Cents
+    };
+    const engineInput = baseInput({}, [oversold]);
+    const result = computeAllocation(
+      engineInput,
+      feedFor(engineInput),
+      harvestOf(engineInput),
+      0n as Cents
+    );
+    expect((result.cover_fast as MissingInput[]).map((m) => m.key)).toContain('sales_bird_count');
+    expect(Array.isArray(result.build_reserve)).toBe(true);
   });
 
   it('reports place_nothing overheads but a null closing balance', () => {

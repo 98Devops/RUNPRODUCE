@@ -34,7 +34,10 @@ const INTERNAL_CROSS_MODULE: Readonly<Record<string, string>> = {
   firstDayAtWeight: 'shared by harvest.ts and cash.ts so one engine holds one harvest-completion day',
   // allocation.ts sizes a calendar's horizon to the last flow it must hold, so
   // it needs the flows before the calendar is built.
-  batchCashFlows: 'shared by cash.ts and allocation.ts so a horizon can cover every dated flow'
+  batchCashFlows: 'shared by cash.ts and allocation.ts so a horizon can cover every dated flow',
+  // bulkNetCentsPerBird is public and its guard must refuse exactly what the
+  // shared refusal list refuses, not a copy that drifts (TD-4 #8).
+  bulkContractProblems: 'shared by refusals.ts and cash.ts so the bulk-net guard cannot drift from the refusal'
 };
 
 function valueExportsOf(source: string): string[] {

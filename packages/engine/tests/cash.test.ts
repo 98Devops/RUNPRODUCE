@@ -4,9 +4,9 @@ import {
   SEED_ABATTOIR_FEE_CENTS,
   SEED_TRANSPORT_CENTS_PER_BIRD,
   bulkNetCentsPerBird,
-  cashFlowsMissingInputs,
   projectCashCalendar
 } from '../src/cash.js';
+import { missingInputsFor } from '../src/refusals.js';
 import { addDays } from '../src/day-number.js';
 import { computeFeedLiability } from '../src/feed.js';
 import { projectProduction } from '../src/production.js';
@@ -313,7 +313,7 @@ describe('projectCashCalendar — receipts', () => {
    * double-count question independently.
    */
   it('reports the missing values for a BULK order rather than guessing bulk net', () => {
-    const missing = cashFlowsMissingInputs(input('2026-03-10', { sales: [bulkOrder] }));
+    const missing = missingInputsFor(input('2026-03-10', { sales: [bulkOrder] }));
     const keys = missing.map((m) => m.key);
 
     expect(keys).toContain('transport_cents_per_bird');
@@ -337,14 +337,14 @@ describe('projectCashCalendar — receipts', () => {
   });
 
   it('reports nothing missing when there is no bulk order', () => {
-    expect(cashFlowsMissingInputs(input('2026-03-10', { sales: [gateOrder] }))).toEqual([]);
+    expect(missingInputsFor(input('2026-03-10', { sales: [gateOrder] }))).toEqual([]);
   });
 
   it('refuses a gate order that carries no price for its own basis', () => {
     // Before this, the calendar threw a raw Error on it, and computeAllocation
     // with it — a crash where a typed refusal belongs.
     const unpriced = { ...gateOrder, price_cents_per_bird: null };
-    const missing = cashFlowsMissingInputs(input('2026-03-10', { sales: [unpriced] }));
+    const missing = missingInputsFor(input('2026-03-10', { sales: [unpriced] }));
     expect(missing.map((m) => m.key)).toEqual(['gate_price']);
   });
 
@@ -358,7 +358,7 @@ describe('projectCashCalendar — receipts', () => {
       bands: [{ dressed_floor_g: 1000 as Grams, price_cents_per_bird: 370n as Cents }],
       price_cents_per_bird: 999n as Cents
     };
-    const missing = cashFlowsMissingInputs(input('2026-03-10', { sales: [banded] }));
+    const missing = missingInputsFor(input('2026-03-10', { sales: [banded] }));
     expect(missing.map((m) => m.key)).toEqual(['gate_price']);
     expect(missing[0]!.why).toMatch(/BANDED/);
   });
@@ -381,7 +381,7 @@ describe('projectCashCalendar — receipts', () => {
      * refused. What survives is the per-ORDER check below: an order whose own
      * contract cannot price it still refuses, and its neighbour still does not.
      */
-    expect(cashFlowsMissingInputs(engineInput)).toEqual([]);
+    expect(missingInputsFor(engineInput)).toEqual([]);
   });
 
   it('refuses one unpriceable order without refusing the batch', () => {
@@ -393,7 +393,7 @@ describe('projectCashCalendar — receipts', () => {
       }),
       sales: [bulkOrder, priceless]
     });
-    const missing = cashFlowsMissingInputs(engineInput);
+    const missing = missingInputsFor(engineInput);
 
     // One buyer's deal being unpriceable says nothing about another's, which is
     // why the check moved onto the order (AD-57).
@@ -754,7 +754,7 @@ describe('the abattoir run and the abattoir fee are two costs (AD-55)', () => {
   it('still refuses a null transport rather than defaulting to the seeded 10c', () => {
     // The value being KNOWN is not the same as it being SUPPLIED. Nothing reads
     // the seed behind a caller's back — a null is a refusal, as it always was.
-    const missing = cashFlowsMissingInputs(input('2026-03-18', { sales: [bulk] }));
+    const missing = missingInputsFor(input('2026-03-18', { sales: [bulk] }));
     expect(missing.map((m) => m.key)).toContain('transport_cents_per_bird');
   });
 });
@@ -881,7 +881,7 @@ describe("bulk pricing is the buyer's own contract, not ours (AD-57)", () => {
         })
       ]
     });
-    expect(cashFlowsMissingInputs(engineInput)).toEqual([]);
+    expect(missingInputsFor(engineInput)).toEqual([]);
 
     const calendar = projectCashCalendar(engineInput, 70, 0n as Cents, feedFor(engineInput));
     const receipts = calendar.days.flatMap((d) =>
@@ -907,7 +907,7 @@ describe("bulk pricing is the buyer's own contract, not ours (AD-57)", () => {
 
   it('refuses a BANDED order with no dressed weight rather than deriving one', () => {
     const banded = order({ pricing_basis: 'BANDED', price_cents_per_bird: null, bands: BUYER_BANDS });
-    const missing = cashFlowsMissingInputs(
+    const missing = missingInputsFor(
       input('2026-03-08', { parameters: settled(), sales: [banded] })
     );
     // 1,843 g live x the assumed 62% would give 1,142 g and a $3.90 band. That
@@ -922,7 +922,7 @@ describe("bulk pricing is the buyer's own contract, not ours (AD-57)", () => {
       price_cents_per_bird: null,
       bands: BUYER_BANDS
     });
-    const missing = cashFlowsMissingInputs(
+    const missing = missingInputsFor(
       input('2026-03-08', { parameters: settled(), sales: [heavy] })
     );
     // The schedule stops at 1.3 kg and pays LESS as the bird gets heavier, so
@@ -938,7 +938,7 @@ describe("bulk pricing is the buyer's own contract, not ours (AD-57)", () => {
       price_cents_per_bird: null,
       bands: BUYER_BANDS
     });
-    const missing = cashFlowsMissingInputs(
+    const missing = missingInputsFor(
       input('2026-03-08', { parameters: settled(), sales: [light] })
     );
     expect(missing.map((m) => m.key)).toEqual(['bulk_price']);
@@ -954,7 +954,7 @@ describe("bulk pricing is the buyer's own contract, not ours (AD-57)", () => {
         bands: BUYER_BANDS
       });
     const missingAt = (g: number) =>
-      cashFlowsMissingInputs(input('2026-03-08', { parameters: settled(), sales: [at(g)] }));
+      missingInputsFor(input('2026-03-08', { parameters: settled(), sales: [at(g)] }));
 
     // 1,300 g clears the top floor: $3.70 less 20c.
     expect(missingAt(1300)).toEqual([]);
@@ -966,7 +966,7 @@ describe("bulk pricing is the buyer's own contract, not ours (AD-57)", () => {
 
   it('refuses a BANDED order carrying no schedule, rather than borrowing the planning default', () => {
     const naked = order({ pricing_basis: 'BANDED', price_cents_per_bird: null, avg_dressed_weight_g: 1250 as Grams });
-    const missing = cashFlowsMissingInputs(
+    const missing = missingInputsFor(
       input('2026-03-08', { parameters: settled(), sales: [naked] })
     );
     // parameters.bulk_bands is what an UNCONTRACTED future sale is planned

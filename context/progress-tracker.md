@@ -4,6 +4,19 @@ Update this file after every meaningful implementation change.
 
 ## Current Phase
 
+**U6 — opening move: one shared refusal list, 2026-09-14.** TD-4 finding 8
+closed before any schema work, so `decision.allocation` is never wired onto
+drifted checks. `missingInputsFor` moved to `packages/engine/src/refusals.ts`
+and absorbed `cashFlowsMissingInputs` (deleted) and the sales bird-count
+check; `computeDecision`, `projectCashCalendar`'s guard and
+`computeAllocation` all call it. Three drifts pinned by tests that failed
+first: a BANDED bulk order with no bands and an unpriced gate order both
+returned `ok` from `computeDecision`; an oversold batch was scored by the
+allocation. Fixture 13's `why` text changed (AD-60). **348 unit tests**,
+golden 11 / 11 / 1 held, lint and build clean.
+
+---
+
 **U5 — pre-merge review fix wave, 2026-09-14.** An independent review of the
 whole branch (base `fd0fa80`) returned "with fixes": 13 findings, the first
 five reproduced. Fixed test-first, one commit each:
@@ -519,7 +532,8 @@ completeness fixture.
 
 ## In Progress
 
-Nothing — between units. **U5 M5b is merged to `main`** (2026-09-14, `6a73ad0`):
+**U6** — started 2026-09-14. Task 0 (shared refusal list, TD-4 #8) done; the
+spec is being planned in chunks. **U5 M5b is merged to `main`** (2026-09-14, `6a73ad0`):
 M5a done, M5b Tasks 1-8 done, Daniel's six answers wired (AD-52 to AD-57), band
 refusal made consistent (AD-58), pre-merge review fixed (AD-59). What is left in
 U5 is blocked, not in progress — see Next Up.
@@ -660,6 +674,21 @@ regenerating when real mortality data lands.
 Tracked in `current-issues.md`.
 
 ## Architecture Decisions
+
+**AD-60 · Fixture 13's refusal wording is the shared refusal's.**
+Decided 2026-09-14, with TD-4 finding 8. Fixture 13's `kind`, keys and their
+order are unchanged; only the two `why` strings changed. They read "Client has
+not provided the abattoir fee per bird (OQ-2)" and "…transport cost per bird
+(OQ-2)", while the calendar's own list said both were answered (2026-09-10 and
+2026-09-12) and only absent from this input.
+
+*Why:* one list means one wording, and the fixture's wording was the false one.
+Keeping it would have sent a reader back to Daniel for two numbers he has
+already given.
+
+*Rejected:* keeping the fixture text and changing the calendar's (restores a
+stale claim), and comparing keys only in the golden runner (weakens every
+fixture to protect one string).
 
 **AD-59 · Build Reserve scores null until a candidate has forecast sales.**
 Decided 2026-09-14, from the pre-merge review, closing the confident half of

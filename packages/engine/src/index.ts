@@ -1,9 +1,10 @@
-import type { DecisionResult, EngineInput, HarvestPlan, MissingInput } from './types.js';
+import type { DecisionResult, EngineInput, HarvestPlan } from './types.js';
 import { NotImplementedError } from './errors.js';
-import { projectProduction, salesMissingInputs } from './production.js';
+import { projectProduction } from './production.js';
 import { computeCosting } from './costing.js';
-import { computeFeedLiability, feedDrawsMissingInputs } from './feed.js';
+import { computeFeedLiability } from './feed.js';
 import { planHarvest } from './harvest.js';
+import { missingInputsFor } from './refusals.js';
 
 export * from './types.js';
 export { NotImplementedError, isNotImplemented } from './errors.js';
@@ -34,7 +35,6 @@ export {
   SEED_ABATTOIR_FEE_CENTS,
   SEED_TRANSPORT_CENTS_PER_BIRD,
   bulkNetCentsPerBird,
-  cashFlowsMissingInputs,
   projectCashCalendar
 } from './cash.js';
 export {
@@ -48,6 +48,7 @@ export {
   projectCandidate,
   scoreCandidate
 } from './allocation.js';
+export { missingInputsFor } from './refusals.js';
 export {
   SEED_OVERHEADS,
   overheadBreakdown,
@@ -78,24 +79,14 @@ export {
  * of excuses to remember to update.
  */
 export function computeDecision(input: EngineInput): DecisionResult {
+  // The one refusal list (refusals.ts), shared with the cash calendar and the
+  // allocation so the three cannot drift apart again (TD-4 finding 8).
   const missing = missingInputsFor(input);
   if (missing.length > 0) {
     return { kind: 'missing_input', missing };
   }
 
   const production = projectProduction(input);
-
-  /**
-   * Sales are validated HERE rather than in `missingInputsFor` because the
-   * check needs the flock, and the flock comes from production. Everything
-   * above this line is cheap and input-only; this is the first check that
-   * needed a computed value, which is why it sits after the projection and
-   * before anything derives money from an order.
-   */
-  const badSales = salesMissingInputs(input, production);
-  if (badSales.length > 0) {
-    return { kind: 'missing_input', missing: badSales };
-  }
 
   const costing = computeCosting(input, production);
   const feed = computeFeedLiability(input, production);
@@ -146,69 +137,4 @@ export function computeDecision(input: EngineInput): DecisionResult {
       }
     }
   };
-}
-
-/**
- * Invariant 5: what the engine refuses to guess.
- *
- * A bulk sale cannot be priced without the abattoir fee and the run to the
- * abattoir, and neither has been supplied (OQ-2). We say which is missing
- * rather than substituting a plausible number — a blank the client can fill is
- * always better than a confident wrong figure he cannot audit.
- */
-export function missingInputsFor(input: EngineInput): MissingInput[] {
-  const missing: MissingInput[] = [];
-
-  /**
-   * The gate price is needed by every batch, bulk sales or not — the harvest
-   * plan's gate window and hold cost both read it. It is checked BEFORE the
-   * bulk early-return for that reason: the original structure returned early
-   * for a gate-only batch, so this could never have fired even if it had been
-   * written.
-   *
-   * `'gate_price'` has been a declared `MissingInputKey` since U1 and was
-   * emitted nowhere; `planHarvest` priced a null gate price at `0n` instead,
-   * valuing a bird at nothing. This is the refusal that slot was for.
-   */
-  const basis = input.parameters.gate_pricing_basis;
-  const gateRate =
-    basis === 'PER_KG'
-      ? input.parameters.gate_price_cents_per_kg
-      : input.parameters.gate_price_cents_per_bird;
-  if (gateRate === null) {
-    missing.push({
-      key: 'gate_price',
-      why: `Client has not provided a ${basis} gate price`
-    });
-  }
-
-  /**
-   * OQ-21. A fractional bag count is checked here, alongside the gate price
-   * and before the bulk early-return, for the same reason that one is: it
-   * affects every batch that has entered a draw, bulk sales or not. It used
-   * to throw an uncaught `RangeError` out of `computeFeedLiability` below and
-   * take production and costing down with it — a stack trace where this
-   * function promises a typed blank.
-   */
-  missing.push(...feedDrawsMissingInputs(input));
-
-  const sellsBulk = input.sales.some((sale) => sale.channel === 'BULK');
-  if (!sellsBulk) return missing;
-
-  if (
-    input.parameters.delivery_mode === 'ABATTOIR' &&
-    input.parameters.abattoir_fee_cents === null
-  ) {
-    missing.push({
-      key: 'abattoir_fee',
-      why: 'Client has not provided the abattoir fee per bird (OQ-2)'
-    });
-  }
-  if (input.parameters.transport_cents_per_bird === null) {
-    missing.push({
-      key: 'transport_cents_per_bird',
-      why: 'Client has not provided transport cost per bird (OQ-2)'
-    });
-  }
-  return missing;
 }
