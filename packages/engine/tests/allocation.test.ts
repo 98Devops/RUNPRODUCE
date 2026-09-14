@@ -234,6 +234,53 @@ describe('candidateInput', () => {
   });
 });
 
+describe("flows dated past the running batch’s own completion", () => {
+  // A draw collected 2026-03-12 on its OWN 120-day terms falls due 2026-07-10:
+  // day 155 of the running batch, and day 99 of a candidate placed 2026-04-03.
+  // Both are past the fixed 41 + parameters.feed_terms_days = 71 that used to
+  // bound these calendars, which dropped the obligation outright.
+  const DUE = '2026-07-10' as IsoDate;
+  // asOf after the collection, or invariant 7 rightly ignores the draw.
+  const longTerms = (): EngineInput => ({
+    ...baseInput(),
+    asOf: '2026-03-15' as IsoDate,
+    draws: [
+      {
+        collection_date: '2026-03-12' as IsoDate,
+        phase: 'FINISHER',
+        bags: 50,
+        kg: 2500,
+        price_per_bag_cents: 2860n as Cents,
+        terms_days: 120
+      }
+    ]
+  });
+
+  it('hands the long-terms draw over rather than dropping it', () => {
+    const running = longTerms();
+    const handoff = handoffAtPlacement(running, feedFor(running), 0n as Cents, '2026-04-03' as IsoDate);
+    const due = handoff.carried_flows.filter((f) => f.date === DUE && f.kind === 'FEED_DRAW_PAYMENT');
+    expect(due.map((f) => f.amount_cents)).toEqual([-143000n]);
+  });
+
+  it('still double-counts nothing against a horizon long enough to hold every flow', () => {
+    const running = longTerms();
+    const full = projectCashCalendar(running, 200, 0n as Cents, feedFor(running));
+    const handoff = handoffAtPlacement(running, feedFor(running), 0n as Cents, '2026-04-03' as IsoDate);
+    const carriedSum = handoff.carried_flows.reduce((sum, f) => sum + f.amount_cents, 0n);
+    expect(handoff.opening_cents + carriedSum).toBe(full.closing_cents);
+  });
+
+  it("extends a candidate's calendar to the last carried flow, so the trough sees it", () => {
+    const running = longTerms();
+    const c: Candidate = { placement_date: '2026-04-03' as IsoDate, chick_count: 2500 };
+    const handoff = handoffAtPlacement(running, feedFor(running), 0n as Cents, c.placement_date);
+    const calendar = projectCandidate(running, c, handoff);
+    const dueDay = calendar.days.find((d) => d.date === DUE);
+    expect(dueDay?.flows.some((f) => f.kind === 'FEED_DRAW_PAYMENT' && f.amount_cents === -143000n)).toBe(true);
+  });
+});
+
 describe('projectCandidate', () => {
   it("scores over the candidate's own completion horizon, not a fixed window", () => {
     const c: Candidate = { placement_date: '2026-04-03' as IsoDate, chick_count: 2500 };

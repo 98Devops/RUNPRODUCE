@@ -467,8 +467,21 @@ export function projectCashCalendar(
     throw new Error(`through_day ${throughDay} is before placement day 1`);
   }
 
-  const { placement_date, chick_count, extra_chick_count, chick_price_cents } = input.batch;
+  const flows = [...batchCashFlows(input, feed), ...carriedFlows];
   const floor = input.parameters.reserve_floor_cents;
+  return buildDays(input, throughDay, openingCents, flows, floor, feed.planned_confidence);
+}
+
+/**
+ * Every dated flow this batch generates, before any horizon is applied.
+ *
+ * Separate from `projectCashCalendar` so a caller choosing a horizon can see
+ * how far the flows actually run. A fixed horizon silently drops a draw or a
+ * receipt on its own longer terms, which is how the allocation handoff lost
+ * obligations dated past `41 + feed_terms_days`.
+ */
+export function batchCashFlows(input: EngineInput, feed: FeedLiability): CashFlow[] {
+  const { placement_date, chick_count, extra_chick_count, chick_price_cents } = input.batch;
 
   const flows: CashFlow[] = [];
 
@@ -676,9 +689,7 @@ export function projectCashCalendar(
     });
   }
 
-  flows.push(...carriedFlows);
-
-  return buildDays(input, throughDay, openingCents, flows, floor, feed.planned_confidence);
+  return flows;
 }
 
 /**

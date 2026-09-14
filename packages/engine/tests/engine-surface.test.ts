@@ -31,7 +31,10 @@ const INTERNAL_CROSS_MODULE: Readonly<Record<string, string>> = {
   // cash.ts dates a HARVEST_COMPLETE overhead against the day the batch could
   // be finished (AD-56). Deriving a second notion of "the batch is done" there
   // is the duplication AD-52 removed from feed pricing.
-  firstDayAtWeight: 'shared by harvest.ts and cash.ts so one engine holds one harvest-completion day'
+  firstDayAtWeight: 'shared by harvest.ts and cash.ts so one engine holds one harvest-completion day',
+  // allocation.ts sizes a calendar's horizon to the last flow it must hold, so
+  // it needs the flows before the calendar is built.
+  batchCashFlows: 'shared by cash.ts and allocation.ts so a horizon can cover every dated flow'
 };
 
 function valueExportsOf(source: string): string[] {

@@ -1,6 +1,6 @@
 import { SEED_BREED_CURVE } from './breed-curve.js';
-import { cashFlowsMissingInputs, projectCashCalendar } from './cash.js';
-import { addDays } from './day-number.js';
+import { batchCashFlows, cashFlowsMissingInputs, projectCashCalendar } from './cash.js';
+import { addDays, daysBetween } from './day-number.js';
 import { computeCosting } from './costing.js';
 import { computeFeedLiability } from './feed.js';
 import { SEED_OVERHEADS, overheadBreakdown } from './overheads.js';
@@ -86,6 +86,28 @@ export function enumerateCandidates(
  * AD-43 gives: a fixed window would give candidates at different dates
  * different amounts of the running batch inside it.
  */
+/**
+ * A horizon long enough to hold every flow, never shorter than `ownCompletion`.
+ *
+ * AD-43's own-completion horizon is a floor, not a cut-off. A draw or receipt
+ * on its OWN terms can land after `41 + feed_terms_days`, and a calendar that
+ * stops first drops it — from the opening balance, from the carried flows, and
+ * from the trough the reserve floor reads. Dropping an obligation flatters the
+ * balance, the direction this engine must never err in.
+ */
+function horizonCovering(
+  placementDate: IsoDate,
+  ownCompletion: number,
+  flows: readonly CashFlow[]
+): number {
+  let horizon = ownCompletion;
+  for (const flow of flows) {
+    const day = daysBetween(placementDate, flow.date) + 1;
+    if (day > horizon) horizon = day;
+  }
+  return horizon;
+}
+
 export function handoffAtPlacement(
   input: EngineInput,
   feed: FeedLiability,
@@ -94,7 +116,11 @@ export function handoffAtPlacement(
 ): RunningBatchHandoff {
   const curve = input.curve ?? SEED_BREED_CURVE;
   const lastCurveDay = curve.points[curve.points.length - 1]!.day_number;
-  const horizon = lastCurveDay + input.parameters.feed_terms_days;
+  const horizon = horizonCovering(
+    input.batch.placement_date,
+    lastCurveDay + input.parameters.feed_terms_days,
+    batchCashFlows(input, feed)
+  );
   const calendar = projectCashCalendar(input, horizon, currentOpeningCents, feed);
 
   const dayBefore = addDays(placementDate, -1);
@@ -156,7 +182,13 @@ export function projectCandidate(
 
   // AD-43's own-completion horizon, passed explicitly because AD-47 gave
   // throughDay no default precisely so this choice cannot be inherited wrong.
-  const throughDay = lastCurveDay + synthetic.parameters.feed_terms_days;
+  // Extended past it only as far as a carried flow reaches, so the running
+  // batch's late obligations still land inside this candidate's trough.
+  const throughDay = horizonCovering(
+    candidate.placement_date,
+    lastCurveDay + synthetic.parameters.feed_terms_days,
+    handoff.carried_flows
+  );
 
   const feed = computeFeedLiability(synthetic, projectProduction(synthetic));
   return projectCashCalendar(synthetic, throughDay, handoff.opening_cents, feed, handoff.carried_flows);
