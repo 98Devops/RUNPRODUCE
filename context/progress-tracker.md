@@ -675,7 +675,140 @@ Tracked in `current-issues.md`.
 
 ## Architecture Decisions
 
-**AD-72 · Overhead cadences are proven by a round trip, and an unknown cadence throws (U6 T-RT1).**
+**AD-80 · Tables with no engine reader wait for the feature that needs them (U6 D19).**
+Approved 2026-09-14. Not built in U6: `credit_facilities`, `feed_allocations`,
+`feed_payments`, `receipts`, `expenses`, `offal_disposition`,
+`offal_value_cents`. Built: `cash_accounts` and `cash_transactions`, because
+AD-67 reads them. Nothing can be entered before a capture screen exists, so
+waiting loses no data, and each addition is additive (AD-65).
+*Open:* OQ-32 decides whether feed draws need a shared collection and a
+per-batch split. That would be the first deferred table to be pulled forward.
+
+**AD-79 · Sales orders store forward orders and no derived money (U6 D18).**
+Approved 2026-09-14. A forward-dated order is stored, because `cash.ts` reads
+orders past `asOf` by design. `avg_live_weight_g` is required, because the
+engine types it non-null. The bands are written with the order in one call.
+`CHECK (pricing_basis <> 'BANDED' OR channel = 'BULK')` rejects nonsense. A null
+price, dressed weight or band set is "not supplied", which the engine refuses.
+`gross_cents`, `net_cents`, `abattoir_fee_cents`, `transport_cents` and
+`status` are not stored.
+*Open:* OQ-33, whether a booked run carries a fixed weight distinct from the
+weighed one.
+
+**AD-78 · A feed draw belongs to one batch, and a part bag is recordable (U6 D17).**
+Approved 2026-09-14. `batch_id not null`. `bags numeric` with at most two decimals (a CHECK on `scale`, because
+`numeric(8,2)` would silently round a third), so a real
+part-bag invoice is stored and the engine refuses it with `feed_draw_bags`
+(OQ-21), instead of the database rejecting what was typed. The draw's weight is
+stored in grams alongside `bags`, because `kgDiscrepancy` compares the two.
+`due_date` is a generated column; no total is stored.
+*Open:* OQ-32 (a collection shared by two batches) and OQ-34 (feed collected
+before placement, which `buildDays` throws on today).
+
+**AD-77 · Daily records store the date and grams (U6 D16).**
+Approved 2026-09-14. `record_date`, not `day_number`: the repository derives the
+day number with `dayNumberFor`, so a corrected placement date moves every day
+number with it. Feed is stored as integer grams (CLAUDE.md rule 2), and the
+repository converts to the engine's kg. Weight and sample size are null
+together or present together.
+*Tech debt:* the engine's `DailyRecord` feed fields are kg `number`, TD-5.
+
+**AD-76 · The database refuses an impossible fact; the engine refuses an inconsistent one (U6 D15).**
+Approved 2026-09-14. Deferred constraint triggers, checked at commit and taking a
+lock on the batch row, enforce:
+- current cumulatives that never decrease;
+- removals no greater than the flock;
+- current orders totalling no more than the flock;
+- a record not dated before placement.
+
+They fire from either side of each bound, placement corrections included.
+"Sold more than were alive that day" stays the engine's `sales_bird_count`
+refusal, because the database enforcing it would reject a true mortality record
+entered after a true sale. Payment and facility limits wait for their tables
+(AD-80). Writes go through one `SECURITY DEFINER` function per fact, with no
+direct write grants. The triggers hold the integrity, so the service role cannot
+skip it.
+
+**AD-75 · Corrections append, and the obvious name only ever returns current rows (U6 D14).**
+Approved 2026-09-14. Nothing is updated or deleted.
+- **How a correction is written.** It inserts a row whose `supersedes_id` points
+  at the row it replaces. `UNIQUE (supersedes_id)` keeps the history one chain.
+  An entry made in error is superseded by a row with `voided = true`.
+- **Idempotency.** `client_request_id uuid unique` carries the Idempotency-Key.
+  A repeat, or a resubmission identical to the current row, writes nothing.
+
+**Where the "not superseded and not void" filter lives: both layers, and the
+database is the guarantee** (answered 2026-09-14, not deferred):
+1. **Raw rows are not reachable under the obvious name.**
+   - **Version tables.** The append-only tables live in a `facts` schema and are
+     named for what they hold: `facts.daily_record_versions`,
+     `facts.feed_draw_versions`, and so on.
+   - **Current views.** The plain names are views in `public` that return only
+     current rows: `public.daily_records`, `public.feed_draws`,
+     `public.sales_orders`, `public.batches`, `public.cash_transactions`.
+   - **History views.** Screens that need corrections read
+     `public.<table>_history`. The name says what it holds, and every row
+     carries `is_current`.
+   - This replaces chunk 4's `current_<table>` naming. That naming left the raw
+     table under the plain name, which is exactly the failure this AD exists to
+     prevent.
+2. **The API cannot reach raw rows at all.** `facts` is not in PostgREST's
+   exposed schemas, so supabase-js can only query the views.
+   - The views are `security_invoker = true`, so RLS on the version tables still
+     applies to whoever reads them.
+   - A direct SQL session (migrations, the SQL editor, the service role) can
+     still read `facts.*`. There, the schema and the `_versions` suffix say
+     "every version" in the query text itself.
+3. **Repositories read only the `public` views.** This is backed by a test, not
+   by memory: a repository test fails if any repository source names `facts.`
+   or `_versions`.
+4. **CI checks it.**
+   - An API client querying `facts.daily_record_versions` gets an error.
+   - After one correction, `public.daily_records` returns one row for that date.
+   - The project's exposed-schemas setting does not include `facts`.
+
+*Why:* a consumer that forgets a filter must get a safe default, not a mix of
+current and superseded rows with nothing to warn it. It is the same drift class
+as "one number, one source of truth". A filter that only repositories know
+about fails the first time something else queries the table.
+*Rejected:* repository-only filtering, a flag column every query must remember,
+and a `current_` prefix on the view.
+
+**AD-74 · A batch is an identity row plus placement and closure facts (U6 D13).**
+Approved 2026-09-14. `facts.batches (code, breed_curve_id)` never changes and is
+what every fact references. Placement (date, chicks, extras, chick price) and
+closure (`closed_on`) are version tables under AD-75. Reopening a batch is a
+voided closure. Status is derived, never stored. `public.batches` joins the
+identity to its current placement and closure.
+
+**AD-73 · An overhead line the engine does not recognise is refused, not dated at placement.**
+Approved 2026-09-14, from T-RT1. The CD-1 pattern, the same one the reserve
+floor follows when the balance it needs is unknown:
+- **Typed refusal.** `missingInputsFor` emits a typed refusal, `'overhead_line'`,
+  that names the line and the unrecognised value.
+- **Guard.** `cash.ts` dates overheads with an exhaustive check whose final
+  branch throws "call missingInputsFor() first", for a caller that skipped the
+  list.
+- **Scope.** Today `if HARVEST_COMPLETE … if MONTHLY … else placement` sends
+  **any** other value to day 1.
+- **Basis too.** `overheadLineCents` has the same fall-through for `basis`,
+  where anything not `PER_BATCH` is charged per bird, so the same refusal and
+  guard cover basis.
+
+Built test-first: the failing tests (an unknown timing and an unknown basis
+each dated or charged without error) come first. No fixture changes, because
+every existing line is valid. The key joins AD-63's governed `MissingInputKey`
+list.
+
+*Why:* silent defaulting looks conservative, but it invents a fact. Here the
+invented fact is that an overhead of unknown timing falls on day 1. That moves
+money into the early-cycle trough, and the trough is what the reserve-floor
+filter reads (AD-43), so it changes which placements are judged affordable. A
+wrong day 1 is not safe just because it is early. It is a date nobody gave us,
+presented as the calendar.
+*Relation to AD-72:* AD-72 is the round trip that catches a stored misspelling.
+This AD is what the engine does with a bad value from any source.
+**AD-72 · Overhead cadences are proven by a round trip (U6 T-RT1).**
 Approved 2026-09-14 with chunk 3. Before the first migration, and before any
 table, function or repository that would make it pass, a test writes overhead
 lines through `create_parameter_set`, reads them back through the repository,
@@ -684,10 +817,8 @@ calendar. It runs three cases: `SEED_OVERHEADS` against the seeded default
 (one line per cadence: `PLACEMENT`, `MONTHLY`, `HARVEST_COMPLETE`); every
 `OverheadTiming` × `OverheadBasis` pair and every `Confidence`; and a misspelt
 timing (`monthly_split`, and a case variant), which the database rejects on
-`overhead_lines_timing_values` with no row written. In the engine, `cash.ts`
-gets an exhaustive `timing` check that throws, so an unrecognised value can no
-longer date at placement. The engine change is test-first, with no fixture
-change.
+`overhead_lines_timing_values` with no row written. What the engine does with
+an unrecognised value from any source is AD-73.
 *Why:* a misspelt cadence passed silently. Labour or electricity landed on day 1
 and the calendar still looked plausible.
 
@@ -787,6 +918,12 @@ commit, and not "when we get to it".
   - `overhead_lines_confidence_values` (`Confidence`)
   - `feed_prices_phase_values`, `breed_curve_points_phase_values` and
     `breed_curve_phases_phase_values` (`Phase`)
+  - Added with chunk 4 (approved) under chunk 5's table names (AD-75):
+    `feed_draw_versions_phase_values` (`Phase`),
+    `sales_order_versions_channel_values` (`Channel`),
+    `sales_order_versions_pricing_basis_values` (`SalePricingBasis`),
+    `cash_transaction_versions_direction_values` (`CashDirection`, new with
+    AD-67), and `MissingInputKey` gains `'overhead_line'` (AD-73)
 
   Chunk 4 adds its constraints, including the sales contract's basis and
   channel, to this list when it is approved. The overhead cadences are also

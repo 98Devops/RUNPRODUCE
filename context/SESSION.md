@@ -19,7 +19,7 @@ Last updated: 2026-09-14 · Branch: `u6-supabase-schema`
   - A write window never stays open across a planning step, a commit or the end of a session. `.mcp.json` is never committed without `read_only=true`.
   - Before any MCP call, check that the URL still reads `project_ref=zlvjmaorlxrjnuxhykuh`.
 - **Read-only is NOT yet confirmed in effect (last checked at the end of chunk 3, 2026-09-14).** The live connection still predates the URL change: `transaction_read_only` = `off`, user `postgres`. At the end of chunk 3 the session's tool list still offered `apply_migration`, `create_branch` and `deploy_edge_function`. **No MCP calls until the user reconnects `supabase` in `/mcp` and the step-3 check passes.** "No writes attempted" is true; "read-only is holding" is not yet.
-- **Writes so far: none.** Dev has 0 migrations and 0 `public` tables. Every MCP call in this session was read-only by nature: `get_project_url`, `list_tables`, `list_migrations`, and one `SELECT` of settings. No MCP call was made during chunks 3 or 4.
+- **Writes so far: none.** Dev has 0 migrations and 0 `public` tables. Every MCP call in this session was read-only by nature: `get_project_url`, `list_tables`, `list_migrations`, and one `SELECT` of settings. No MCP call was made during chunks 3 to 5.
 
 ## What this is
 A decision console for Daniel, a broiler farmer, that turns his daily batch records into feed, cost, cash and harvest figures. Its headline job is telling him how many birds to place next and when, under three named strategies.
@@ -44,14 +44,19 @@ npm monorepo: a pure TypeScript engine (`packages/engine`) behind a Next.js app 
 - **Task 0 done:** one shared refusal list, `missingInputsFor` in `refusals.ts` (TD-4 #8, AD-60).
 - **Chunk 1** (framing, dev project): drafted.
 - **Chunk 2** (parameters, opening cash, D4-D8): approved, AD-61 to AD-67.
-- **Chunk 3** (parameter tables, D9-D12): **approved 2026-09-14**, AD-68 to AD-72.
-  - D9 `create_parameter_set` in one transaction (AD-68). D10 `revision`, amends D7 (AD-69). D11 breed curves immutable, pinned by the batch (AD-70). D12 `bag_kg` on `feed_prices`, amends D6 (AD-71).
-  - The approval named "D9-D15" and enums `overhead_line_type` / `contract_type` / `timing_basis`; mapped in the spec and in AD-63. If it was meant for a different draft, revert AD-68 to AD-72.
-  - **T-RT1** (overhead round trip, test-first) plus an exhaustive `timing` check that throws in `cash.ts` (AD-72). Not built.
-  - **AD-63** names every governed constraint; any value change is engine + schema in one commit.
-  - `gate_price_cents_per_bird` **stays** (live field). The confirmed "orphaned key" is `mortality_history`: delete it from `MissingInputKey`, TDD, in the build.
-- **Chunk 4** (recorded facts, D13-D19): **drafted, awaiting sign-off.** Batches as identity + placement fact; corrections append (`supersedes_id`, `voided`, `current_*` views, idempotency key); integrity in deferred triggers; dates and grams stored; part bags recordable; forward sales orders stored; payments, receipts, facilities, expenses, offal deferred. Proposed OQ-32 (shared collection across batches) and OQ-33 (booked bulk runs), not yet logged.
-- **Chunks 5-8** to come: access, repositories, seed, build order.
+- **Chunk 3** (parameter tables, D9-D12): approved, AD-68 to AD-72. `create_parameter_set` in one transaction; `revision`; immutable breed curves pinned by the batch; `bag_kg` on `feed_prices`; T-RT1 overhead round trip. `gate_price_cents_per_bird` stays; `mortality_history` is deleted in the build.
+- **AD-73** (approved): an unrecognised overhead `timing` or `basis` is refused (`'overhead_line'` in `missingInputsFor`) with a guard throw in `cash.ts`, never dated on day 1. CD-1 pattern. Not built.
+- **Chunk 4** (recorded facts, D13-D19): **approved 2026-09-14**, AD-74 to AD-80.
+  - D13 / AD-74: a batch is an identity row plus placement and closure facts; status derived.
+  - D14 / AD-75: corrections append (`supersedes_id`, `voided`, `client_request_id`). **The current-row filter is enforced in the database:** version tables live in a non-exposed `facts` schema as `*_versions`; the plain names in `public` are `security_invoker` views of current rows; history is `*_history`. Repositories read views only, and a test enforces it.
+  - D15 / AD-76: deferred triggers enforce impossible facts (removals or sales over flock, cumulatives decreasing). "Sold more than alive" stays an engine refusal. One `SECURITY DEFINER` write function per fact.
+  - D16 / AD-77: daily records store `record_date` and grams (engine kg is TD-5).
+  - D17 / AD-78: a draw belongs to one batch; `bags numeric`, at most 2 decimals by CHECK (never silently rounded), part bags recordable.
+  - D18 / AD-79: forward sales orders stored; no derived money; BANDED only on BULK.
+  - D19 / AD-80: payments, receipts, facilities, allocations, expenses, offal deferred; cash accounts and transactions built.
+- **Daniel message drafted, NOT sent** (`current-issues.md`, "DANIEL MESSAGE — how things get recorded"): OQ-32 (shared feed collection), OQ-34 (feed before placement, new: `buildDays` throws on it), OQ-33 (booked bulk with fixed weight), plus six still-open older questions. The user sends it.
+- **Chunk 5** (fact table structure): **drafted, awaiting sign-off.** Built on assumed answers OQ-32 a, OQ-33 a/b, OQ-34 a. Tests T-RT2, T-RT3, T-DB1 to T-DB3.
+- **Chunks 6-9** to come: access, repositories, seed, build order.
 
 ## Blockers
 | Blocker | Blocks | Who resolves |
@@ -60,6 +65,7 @@ npm monorepo: a pure TypeScript engine (`packages/engine`) behind a Next.js app 
 | OQ-26: Cover Fast can't answer structurally (candidates have no forecast sales) | 1 of 3 modes | Us, via M6 |
 | OQ-31: Build Reserve pinned null for the same reason (AD-59) | 1 of 3 modes. Only Maximum Growth answers | Us, via M6 |
 | OQ-29: `computeAllocation` takes 20.8 s at 5k birds, ~2 min at 30k | **U9, hard.** Needs a design answer, not "consider performance" | Us: profile first |
+| OQ-32 / OQ-33 / OQ-34: feed shared across batches; booked bulk weight; feed before placement | Shape of U6 chunk 5 (assumed simple answers) | Daniel (message drafted) |
 | OQ-8: fixture 6 chick price ($0.85 vs $1.00) | Golden completeness hold | Daniel |
 | OQ-10: fixture 8 was blocked on OQ-2, now answered | Golden completeness hold | Us: attempt it |
 | OQ-17: dressing yield ~62% is unmeasured | Accuracy of the bulk harvest day (0.8 pt from flipping) | Daniel (~20 paired weights) |
@@ -80,6 +86,8 @@ npm monorepo: a pure TypeScript engine (`packages/engine`) behind a Next.js app 
 - **AD-58:** past the top band, both planning and sales refuse. Bulk hold cost is blank from day 34.
 - **AD-59:** Build Reserve scores null until a candidate has forecast sales; ranking on costs alone picked a 1-bird batch.
 - **AD-60:** one refusal list (`refusals.ts`) for decision, calendar and allocation; fixture 13's wording follows it.
+- **AD-73:** an unrecognised overhead value is refused, never defaulted to day 1.
+- **AD-75:** facts append; the plain table name is a view of current rows, raw versions are unreachable through the API.
 
 Full log: `progress-tracker.md` § Architecture Decisions.
 
@@ -94,7 +102,7 @@ Full log: `progress-tracker.md` § Architecture Decisions.
 8. `context/ui-context.md`, `ui-build-playbook.md`, `card-system-and-decision-ux.md`: only for UI units (U7-U11). For U9, read the OQ-29 section first.
 
 ## Recommended next action
-Get sign-off on chunk 4 (facts, D13-D19). On approval: log ADs, add its constraints to AD-63, log OQ-32/33 in `current-issues.md`. Then draft chunk 5 (access). The user must reconnect `supabase` in `/mcp` and pass the step-3 read-only check before any MCP call. Update this file when planning ends, before any schema code.
+User sends the Daniel message. Get sign-off on chunk 5 (fact table structure). On a surprising Daniel answer, reshape chunk 5 per the consequences table under the message. Then draft chunk 6 (access: RLS, roles, WORKER and financial columns). Reconnect `supabase` in `/mcp` and pass the read-only check before any MCP call. Update this file when planning ends, before any schema code.
 
 ## Maintaining this file
 - Update at the end of every unit, and on any commit that changes state a future session needs.

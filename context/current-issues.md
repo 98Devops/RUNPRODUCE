@@ -295,6 +295,81 @@ first pass was itself incomplete. Items 5 and 6 were only visible by executing
 the engine rather than reading it. **Treat any NEW client question arising on
 this topic as evidence this pass missed something**, and check here first.
 
+## DANIEL MESSAGE — how things get recorded, drafted 2026-09-14 (NOT SENT)
+
+Written for Daniel. Questions 1-3 are new (OQ-32, OQ-34, OQ-33) and shape the
+database U6 is building. 4-9 are the client questions still open in this file,
+bundled so he is not asked twice. **Before sending, drop any of 4-9 already
+answered in a conversation this file does not record.**
+
+> **Subject: Nine quick questions, most are pick-a-letter**
+>
+> Hi Daniel,
+>
+> We're now building the part of the system where your daily records, feed collections and sales get saved. Three questions about how those happen in practice decide how we store them. Getting them right now is cheap; getting them wrong means rebuilding later. The rest are older questions that are still open, bundled here so we don't keep coming back.
+>
+> Just reply with the number and a letter, e.g. "1a, 2b, 3c". Add a line if none of the letters fit.
+>
+> **How you record things (these three first, please)**
+>
+> **1. Feed shared between flocks.** When one batch is still being sold and the next one is already placed, does one feed collection ever feed both?
+> a) No. Each collection is for one flock.
+> b) Sometimes. I split the bags between the two flocks.
+> c) Sometimes, but I don't keep track of which flock gets how much.
+>
+> **2. Feed before the chicks.** Do you ever collect starter feed before the chicks arrive?
+> a) No. Same day or after.
+> b) Yes, a day or two before.
+> c) Yes, sometimes a week or more before.
+>
+> **3. Booking a bulk sale ahead.** When you sell a run to a bulk buyer, how far ahead is it agreed?
+> a) Not ahead. It's arranged on the day, or once the birds are weighed.
+> b) Booked ahead with a date and a number of birds. The weight and money are settled when the birds are weighed.
+> c) Booked ahead with a weight (or weight range) fixed in the deal.
+>
+> **Still open from before**
+>
+> **4. Part bags.** Does the feed supplier ever charge you for part of a bag?
+> a) Never. Always whole 50 kg bags.
+> b) Sometimes.
+>
+> **5. Dressing percentage.** This one is a measurement, not a letter. On your next batch, could you weigh about 20 birds live, then the same birds after dressing, and send us both lists? Every bulk figure currently rests on a rough 62%.
+>
+> **6. Labour and electricity at a bigger flock.** If you ran 30,000 birds instead of 3,000, would labour and electricity:
+> a) stay about the same per batch
+> b) go up roughly in line with the number of birds
+> c) go up, but by less than that (a rough figure helps if you have one)
+>
+> **7. Paying labour.** You said labour is paid when the batch is done. Which day is that in practice?
+> a) The day the last birds leave.
+> b) At the end of that month.
+> c) Some other day (please say).
+>
+> **8. The 2,675-bird break-even.** For a 5,000 flock at day 30, we get 2,675 birds only at 85 cents a chick; at $1.00 a chick it comes out at 2,850. Was your figure worked out at:
+> a) 85 cents a chick
+> b) $1.00 a chick
+> c) Not sure
+>
+> **9. Day 40 weight.** Your growth figures jump from 2,562 g on day 39 to 2,789 g on day 40, about 227 g in a day, against roughly 90 g on every other day. Is day 40:
+> a) a typo (about 2,650 g)
+> b) correct
+>
+> Thanks. If you only have a minute, 1 to 3 are the ones that matter right now.
+
+**What each answer does to the build:**
+
+| Q | Answer | Consequence |
+|---|---|---|
+| 1 | a | Chunk 5 as drafted: a draw belongs to one batch |
+| 1 | b | Feed collections become their own table, with a per-batch split in bags or kg. A split by bags can produce part bags, which the engine refuses (OQ-21). The engine's `FeedDraw` may need a share field |
+| 1 | c | No per-batch feed cost is recordable at all. Per-batch costing needs a new allocation rule, which is an engine and client decision |
+| 2 | a | A trigger rejects a draw dated before placement |
+| 2 | b or c | Engine change: pre-placement draws fold into opening cash (AD-67) or the calendar starts earlier. Today `buildDays` throws |
+| 3 | a or b | Chunk 5 as drafted: one live weight, corrected when the birds are weighed |
+| 3 | c | `sales_order_versions` gains a contracted weight separate from the weighed one. The engine prices off whichever is known, and says which |
+
+---
+
 ## THE DANIEL LIST — bulk revenue, complete, 2026-09-12
 
 ### SEND FIRST, ALONE — the pricing question
@@ -568,6 +643,38 @@ same truck twice. An answered OQ-2 is **not** sufficient to proceed.
 ---
 
 ## Open questions — blocking
+
+### OQ-34 · Is feed ever collected before the chicks arrive? 🟠 SHAPES U6 — ASKED 2026-09-14
+**Status:** drafted for Daniel (message above, Q2). **Raised:** 2026-09-14,
+while drafting U6 chunk 5. **Affects:** `feed_draw_versions`, and today's engine.
+
+`cash.ts` `buildDays` **throws** on any flow dated before placement. A draw
+collected the day before the chicks come in books its delivery payment on the
+collection date, so one true entry would take the whole calendar down. The
+throw assumes such a flow was folded into `openingCents`. Under AD-67 that fold
+covers `cash_transactions`, but not feed draws.
+**Assumed for chunk 5:** never (answer a). A trigger rejects a draw before the
+current placement date, which keeps the engine's precondition true. **If b or
+c:** an engine change, decided then.
+
+### OQ-33 · Are bulk runs booked ahead with a fixed weight? 🟠 SHAPES U6 — ASKED 2026-09-14
+**Status:** drafted for Daniel (Q3). **Raised:** 2026-09-14, U6 D18 (AD-79).
+**Affects:** `sales_order_versions`. `SalesOrder.avg_live_weight_g` is
+non-null, and forward-dated orders reach the calendar by design.
+**Assumed for chunk 5:** not booked with a fixed weight (a or b). One live-weight
+column, entered as the expected weight and corrected (AD-75) once weighed.
+**If c:** a contracted weight column separate from the weighed one, and an
+engine decision on which prices the order.
+
+### OQ-32 · Does one feed collection ever serve two batches? 🟠 SHAPES U6 — ASKED 2026-09-14
+**Status:** drafted for Daniel (Q1). **Raised:** 2026-09-14, U6 D17 (AD-78).
+**Affects:** whether feed draws are one-to-one with a batch or need a collection
+table plus a per-batch split. `EngineInput.draws` is per batch, and the
+architecture sketch assumed a split (`feed_allocations`).
+**Assumed for chunk 5:** no (answer a). **If b:** a collection table and a split,
+where a split by bags can create part bags (OQ-21). **If c:** per-batch feed
+cost has no recorded basis. That needs a new allocation rule, which is an
+engine and client decision.
 
 ### OQ-21 · A fractional-bag draw crashes the engine 🟠 CRASH FIXED — CLIENT HALF OPEN
 **Status:** **The crash is fixed** (2026-09-11). The engine now refuses with a
@@ -2066,6 +2173,14 @@ sales, the null-fee guard, gate-order refusal), as are 6, 7 and 11. These remain
 | 13 | A bulk contract grossing under 20c a bird books a negative receipt with no refusal | Unrealistic; noted rather than guarded |
 | R2-a | Invariant 16 now counts from the latest `order_date`, which has no upper bound: a mistyped far-future date silently pushes the placement floor out | Input validation, for U6/U8's sales ledger, not the engine |
 | R2-b | `batchCashFlows` is exported and allowlisted as internal; it can be called without `cashFlowsMissingInputs` first | Acceptable while the allowlist entry stands; do not re-export it from index.ts |
+
+### TD-5 · The engine types feed quantities as kg `number` 🟡
+**Raised:** 2026-09-14, U6 D16 (AD-77). `DailyRecord.feed_*_kg` and `FeedDraw.kg`
+are floats in kg. CLAUDE.md rule 2 says integer grams, and the database stores
+grams. The repository divides by 1000 at the boundary. `kgDiscrepancy` already
+rounds back to grams to compare. **Fix:** retype to `Grams` in the engine, with
+the golden fixtures' inputs migrated under an AD. Not U6: nothing is wrong
+today, and it touches every fixture.
 
 ### TD-1 · `npm audit` critical in the dev toolchain 🟡
 **Raised:** 2026-09-10. **Decision:** accepted, not remediated. **Revisit:** when vitest is next upgraded.

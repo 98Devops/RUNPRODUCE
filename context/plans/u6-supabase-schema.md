@@ -514,7 +514,10 @@ not here.
 
 ## Chunk 4 — Recorded facts: batches, daily records, feed draws, sales orders
 
-**Status: draft, awaiting sign-off.** This is what Daniel enters day to day.
+**Status: approved 2026-09-14 (D13-D19), logged as AD-74 to AD-80.** D14's
+view naming is superseded by AD-75: raw version tables live in a `facts` schema,
+and the plain names are views of current rows (chunk 5). This is what Daniel
+enters day to day.
 Conventions from chunk 3 apply to every table: uuid `id`, `org_id` with composite
 foreign keys, `created_at` / `created_by`, and `text` + named CHECK.
 
@@ -651,7 +654,7 @@ notes text null)` + D14 columns.
 
 ### D17 · A feed draw belongs to one batch, and a part bag is recordable
 
-`feed_draws (batch_id, collection_date, phase, bags numeric(8,2) > 0,
+`feed_draws (batch_id, collection_date, phase, bags numeric > 0 (at most 2 decimals),
 feed_g integer > 0, price_per_bag_cents bigint > 0, terms_days smallint >= 0,
 reference text null, due_date date GENERATED ALWAYS AS (collection_date +
 terms_days))` + D14 columns.
@@ -750,17 +753,282 @@ built first in the same way as T-RT1.
 
 ---
 
+## Chunk 5 — Fact table structure: daily records, feed draws, and the rest
+
+**Status: draft, awaiting sign-off.** Turns D13-D19 (AD-74 to AD-80) into
+tables, the way chunk 3 turned D4-D8 into parameter tables. Columns and named
+constraints are listed here; the DDL is written in the build.
+
+**This chunk rests on three assumed answers from Daniel** (message drafted
+2026-09-14, not yet sent):
+- **OQ-32:** one feed collection serves one batch.
+- **OQ-33:** no bulk run is booked with a fixed weight.
+- **OQ-34:** no feed is collected before placement.
+
+A different answer reshapes the section marked for it. The consequences table
+is in `current-issues.md`, under the Daniel message.
+
+### Schemas (AD-75)
+
+| Schema | Holds | Reachable through the API? |
+|---|---|---|
+| `facts` | Identity tables and every `*_versions` table. RLS enabled | **No.** Not in PostgREST's exposed schemas |
+| `public` | The views named after the thing (current rows), the `*_history` views, the parameter tables from chunk 3, and the write functions | Yes |
+
+Chunk 3's parameter tables stay in `public`. They are immutable and have no
+versions to hide, because a correction there is a new `revision` (AD-69).
+
+### Columns every version table shares (AD-75)
+
+| Column | Type | Constraint |
+|---|---|---|
+| `id` | `uuid` | primary key |
+| `org_id` | `uuid not null` | FK `organizations` |
+| `supersedes_id` | `uuid null` | `UNIQUE`. Composite FK to its own table, see below |
+| `voided` | `boolean not null default false` | `<table>_void_supersedes`: `NOT voided OR supersedes_id IS NOT NULL` |
+| `client_request_id` | `uuid not null` | `UNIQUE` |
+| `created_at`, `created_by` | `timestamptz`, `uuid` | as chunk 3 |
+
+**A correction cannot move a fact to a different parent or key.** The
+self-reference is a composite FK: `(supersedes_id, batch_id) REFERENCES
+(id, batch_id)`, and for daily records `(supersedes_id, batch_id, record_date)`.
+A record entered against the wrong date is voided and entered again. It is not
+"corrected" onto another date's chain, where it could collide with that date's
+own record.
+
+**The current-row rule, written once:** a row is current when no row's
+`supersedes_id` is its `id` and it is not `voided`. `UNIQUE (supersedes_id)`
+is also the index that makes that check cheap.
+
+A superseded voided row can itself be superseded, which un-voids the entry.
+The write functions allow it. The history shows it.
+
+### `facts.batches` (identity, AD-74)
+
+`id`, `org_id`, `code text not null`, `breed_curve_id uuid not null` (composite
+FK to `breed_curves (id, org_id)`), `created_at`, `created_by`.
+`UNIQUE (org_id, code)`, `UNIQUE (id, org_id)`. Immutable trigger. Not versioned.
+
+### `facts.batch_placement_versions`
+
+`batch_id`, `placement_date date`, `chick_count integer`,
+`extra_chick_count integer`, `chick_price_cents bigint` + shared columns.
+
+| Constraint | Rule |
+|---|---|
+| `batch_placement_versions_chick_count_positive` | `chick_count > 0` |
+| `batch_placement_versions_extra_chick_count_nonnegative` | `extra_chick_count >= 0` |
+| `batch_placement_versions_chick_price_positive` | `chick_price_cents > 0`. A free chick is an extra, not a zero price |
+| `batch_placement_versions_one_chain` | unique index `(batch_id) WHERE supersedes_id IS NULL` |
+
+### `facts.batch_closure_versions`
+
+`batch_id`, `closed_on date` + shared columns. `batch_closure_versions_one_chain`
+on `(batch_id) WHERE supersedes_id IS NULL`. Reopening a batch is a voiding row.
+A deferred trigger checks that `closed_on` is on or after the current placement
+date.
+
+### `facts.daily_record_versions` (D16)
+
+| Column | Type | Null | Constraint |
+|---|---|---|---|
+| `batch_id` | `uuid` | no | composite FK `facts.batches (id, org_id)` |
+| `record_date` | `date` | no | on or after current placement (trigger) |
+| `mortality_cumulative` | `integer` | no | `>= 0`; non-decreasing (trigger) |
+| `cull_cumulative` | `integer` | no | `>= 0`; non-decreasing (trigger) |
+| `feed_starter_g` | `integer` | no | `>= 0` |
+| `feed_grower_g` | `integer` | no | `>= 0` |
+| `feed_finisher_g` | `integer` | no | `>= 0` |
+| `avg_weight_g` | `integer` | yes | `> 0` |
+| `weight_sample_size` | `integer` | yes | `> 0` |
+| `notes` | `text` | yes | |
+
+- `daily_record_versions_weight_with_sample`:
+  `(avg_weight_g IS NULL) = (weight_sample_size IS NULL)`.
+- `daily_record_versions_one_chain`: unique index
+  `(batch_id, record_date) WHERE supersedes_id IS NULL`.
+- **Feed columns are `not null` with no default.** The engine types all three
+  as non-null numbers, and a capture screen that leaves one out must fail, not
+  store a zero nobody entered (invariant 5). The engine itself treats a zero
+  as a true zero.
+- **Carried-forward days are not stored.** A date with no row is a gap, and
+  `projectProduction` already marks it `carried_forward`. A stored "nothing
+  happened" row would be indistinguishable from a real entry of zeros.
+
+### `facts.feed_draw_versions` (D17) — *reshaped if OQ-32 or OQ-34 is not "a"*
+
+| Column | Type | Null | Constraint |
+|---|---|---|---|
+| `batch_id` | `uuid` | no | composite FK |
+| `collection_date` | `date` | no | on or after current placement (trigger, OQ-34) |
+| `phase` | `text` | no | `feed_draw_versions_phase_values` |
+| `bags` | `numeric` | no | `> 0`; `feed_draw_versions_bags_two_decimals`: `scale(bags) <= 2`. Fractions stored, refused by the engine (OQ-21) |
+| `feed_g` | `integer` | no | `> 0`. The weight on the docket, compared by `kgDiscrepancy` |
+| `price_per_bag_cents` | `bigint` | no | `> 0` |
+| `terms_days` | `smallint` | no | `>= 0` |
+| `reference` | `text` | yes | the supplier's docket number |
+| `due_date` | `date` | generated | `collection_date + terms_days` |
+
+- **No natural-key chain.** Two identical draws on one day can both be real.
+- **Why unconstrained `numeric` plus a scale CHECK, not `numeric(8,2)`:** the
+  client's own sheet produces two-decimal bag counts (26.64), so two decimals are
+  real. `numeric(8,2)` would silently ROUND a third decimal on insert, which is
+  a number nobody entered. The CHECK rejects it instead.
+- **Why `price_per_bag_cents` is not null:** a docket always carries a price.
+  If Daniel does not have it, the draw is entered when he does. This is
+  different from chunk 3's nullable gate price, which is a setting that may
+  never have been given. **Open for sign-off:** is "not entered yet" a real
+  state for a draw? If yes, the column becomes nullable and the engine needs a
+  new refusal key, since `FeedDraw.price_per_bag_cents` is non-null today.
+
+### `facts.sales_order_versions` (D18) — *reshaped if OQ-33 is "c"*
+
+| Column | Type | Null | Constraint |
+|---|---|---|---|
+| `batch_id` | `uuid` | no | composite FK |
+| `channel` | `text` | no | `sales_order_versions_channel_values` |
+| `order_date` | `date` | no | on or after current placement (trigger) |
+| `bird_count` | `integer` | no | `> 0`; current total `<=` flock (trigger) |
+| `avg_live_weight_g` | `integer` | no | `> 0` |
+| `avg_dressed_weight_g` | `integer` | yes | `> 0` |
+| `pricing_basis` | `text` | no | `sales_order_versions_pricing_basis_values` |
+| `price_cents_per_bird` | `bigint` | yes | `> 0` |
+| `price_cents_per_kg` | `bigint` | yes | `> 0` |
+| `terms_days` | `smallint` | no | `>= 0` |
+
+`sales_order_versions_banded_is_bulk`: `pricing_basis <> 'BANDED' OR
+channel = 'BULK'`.
+
+`facts.sales_order_bands (sales_order_version_id, dressed_floor_g integer > 0,
+price_cents_per_bird bigint > 0)`, `UNIQUE (sales_order_version_id,
+dressed_floor_g)`. Bands belong to one version and are immutable. A correction
+writes its own full band set, so a history row always shows the bands it was
+priced on.
+
+### `facts.cash_accounts` and cash versions (D19, AD-67)
+
+- `facts.cash_accounts (id, org_id, name text not null)`: identity.
+- `facts.cash_account_opening_versions (account_id, opening_date date,
+  opening_balance_cents bigint)`, one chain per account. **No sign CHECK**: an
+  overdrawn opening balance is real.
+- `facts.cash_transaction_versions (account_id, txn_date date, direction text,
+  amount_cents bigint > 0, category text not null, batch_id uuid null)`.
+  `cash_transaction_versions_direction_values` covers `IN` and `OUT`. The
+  amount is always positive; the direction carries the sign.
+
+### Views in `public` (AD-75)
+
+All are `security_invoker = true`.
+
+| View | Returns |
+|---|---|
+| `batches` | identity + current placement + current closure (null if open) |
+| `daily_records` | current rows. No `day_number`: the repository derives it with `dayNumberFor` (AD-77) |
+| `feed_draws` | current rows |
+| `sales_orders` | current rows, with `bands` as a `jsonb` array in `dressed_floor_g` order |
+| `cash_accounts` | identity + current opening |
+| `cash_transactions` | current rows |
+| `<each>_history` | every version, with `is_current` and `superseded_at` |
+
+### Triggers
+
+| Name | On | Kind | Checks |
+|---|---|---|---|
+| `<table>_immutable` | every `facts` table | `BEFORE UPDATE OR DELETE` | raises, always |
+| `daily_records_removals_valid` | `daily_record_versions`, `batch_placement_versions` | deferred constraint | current cumulatives non-decreasing by `record_date`; `mortality + cull <= chick_count + extra_chick_count`; no record before placement |
+| `sales_orders_within_flock` | `sales_order_versions`, `batch_placement_versions` | deferred constraint | current `sum(bird_count) <= chick_count + extra_chick_count`; no order before placement |
+| `feed_draws_after_placement` | `feed_draw_versions`, `batch_placement_versions` | deferred constraint | no draw before placement (OQ-34) |
+| `batch_closures_after_placement` | `batch_closure_versions`, `batch_placement_versions` | deferred constraint | `closed_on >= placement_date` |
+
+- **Each check starts with `SELECT … FROM facts.batches WHERE id = … FOR
+  UPDATE`.** Under READ COMMITTED, the check's next statement then sees any
+  transaction that committed while it waited, so two entries cannot pass
+  against the same stale total.
+- **Messages** use the engine's wording ("Day 12: removals exceed the flock — 40
+  dead + 5 culled = 3,005 from 3,000 birds"), and `ERRCODE` is `check_violation`
+  so the repository maps it to a typed error, not a 500.
+
+### Write functions (AD-76)
+
+All are `SECURITY DEFINER`, `search_path = ''`, and check membership (roles in
+chunk 6). Money travels in the payload as strings.
+
+| Function | Writes |
+|---|---|
+| `record_batch(payload)` | identity + first placement, one transaction |
+| `record_batch_placement(payload)` | a correction to the placement |
+| `record_batch_closure(payload)` | close, or void to reopen |
+| `record_daily_records(batch_id, rows jsonb)` | one or more dates. For each: a new chain, or a supersede of that date's head. Several days commit together, so the deferred triggers see them together |
+| `record_feed_draw(payload)` | new, correction or void |
+| `record_sales_order(payload)` | order + full band set, new, correction or void |
+| `record_cash_account(payload)`, `record_cash_transaction(payload)` | same pattern |
+
+Each function:
+- **Returns the existing id on a repeated `client_request_id`.**
+- **Returns the current id, writing nothing, when the values equal the current
+  row** (AD-75).
+- **Refuses a `supersedes_id` that is not a current row.** Correcting an
+  already-superseded row would fork the history, and `UNIQUE (supersedes_id)`
+  would reject it anyway. The function says why in words.
+
+### Tests this chunk adds to the build (test-first)
+
+- **T-RT2 · Sales round trip.** A BANDED BULK order goes through
+  `record_sales_order`, the view and the repository into `batchCashFlows`, and
+  must equal the in-memory calendar. A BANDED GATE order must be rejected on
+  `sales_order_versions_banded_is_bulk`.
+- **T-RT3 · Correction round trip.** Enter days 1-5, correct day 3, void day 4.
+  `public.daily_records` must return days 1, 2, 3 (corrected) and 5, and the
+  engine's `ProductionProjection` must equal one built from those four records
+  in memory. Day 4 must come back `carried_forward`.
+- **T-DB1 · Raw rows are unreachable.**
+  - supabase-js as `authenticated` querying `facts.daily_record_versions`
+    returns an error.
+  - The exposed-schemas setting does not include `facts`.
+  - No repository source names `facts.` or `_versions`.
+- **T-DB2 · Integrity from both sides.**
+  - Day 6 below day 5 is rejected.
+  - Correcting day 5 and day 6 together in one call is accepted.
+  - A placement correction lowering `chick_count` below recorded removals is
+    rejected.
+  - Two concurrent inserts that would each fit but together exceed the flock:
+    exactly one commits.
+- **T-DB3 · Idempotency.** The same `client_request_id` twice gives one row. An
+  identical resubmission with a new id also gives one row.
+
+### AD-63 applied to this chunk (replaces chunk 4's names)
+
+| Constraint | Engine union | Values today |
+|---|---|---|
+| `feed_draw_versions_phase_values` | `Phase` | `STARTER`, `GROWER`, `FINISHER` |
+| `sales_order_versions_channel_values` | `Channel` | `GATE`, `BULK` |
+| `sales_order_versions_pricing_basis_values` | `SalePricingBasis` | `PER_BIRD`, `PER_KG`, `BANDED` |
+| `cash_transaction_versions_direction_values` | `CashDirection` (new, with AD-67's engine function) | `IN`, `OUT` |
+
+### The discussion points, in short
+
+1. **The `facts` schema.** It holds identity rows as well as versions, and the
+   parameter tables stay in `public`. Is that the split you want?
+2. **Feed columns are `not null` with no default.** A blank field fails to save
+   instead of storing zero.
+3. **A draw's price is not null.** Is "price not known yet" a real state for a
+   feed docket?
+4. **Correcting onto another date is not allowed.** A wrong date is void and
+   re-enter.
+
+---
+
 ## Chunks still to come
 
-5. **Access.** RLS per table, memberships and roles, and grants on the D9/D11
+6. **Access.** RLS per table, memberships and roles, and grants on the D9/D11
    functions. How WORKER is kept away from financial columns, since RLS filters
    rows, not columns.
-6. **Repositories and `EngineInput` assembly.** `bigint` through PostgREST
+7. **Repositories and `EngineInput` assembly.** `bigint` through PostgREST
    (JSON numbers lose precision above 2^53, so money travels as strings). Zod
    schemas and their relation to the engine's types. A guard that refuses to
    connect to any project ref other than dev.
-7. **Seed.** Daniel's real figures as the dev dataset.
-8. **Build order (TDD), CI's database target (including AD-63's drift test),
-   Task 9's placement**, and the plan task list. Already owed a slot: T-RT1 and
-   T-RT2 first, the exhaustive `timing` check (AD-72), and deleting
-   `mortality_history`.
+8. **Seed.** Daniel's real figures as the dev dataset.
+9. **Build order (TDD), CI's database target (including AD-63's drift test),
+   Task 9's placement**, and the plan task list. Already owed a slot: T-RT1 to T-RT3 and
+   T-DB1 to T-DB3 first, the `overhead_line` refusal (AD-73), deleting
+   `mortality_history`, and the TD-5 decision not to retype feed in U6.
