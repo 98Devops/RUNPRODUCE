@@ -4,6 +4,48 @@ Update this file after every meaningful implementation change.
 
 ## Current Phase
 
+**U6 — chunk 5 schema built and verified on a local stack, 2026-09-15. NOT yet
+applied to dev.** Five migrations in `supabase/migrations/` implement chunks 3 to 6
+as approved:
+1. access baseline: schemas, grants, memberships, `has_role`;
+2. parameter sets and breed curves;
+3. facts: version tables, named CHECKs, RLS, deferred `SECURITY DEFINER` integrity
+   triggers;
+4. current and history views;
+5. write functions, `capture_batches`, and the grants sweep.
+
+**Verified:** the DB suite `packages/db-tests` (`npm run test:db:local`, against
+`npx supabase start`) is 50/50.
+- **T-DB2**, integrity, as OWNER and as WORKER.
+- **T-RP1**, the architectural canary, on all 11 golden fixtures. Mutation-checked:
+  a planted mapping error turned 10 of 11 red.
+- **AD-63's drift test** on 14 constraints.
+- **T-RT1 part 3, T-RT2, T-RT3, T-DB1, T-DB3.**
+- **Tests were committed red** (`505bc3c`) before any migration (`2af39b4`).
+
+**Found by T-DB2, fixed at source:** the integrity check locks the batch
+`FOR NO KEY UPDATE`, not `FOR UPDATE` as the plan wrote.
+- Inserts hold `FOR KEY SHARE` on the batch through their foreign keys.
+- So `FOR UPDATE` deadlocked two concurrent writers (40P01), where one should
+  have been rejected.
+- `NO KEY UPDATE` still serialises the checks.
+
+**Honest limits:**
+- **T-RP1 reads through a test-local loader,** because chunk 7's `loadEngineInput`
+  and `engine_snapshot` are next week. It is deleted when they land.
+- **No golden fixture carries daily records,** so T-RP1 does not exercise the
+  records mapping. T-RT3 does.
+- **Fixture 13 compares a refusal only.**
+- **The chunk 6 access tests T-AC1 to T-AC5 are not written.**
+- **There is no CI database job:** no CI project or branch exists.
+
+**Blocked:** applying to dev needs a write window on the MCP. Removing
+`read_only=true` and reconnecting `supabase` in `/mcp` is an interactive step this
+session cannot take. Dev still has 0 migrations and reads `transaction_read_only =
+on`, checked 2026-09-15.
+
+## Previous Phase (U6 opening move)
+
 **U6 — opening move: one shared refusal list, 2026-09-14.** TD-4 finding 8
 closed before any schema work, so `decision.allocation` is never wired onto
 drifted checks. `missingInputsFor` moved to `packages/engine/src/refusals.ts`

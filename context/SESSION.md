@@ -1,5 +1,5 @@
 # RunProduce - Session State
-Last updated: 2026-09-15 · Branch: `u6-supabase-schema`
+Last updated: 2026-09-15 (chunk 5 built locally) · Branch: `u6-supabase-schema`
 
 ## HARD RULE: Daniel's production Supabase project is off-limits
 - **No U6 work touches Daniel's production Supabase project.** Every connection string, MCP target and deploy script defaults to the **dev** project.
@@ -18,9 +18,9 @@ Last updated: 2026-09-15 · Branch: `u6-supabase-schema`
   3. Restore `&read_only=true`, reconnect, and verify: `select current_setting('transaction_read_only')` reads `on`, and `apply_migration` is no longer offered. If either check fails, stop and report.
   - A write window never stays open across a planning step, a commit or the end of a session. `.mcp.json` is never committed without `read_only=true`.
   - Before any MCP call, check that the URL still reads `project_ref=zlvjmaorlxrjnuxhykuh`.
-- **Read-only is NOT yet confirmed in effect.** At the end of chunk 3 the live connection predated the URL change (`transaction_read_only` = `off`, user `postgres`; `apply_migration` offered). **Re-checked 2026-09-14 after chunk 5 approval:** `claude mcp list` shows `supabase` (URL with `project_ref=zlvjmaorlxrjnuxhykuh&read_only=true`) as **"Needs authentication"**, so no `supabase` tools are loaded and the check could not run. The claude.ai Supabase connector shows connected; it is denied and was not used.
+- ~~**Read-only is NOT yet confirmed in effect.**~~ **CONFIRMED 2026-09-15** after the user re-authenticated: `SELECT 1` ok; `transaction_read_only` = `on` as `supabase_read_only_user`; `CREATE TABLE _readonly_test` rejected (25006); no `apply_migration` tool offered. Earlier note: At the end of chunk 3 the live connection predated the URL change (`transaction_read_only` = `off`, user `postgres`; `apply_migration` offered). **Re-checked 2026-09-14 after chunk 5 approval:** `claude mcp list` shows `supabase` (URL with `project_ref=zlvjmaorlxrjnuxhykuh&read_only=true`) as **"Needs authentication"**, so no `supabase` tools are loaded and the check could not run. The claude.ai Supabase connector shows connected; it is denied and was not used.
 - **PRE-FLIGHT GATE before any migration runs. The user handles this step (2026-09-14); make no MCP call for it.** The check: no `apply_migration` in the tool list; `CREATE TABLE _readonly_test (id int)` rejected; `SELECT 1` succeeds and `transaction_read_only` reads `on`. No schema code from any chunk until the user reports it passed and planning has ended.
-- **Writes so far: none.** Dev has 0 migrations and 0 `public` tables. Every MCP call in this session was read-only by nature: `get_project_url`, `list_tables`, `list_migrations`, and one `SELECT` of settings. No MCP call was made during chunks 3 to 5.
+- **Writes so far: none on dev** (0 migrations, re-checked 2026-09-15). Chunk 5 migrations were applied to a LOCAL stack only (`npx supabase start`, ports 5542x, project `runproduce-local`). Earlier note: Dev has 0 migrations and 0 `public` tables. Every MCP call in this session was read-only by nature: `get_project_url`, `list_tables`, `list_migrations`, and one `SELECT` of settings. No MCP call was made during chunks 3 to 5.
 
 ## What this is
 A decision console for Daniel, a broiler farmer, that turns his daily batch records into feed, cost, cash and harvest figures. Its headline job is telling him how many birds to place next and when, under three named strategies.
@@ -38,10 +38,19 @@ npm monorepo: a pure TypeScript engine (`packages/engine`) behind a Next.js app 
 - **Daniel's six answers** wired as AD-52 to AD-57. Band refusal made consistent (AD-58).
 - **Pre-merge review fix wave** (2026-09-14): 5 findings fixed + 3 minors; rest logged as TD-4.
 - **U6 Task 0** shared refusal list (TD-4 #8, AD-60).
+- **U6 chunk 5 schema** (local only): 5 migrations, DB suite 50/50.
+- **Daniel's answers 2026-09-15:** AD-96 (over 1.3 kg dressed pays less, ~$3.50; not built, OQ-41), AD-97 (bulk buyer no cap), AD-98 (delivery always abattoir).
 - **Status:** 348 unit tests. Golden 11 written / 11 passing / 1 held. Lint, typecheck, build clean.
 
 ## In progress
-**U6**, planning. Spec: `context/plans/u6-supabase-schema.md`. No schema code yet.
+**U6**, building. Spec: `context/plans/u6-supabase-schema.md`.
+- **Chunk 5 schema BUILT, 2026-09-15 (not on dev yet).**
+  - Five migrations in `supabase/migrations/` (chunks 3 to 6 as approved).
+  - DB suite `packages/db-tests` is 50/50 on a local stack: T-DB2 as OWNER and WORKER, T-RP1 canary on 11 fixtures (mutation-checked), AD-63 drift on 14 constraints, T-RT1 part 3, T-RT2, T-RT3, T-DB1, T-DB3.
+  - Integrity lock is `FOR NO KEY UPDATE` (T-DB2 found `FOR UPDATE` deadlocks).
+  - Not done: dev apply (blocked below), T-AC1 to T-AC5, a CI DB job.
+  - T-RP1 uses a test-local loader until chunk 7's `loadEngineInput`.
+  - **This week, per the user: no chunk 7 repository code, no chunk 8 planning.**
 - **Task 0 done:** one shared refusal list, `missingInputsFor` in `refusals.ts` (TD-4 #8, AD-60).
 - **Chunk 1** (framing, dev project): drafted.
 - **Chunk 2** (parameters, opening cash, D4-D8): approved, AD-61 to AD-67.
@@ -87,8 +96,10 @@ npm monorepo: a pure TypeScript engine (`packages/engine`) behind a Next.js app 
 | OQ-26: Cover Fast can't answer structurally (candidates have no forecast sales) | 1 of 3 modes | Us, via M6 |
 | OQ-31: Build Reserve pinned null for the same reason (AD-59) | 1 of 3 modes. Only Maximum Growth answers | Us, via M6 |
 | OQ-29: `computeAllocation` takes 20.8 s at 5k birds, ~2 min at 30k | **U9, hard.** Needs a design answer, not "consider performance" | Us: profile first |
+| OQ-41: where $3.70 ends and $3.50 begins | Building AD-96's band | Daniel (logged) |
 | OQ-32 / OQ-33 / OQ-34: feed shared across batches; booked bulk weight; feed before placement | Shape of U6 chunk 5 (assumed simple answers) | Daniel (logged as OQs; the user handles) |
-| MCP read-only unverified: `supabase` needs authentication | **Any migration** (chunk 5 onward) | User authenticates in `/mcp`; then the pre-flight gate above |
+| **MCP write window for dev** (read-only verified 2026-09-15) | **Applying chunk 5's 5 migrations to dev** | User: remove `&read_only=true` in `.mcp.json`, reconnect `supabase` in `/mcp`; apply; restore and verify |
+| No CI database target | CI DB job (suite runs locally only) | Us + user: a CI project or dev branch |
 | TD-5: engine feed kg vs database grams | **U9 start** | Us, before U9 |
 | OQ-8: fixture 6 chick price ($0.85 vs $1.00) | Golden completeness hold | Daniel |
 | OQ-10: fixture 8 was blocked on OQ-2, now answered | Golden completeness hold | Us: attempt it |
@@ -130,7 +141,7 @@ Full log: `progress-tracker.md` § Architecture Decisions.
 8. `context/ui-context.md`, `ui-build-playbook.md`, `card-system-and-decision-ux.md`: only for UI units (U7-U11). For U9, read the OQ-29 section first.
 
 ## Recommended next action
-Get sign-off on chunk 8 (seed). Then draft chunk 9 (build order). The user confirms MCP read-only mode; no migration before that and before planning ends. On a surprising Daniel answer, reshape chunk 5 per that OQ's entry.
+Open the MCP write window (user), apply the 5 migrations to dev with `apply_migration` in order, restore read-only and verify, then run `list_migrations` and the security advisors. Then T-AC1 to T-AC5. Chunk 7 code and chunk 8 wait for next week (user, 2026-09-15). Local suite: `npx supabase start -x studio,imgproxy,storage-api,edge-runtime,logflare,vector,supavisor,realtime,postgres-meta,mailpit`, `npx supabase db reset --local`, `npm run test:db:local`. The user confirms MCP read-only mode; no migration before that and before planning ends. On a surprising Daniel answer, reshape chunk 5 per that OQ's entry.
 
 ## Maintaining this file
 - Update at the end of every unit, and on any commit that changes state a future session needs.

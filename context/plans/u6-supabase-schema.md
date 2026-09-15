@@ -759,6 +759,11 @@ built first in the same way as T-RT1.
 
 ## Chunk 5 — Fact table structure: daily records, feed draws, and the rest
 
+**Build status, 2026-09-15:** migrations written (`supabase/migrations/`) and verified on a
+local stack (DB suite 50/50). **Not yet applied to dev**: waiting on an MCP write window.
+One implementation change, found by T-DB2: the integrity lock is `FOR NO KEY UPDATE`
+(see Triggers).
+
 **Status: approved 2026-09-14, logged as AD-81 to AD-84** (the four decisions
 below). **No migration from this chunk runs until the MCP read-only check
 passes** (`SESSION.md`). Turns D13-D19 (AD-74 to AD-80) into
@@ -952,7 +957,7 @@ All are `security_invoker = true`.
 | `batch_closures_after_placement` | `batch_closure_versions`, `batch_placement_versions` | deferred constraint | `closed_on >= placement_date` |
 
 - **Each check starts with `SELECT … FROM facts.batches WHERE id = … FOR
-  UPDATE`.** Under READ COMMITTED, the check's next statement then sees any
+  NO KEY UPDATE`** (built 2026-09-15; the draft said `FOR UPDATE`, which deadlocks: every insert already holds `FOR KEY SHARE` on the batch through its foreign key, so two writers each wait for the other. T-DB2's concurrency case caught it as 40P01). Under READ COMMITTED, the check's next statement then sees any
   transaction that committed while it waited, so two entries cannot pass
   against the same stale total.
 - **Messages** use the engine's wording ("Day 12: removals exceed the flock — 40

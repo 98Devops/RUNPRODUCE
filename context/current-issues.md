@@ -2488,6 +2488,8 @@ recommendation — divergences are the most valuable data available.
 
 | Work | Blocked by |
 |---|---|
+| **U6 · applying chunk 5's migrations to dev** | **An MCP write window.** Five migrations are committed and pass 50/50 on a local stack. Applying them needs `read_only=true` removed from `.mcp.json` and `supabase` reconnected in `/mcp`, which is an interactive step. Then restore read-only and verify (`SESSION.md`) |
+| **U6 · a CI database job** | No CI-only project or throwaway dev branch exists. The DB suite runs locally only (`npm run test:db:local`) and refuses dev |
 | Calibrated `MaxSafeBatchSize` | OQ-1 (mortality data) |
 | ~~M5b · Task 8, the enumeration ceiling~~ | **UNBLOCKED 2026-09-11.** ~~OQ-23~~ answered: the ceiling is an operator-entered `max_placement_birds`, no derived cap. Tasks 1-8 built; Task 9 now blocked on OQ-25 below |
 | M5b · the Build Reserve mode | **OQ-31** — pinned null by AD-59: without a candidate's forecast sales it recommended the smallest batch. Needs M6 |
