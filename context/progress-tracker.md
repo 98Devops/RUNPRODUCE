@@ -4,17 +4,42 @@ Update this file after every meaningful implementation change.
 
 ## Current Phase
 
-**U6 — chunk 5 schema built and verified on a local stack, 2026-09-15. NOT yet
-applied to dev.** Five migrations in `supabase/migrations/` implement chunks 3 to 6
-as approved:
-1. access baseline: schemas, grants, memberships, `has_role`;
-2. parameter sets and breed curves;
-3. facts: version tables, named CHECKs, RLS, deferred `SECURITY DEFINER` integrity
-   triggers;
-4. current and history views;
-5. write functions, `capture_batches`, and the grants sweep.
+**U6 status: chunk 5 complete; chunks 7 and 8 planned, not started.**
 
-**Verified:** the DB suite `packages/db-tests` (`npm run test:db:local`, against
+**U6 — chunk 5 shipped to dev, 2026-09-15.** Six migrations are applied to the
+dev project (`zlvjmaorlxrjnuxhykuh`) through the MCP. The MCP's `apply_migration`
+stamps its own versions, so the local files were renamed to match (`eb393ee`).
+**These versions are the canonical file names:**
+
+| Dev version | Migration | Contents |
+|---|---|---|
+| `20260915064600` | `access_baseline` | schemas, grants, memberships, `has_role` |
+| `20260915065245` | `parameters` | parameter sets and breed curves |
+| `20260915065409` | `facts` | version tables, named CHECKs, RLS, deferred `SECURITY DEFINER` integrity triggers |
+| `20260915065443` | `views` | current and history views (`security_invoker`) |
+| `20260915065625` | `write_functions` | write functions, `capture_batches`, the AD-89 grants sweep |
+| `20260915071004` | `security_definer_comments` | explicit revoke on `rls_auto_enable`; AD-88/89 comments on the 12 RPCs (`9495068`) |
+
+**Dev end state, verified:**
+- 10 tables in `facts`, 8 in `public`, and `private.memberships`, all with RLS on.
+- 13 `security_invoker` views in `public`.
+- 12 `SECURITY DEFINER` RPCs that `authenticated` can execute and `anon` cannot.
+- No client INSERT, UPDATE, DELETE or TRUNCATE grants; `anon` has no table grants.
+
+**One platform default quarantined:** `public.rls_auto_enable()` and its
+`ensure_rls` event trigger ship with every Supabase project and are not our code.
+Only `postgres` and `service_role` can execute the function. Migration 6 states
+`authenticated`'s revoke explicitly (it was already absent after the sweep). No
+test enumerates tables yet: **TD-6** (next week) adds one, excluding the default
+by name.
+
+**Advisor findings, all accounted for:**
+- Security, INFO `rls_enabled_no_policy`: `private.memberships`. Intended; service role only (AD-85).
+- Security, WARN `authenticated_security_definer_function_executable`, 12 findings: the 12 RPCs. Intended (AD-88, AD-89); each now carries a comment saying so.
+- Performance, INFO `unindexed_foreign_keys`, 54 findings: `org_id`, `created_by` and composite parent/supersedes foreign keys. Left until real volumes exist.
+- Performance, INFO `unused_index`, 6 findings: expected on an empty database.
+
+**Verified locally before the dev apply:** the DB suite `packages/db-tests` (`npm run test:db:local`, against
 `npx supabase start`) is 50/50.
 - **T-DB2**, integrity, as OWNER and as WORKER.
 - **T-RP1**, the architectural canary, on all 11 golden fixtures. Mutation-checked:
@@ -38,11 +63,7 @@ as approved:
 - **Fixture 13 compares a refusal only.**
 - **The chunk 6 access tests T-AC1 to T-AC5 are not written.**
 - **There is no CI database job:** no CI project or branch exists.
-
-**Blocked:** applying to dev needs a write window on the MCP. Removing
-`read_only=true` and reconnecting `supabase` in `/mcp` is an interactive step this
-session cannot take. Dev still has 0 migrations and reads `transaction_read_only =
-on`, checked 2026-09-15.
+- **The DB suite has run against the local stack only,** not against dev.
 
 ## Previous Phase (U6 opening move)
 
@@ -574,8 +595,9 @@ completeness fixture.
 
 ## In Progress
 
-**U6** — started 2026-09-14. Task 0 (shared refusal list, TD-4 #8) done; the
-spec is being planned in chunks. **U5 M5b is merged to `main`** (2026-09-14, `6a73ad0`):
+**U6** — started 2026-09-14. **Status: chunk 5 complete; chunks 7 and 8
+planned, not started.** Task 0 (shared refusal list, TD-4 #8) done; chunk 5's six
+migrations are on dev (2026-09-15, see Current Phase). **U5 M5b is merged to `main`** (2026-09-14, `6a73ad0`):
 M5a done, M5b Tasks 1-8 done, Daniel's six answers wired (AD-52 to AD-57), band
 refusal made consistent (AD-58), pre-merge review fixed (AD-59). What is left in
 U5 is blocked, not in progress — see Next Up.
