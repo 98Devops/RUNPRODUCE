@@ -2246,6 +2246,16 @@ sales, the null-fee guard, gate-order refusal), as are 6, 7 and 11. These remain
 | R2-a | Invariant 16 now counts from the latest `order_date`, which has no upper bound: a mistyped far-future date silently pushes the placement floor out | Input validation, for U6/U8's sales ledger, not the engine |
 | R2-b | `batchCashFlows` is exported and allowlisted as internal; it can be called without `cashFlowsMissingInputs` first | Acceptable while the allowlist entry stands; do not re-export it from index.ts |
 
+### TD-6 · No schema safety-net test for RLS on every table 🟡
+**Raised:** 2026-09-15, after the chunk 5 dev apply. **Scheduled:** next week's
+budget; do not build before then. Today nothing in `packages/db-tests` enumerates
+tables: `enum-drift.test.ts` looks up named CHECK constraints only, so a new
+table created without RLS would pass the suite. **Fix:** a DB test that lists
+every table in `public` (and `facts`, `private`) from `pg_class` and asserts
+`relrowsecurity`. Exclude `public.rls_auto_enable` and its `ensure_rls` event
+trigger by name, with a comment naming them as a Supabase platform default,
+since they appear on every fresh Supabase database and are not our code.
+
 ### TD-5 · The engine types feed quantities as kg `number` 🟠 MUST CLOSE BEFORE U9
 **Consistency debt, with a deadline (approved 2026-09-14).** Deferred out of U6
 correctly, but it **must close before U9 (the decision screen) starts**. While it
