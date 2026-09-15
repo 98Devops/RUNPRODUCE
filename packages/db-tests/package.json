@@ -1,0 +1,22 @@
+{
+  "name": "@runproduce/db-tests",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test:db": "vitest run",
+    "test:db:local": "node scripts/run-local.mjs"
+  },
+  "dependencies": {
+    "@runproduce/engine": "0.0.0"
+  },
+  "devDependencies": {
+    "@supabase/supabase-js": "^2.45.0",
+    "@types/node": "^20.19.43",
+    "@types/pg": "^8.11.10",
+    "pg": "^8.13.1",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.4"
+  }
+}
