@@ -211,6 +211,50 @@ make about money.
 **Treat a new question arising on an already-audited topic as evidence the pass
 was incomplete**, and check the audit's own record before asking anyone else.
 
+### Some tests are architectural canaries
+
+**Standing doctrine, adopted 2026-09-15.** Some tests are architectural
+canaries. Their failure means the shape of the system diverged from what it was
+designed to be, not that a bug slipped in. **T-RP1 is one. Treat their reds as
+design questions, not bug tickets.**
+
+**T-RP1** (U6 chunk 7) writes each golden fixture's input through the database
+and loads it back with `loadEngineInput`. The engine's decision on the loaded
+input must deep-equal its decision on the in-memory input. When it fails, the
+engine and the database disagree about what an `EngineInput` is. That is a
+failure of the whole U6 schema strategy, not of one function.
+
+**When a canary goes red:**
+
+1. **Stop.** No other work lands on top of a red canary.
+2. **Find what diverged**, and name it: a column, a mapping row, a unit, a
+   default, a filter, an enum value.
+3. **Fix it at the source**, in whichever side is wrong against the design. If
+   neither side is wrong, the design is, and that needs an AD.
+4. **Record it.** Name the divergence in the commit message, and in
+   `progress-tracker.md` if it changed a decision.
+
+**Never "just make it pass."** Do not adjust the expectation, add a tolerance,
+special-case a fixture, exclude a field from the comparison, or skip a fixture
+without understanding what diverged. The test exists because **no explanation
+short of "the two sides really do agree" is acceptable.** A canary made green
+without that explanation is worse than a red one, because it now asserts
+agreement it has not got.
+
+**T-RP1 is expected to go red at least once during chunk 5's implementation.**
+That is the canary working, not a setback.
+
+**Why this is invariant 5's doctrine again.** Invariant 5 says a confident wrong
+number is worse than a blank. A canary patched to green without understanding
+is a confident wrong answer about the system itself. It says the database and
+the engine agree, on no evidence.
+
+**Designating a canary.** A test becomes a canary only by being named here,
+with the design property it guards. Currently:
+
+| Canary | Guards |
+|---|---|
+| T-RP1 (U6 chunk 7) | The engine and the database agree on what an `EngineInput` is |
 ### Passing tests do not prove a module is reachable
 
 **Every test in this repo imports a module directly** — `../src/feed.js`,

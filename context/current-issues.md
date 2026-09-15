@@ -302,7 +302,7 @@ Daniel is logged here as an OQ with proposed question wording, and stops there.
 The user handles every question to Daniel, out of band and in a format they
 control. Nothing in this repository is a message to him.
 
-Every client question still open, checked against this file on 2026-09-14:
+Every client question still open, checked against this file on 2026-09-14 (OQ-38 to OQ-40 added 2026-09-15):
 
 | OQ | The gap | Shapes |
 |---|---|---|
@@ -311,6 +311,9 @@ Every client question still open, checked against this file on 2026-09-14:
 | OQ-34 | Is feed ever collected before the chicks arrive? | U6 chunk 5; `buildDays` throws on it |
 | OQ-35 | What does a bird over 1.3 kg dressed pay? | Bulk value past the top band (AD-58), TD-4 #9 |
 | OQ-36 | Does the bulk buyer cap how many birds he takes? | Whether bulk can absorb a whole flock |
+| OQ-40 | How much cash does the farm hold when the planner starts? | Opening cash (AD-67); the allocation refuses without it |
+| OQ-39 | How many birds a day does the gate take? | `gate_capacity_per_day`, seeded as assumed (U6 chunk 8) |
+| OQ-38 | Which minimum cash reserve should the planner protect? | `reserve_floor_cents`, seeded as assumed (U6 chunk 8) |
 | OQ-37 | Is transport the same per bird on a direct delivery? | Bulk net when `delivery_mode = DIRECT` |
 | OQ-21 | Does the supplier ever charge for part of a bag? | Pricing a part-bag draw (refused today) |
 | OQ-17 | ~20 paired live and dressed weights | The bulk harvest day, every dressed price |
@@ -596,6 +599,50 @@ same truck twice. An answered OQ-2 is **not** sufficient to proceed.
 
 ## Open questions — blocking
 
+### OQ-40 · How much cash does the farm hold when the planner starts? 🟡 OPEN
+**Status:** open, never asked. **Raised:** 2026-09-15, from U6 chunk 8 (seed).
+**Affects:** the opening cash balance (AD-67). Without an account opening, the
+allocation refuses `'opening_cash'`. Cover Fast and Build Reserve refuse, and
+Maximum Growth answers with the reserve floor unchecked.
+**Proposed question:** *"On the day you start using the planner, how much cash
+will the farm have available, bank and cash on hand together?"*
+**Meanwhile:** Daniel's dev organisation has no cash account (chunk 8 D34), and
+the refusal shows. No balance is seeded on his organisation. The synthetic
+organisation has a labelled one.
+**When answered:** one account opening, dated the day he gives. In production
+it is entered on a settings screen on the day, not seeded from this answer.
+
+### OQ-39 · How many birds a day does the gate actually take? 🟡 OPEN
+**Status:** open, never asked as one figure. **Raised:** 2026-09-15, from U6
+chunk 8. **Affects:** `gate_capacity_per_day`, a required parameter. It sets the
+gate window, the max safe batch size and the gate/bulk split.
+**What we have:** the brief says gate sales "run at 500-1,000 birds/day"
+(`project-overview.md`). OQ-23's call says "7k birds on the gate", which is a
+total over a harvest, not a rate. The fixtures use 750, the midpoint, and that
+is ours.
+**Proposed question:** *"On a normal harvest day, about how many birds do you
+sell at the gate? Your brief says 500 to 1,000 a day. Is there one number in
+that range you would plan around?"*
+**Meanwhile:** 750, seeded as `assumed` and owned by this OQ (chunk 8 D33).
+**If he gives a range with no single figure:** the parameter stays assumed. A
+low/high pair would be a design change (the gate window reads one rate), logged
+then.
+
+### OQ-38 · Which minimum cash reserve should the planner protect? 🟡 OPEN
+**Status:** open. The amount was left unanswered by OQ-3 (whose question asked
+"how much reserve is enough"; the answer settled the objective, not the
+amount). **Raised as its own OQ:** 2026-09-15, from U6 chunk 8.
+**Affects:** `reserve_floor_cents`, a required parameter that AD-43's filter
+reads. It decides which placements the allocation calls affordable.
+**What we have:** the 30,000 brief makes the reserve a hard floor, selectable
+at $5,000, $10,000, $15,000 or $20,000, with an explicit override path.
+**Proposed question:** *"Your brief lists a minimum cash reserve of $5,000,
+$10,000, $15,000 or $20,000. Which one should the planner never let the cash
+fall below?"*
+**Meanwhile:** $20,000, the highest option he listed, seeded as `assumed` and
+owned by this OQ (chunk 8 D33). The highest option errs toward calling a
+placement unaffordable, the cautious direction, as AD-55 chose for transport.
+**Not zero:** zero means "no floor", which the brief rules out.
 ### OQ-37 · Is transport the same per bird on a direct delivery? 🟡 OPEN
 **Status:** open, never answered. **Raised:** 2026-09-12 (Daniel list #11), logged
 as an OQ 2026-09-14. **Affects:** bulk net when `delivery_mode = DIRECT`.

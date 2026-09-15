@@ -1,5 +1,5 @@
 # RunProduce - Session State
-Last updated: 2026-09-14 · Branch: `u6-supabase-schema`
+Last updated: 2026-09-15 · Branch: `u6-supabase-schema`
 
 ## HARD RULE: Daniel's production Supabase project is off-limits
 - **No U6 work touches Daniel's production Supabase project.** Every connection string, MCP target and deploy script defaults to the **dev** project.
@@ -56,7 +56,7 @@ npm monorepo: a pure TypeScript engine (`packages/engine`) behind a Next.js app 
   - D17 / AD-78: a draw belongs to one batch; `bags numeric`, at most 2 decimals by CHECK (never silently rounded), part bags recordable.
   - D18 / AD-79: forward sales orders stored; no derived money; BANDED only on BULK.
   - D19 / AD-80: payments, receipts, facilities, allocations, expenses, offal deferred; cash accounts and transactions built.
-- **Client questions:** never drafted or sent from here. Gaps are logged as OQs with proposed wording; the user handles Daniel. Index: `current-issues.md`, "Client questions outstanding". Logged 2026-09-14: OQ-32 to OQ-34 (chunk 5 assumptions), OQ-35 to OQ-37 (left over from the 2026-09-12 list), OQ-5 extended for chunk 6.
+- **Client questions:** never drafted or sent from here. Gaps are logged as OQs with proposed wording; the user handles Daniel. Index: `current-issues.md`, "Client questions outstanding". Logged 2026-09-14: OQ-32 to OQ-34 (chunk 5 assumptions), OQ-35 to OQ-37 (left over from the 2026-09-12 list), OQ-5 extended for chunk 6. Logged 2026-09-15: OQ-38 to OQ-40 (chunk 8 seed).
 - **Chunk 5** (fact table structure): **approved 2026-09-14**, AD-81 to AD-84. Built on assumed answers OQ-32 a, OQ-33 a/b, OQ-34 a. Tests T-RT2, T-RT3, T-DB1 to T-DB3.
   - AD-81: `facts` holds identities and versions; parameter tables stay in `public`.
   - AD-82: feed grams `not null`, no default. A blank fails to save.
@@ -69,8 +69,16 @@ npm monorepo: a pure TypeScript engine (`packages/engine`) behind a Next.js app 
   - D22 / AD-87: a role sees a table whole or not at all; money-bearing tables OWNER/MANAGER only; WORKER reads `daily_records` and `capture_batches()`. Integrity triggers `SECURITY DEFINER` (amends chunk 5 / AD-76). A WORKER's engine load throws `Forbidden` in the repository layer (chunk 7), never a `MissingInput`.
   - D23 / AD-88: org from the row, author from the session; "not permitted" and "not found" are one 42501.
   - D24 / AD-89: Supabase default grants revoked; no client write grants; RLS everywhere; sign-ups off per project.
-- **Chunk 7** (repositories, D25-D30): **drafted, awaiting sign-off.** One `engine_snapshot` SQL call per engine read; money as strings, Zod refuses numbers; mapping table with only `dayNumberFor` and grams/1000; errors typed by SQLSTATE (`Forbidden`, `IntegrityRejected`, `Conflict`, `StaleCorrection`, `NoParametersInForce`); client factory with project-ref guard. Tests T-RP1 to T-RP5, including the golden fixtures run through the database.
-- **Chunks 8-9** to come: seed, build order.
+- **Chunk 7** (repositories, D25-D30): **approved 2026-09-15**, AD-90 to AD-95.
+  - D25 / AD-90: one engine read is one statement, `public.engine_snapshot` (invoker, role check first, "parameter set in force" defined once).
+  - D26 / AD-91: money and bags as strings; a money field arriving as a JSON number fails Zod. Amends chunk 5: `sales_orders.bands` prices as text.
+  - D27 / AD-92: fixed `EngineInput` mapping; only `dayNumberFor` and grams/1000; enum runtime arrays feed Zod and AD-63's drift test.
+  - D28 / AD-93: errors typed by SQLSTATE (`Forbidden`, `IntegrityRejected`, `Conflict`, `StaleCorrection`, `NoParametersInForce`, `RepositoryError`).
+  - D29 / AD-94: one client factory with the project-ref guard; service role only in `admin.ts`.
+  - D30 / AD-95: thin write repositories, `clientRequestId` from the caller, a no-op returns the existing id.
+  - **T-RP1 is an architectural canary** (`code-standards.md`, 2026-09-15): a red means the engine and database disagree on `EngineInput`. Stop, find the divergence, fix at source; never just make it pass.
+- **Chunk 8** (seed, D31-D36): **drafted, awaiting sign-off.** Two organisations: "Daniel's farm (dev)" with only his sourced figures (a September parameter set and the curve; no batch, since backdating to February would be a false dated fact; no cash account), and a "SYNTHETIC" organisation for hands-on use. A provenance manifest (`client` with source, or `assumed` with an owning OQ); engine constants imported, not retyped. Eight assumed values; new OQ-38 (reserve floor), OQ-39 (gate capacity), OQ-40 (cash on hand). Seed writes through the write functions as seeded users (proposed amendment to AD-88); dev only, empty target only. Tests T-SD1 to T-SD5.
+- **Chunk 9** to come: build order.
 
 ## Blockers
 | Blocker | Blocks | Who resolves |
@@ -107,6 +115,7 @@ npm monorepo: a pure TypeScript engine (`packages/engine`) behind a Next.js app 
 - **AD-75:** facts append; the plain table name is a view of current rows, raw versions are unreachable through the API.
 - **AD-86:** a WORKER corrects only their own daily records; the delegation rows are defaults pending OQ-5.
 - **AD-87:** a role reads a table whole or not at all; permission is `Forbidden`, never a `MissingInput`.
+- **AD-90:** one engine read is one `engine_snapshot` statement. **T-RP1** proves the mapping and is an architectural canary: its red is a design question, not a bug ticket.
 
 Full log: `progress-tracker.md` § Architecture Decisions.
 
@@ -121,7 +130,7 @@ Full log: `progress-tracker.md` § Architecture Decisions.
 8. `context/ui-context.md`, `ui-build-playbook.md`, `card-system-and-decision-ux.md`: only for UI units (U7-U11). For U9, read the OQ-29 section first.
 
 ## Recommended next action
-Get sign-off on chunk 7 (repositories). Then draft chunk 8 (seed). The user confirms MCP read-only mode; no migration before that and before planning ends. On a surprising Daniel answer, reshape chunk 5 per that OQ's entry.
+Get sign-off on chunk 8 (seed). Then draft chunk 9 (build order). The user confirms MCP read-only mode; no migration before that and before planning ends. On a surprising Daniel answer, reshape chunk 5 per that OQ's entry.
 
 ## Maintaining this file
 - Update at the end of every unit, and on any commit that changes state a future session needs.

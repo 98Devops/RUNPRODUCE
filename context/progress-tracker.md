@@ -677,6 +677,101 @@ Tracked in `current-issues.md`.
 
 ## Architecture Decisions
 
+**AD-95 · Write repositories are thin, one per write function (U6 D30).**
+Approved 2026-09-15.
+- One repository per write function: `recordBatch`, `recordBatchPlacement`,
+  `recordBatchClosure`, `recordDailyRecords`, `recordFeedDraw`,
+  `recordSalesOrder`, `recordCashAccount`, `recordCashTransaction`,
+  `createParameterSet`, `createBreedCurve`.
+- **Zod checks types and shapes only.** Business rules belong to the database
+  and the engine.
+- **`clientRequestId` comes from the caller** (the `Idempotency-Key` header),
+  never generated server-side.
+- **A no-op write returns the existing id** (AD-75), so a retry and a first write
+  look the same to the caller.
+
+**AD-94 · One client factory with a project-ref guard; the service role stays out of the request path (U6 D29).**
+Approved 2026-09-15.
+- **`createRepositoryClient` is the only `createClient` call**, enforced by
+  ESLint `no-restricted-imports`.
+- **The guard runs before a client exists.** Dev ref `zlvjmaorlxrjnuxhykuh` by
+  default. CI only with `RUNPRODUCE_SUPABASE_TARGET=ci` and
+  `RUNPRODUCE_CI_PROJECT_REF`. Production only with
+  `RUNPRODUCE_SUPABASE_TARGET=production` and a matching
+  `RUNPRODUCE_PRODUCTION_PROJECT_REF` (U11). Anything else throws, including a
+  missing URL.
+- **User requests use the caller's session**, so RLS and role checks apply.
+- **The service-role client lives in `apps/web/lib/repositories/admin.ts`**,
+  importable only by the seed, the DB test harness and `netlify/functions`.
+- No repository source names `facts.` or `_versions` (T-DB1).
+
+**AD-93 · Database errors are typed by SQLSTATE; a permission is never a missing input (U6 D28).**
+Approved 2026-09-15.
+
+| SQLSTATE | Typed error |
+|---|---|
+| `42501` | `Forbidden` |
+| `23514` | `IntegrityRejected` |
+| `23505` | `Conflict` |
+| `RP001` | `StaleCorrection` |
+| `RP002` | `NoParametersInForce` |
+| anything else | `RepositoryError` |
+
+- **`Forbidden` is thrown before any mapping.** A WORKER never reaches Zod or the
+  engine (T-AC4, AD-87).
+- **`NoParametersInForce` is an error, not a `MissingInput`.**
+  `EngineInput.parameters` is not nullable, and a missing settings row is
+  missing configuration, not a client fact to compute around. The error names
+  the date.
+- `RP001` and `RP002` are each raised in exactly one function; T-RP3 asserts
+  the mapping.
+
+**AD-92 · Assembling `EngineInput`: a fixed mapping, whose only arithmetic is `dayNumberFor` and grams to kg (U6 D27).**
+Approved 2026-09-15.
+- **The curve is always passed**, joined from the pinned curve and the set's
+  `feed_prices`.
+- **Every parameter is explicit.** A null `max_placement_birds` is omitted,
+  never passed as null.
+- **Overheads are always `{ lines }`**, and zero rows is `lines: []`. Bulk bands
+  are always an array.
+- **`day_number = dayNumberFor(placement_date, record_date)`.** Feed kg is grams
+  / 1000 (TD-5, closes before U9).
+- **An order with zero band rows gets `bands: null`.**
+- **Opening cash is summed by the engine's AD-67 function**, not the repository.
+- **Enum parity.** Each engine union has one runtime array,
+  `as const satisfies readonly Union[]`, with a completeness check. Zod enums and
+  AD-63's drift test both read those arrays.
+- **Proven by T-RP1,** an architectural canary (`code-standards.md`): its
+  failure is a design question, not a bug ticket.
+
+**AD-91 · Money and bags travel as strings; a money field arriving as a JSON number fails validation (U6 D26).**
+Approved 2026-09-15.
+- **Strings on the wire.** `engine_snapshot` emits every `bigint` money column
+  and `bags` as `text`.
+- **`public.sales_orders.bands` carries `price_cents_per_bird` as text.** This
+  amends chunk 5's view.
+- **Zod parses strings only.** `centsString` accepts only `/^-?\d+$/` and yields
+  `Cents`; a number is never coerced. `bagsString` allows at most two decimals.
+- **Money in RPC payloads is sent as strings.**
+
+**AD-90 · One engine read is one database statement: `public.engine_snapshot` (U6 D25).**
+Approved 2026-09-15.
+- **One call.** `loadEngineInput` calls
+  `engine_snapshot(p_batch_id, p_as_of) returns jsonb`, which is
+  `SECURITY INVOKER`, `STABLE` and `search_path = ''`.
+- **Role check first.** It checks `has_role(batch org, OWNER/MANAGER)` before
+  reading, and raises 42501 otherwise (AD-88's single message).
+- **One document:** batch, the parameter set in force with its lists, the pinned
+  curve, current records, draws and orders, and the cash rows AD-67 needs.
+- **"In force" is defined once, here:** latest `effective_from <= asOf`, then
+  highest `revision`.
+- **Nothing else is filtered by `asOf`.** The engine does its own filtering.
+- *Why:* PostgREST gives each request its own transaction. Several reads would
+  be several snapshots, and a correction landing between them would produce
+  wrong numbers with no error.
+- *Rejected:* one read per view; a `SECURITY DEFINER` snapshot (bypasses RLS);
+  a view per engine input.
+
 **AD-89 · The grants baseline revokes Supabase's defaults explicitly (U6 D24).**
 Approved 2026-09-14.
 - **`anon`:** nothing in `public`, `facts` or `private`.

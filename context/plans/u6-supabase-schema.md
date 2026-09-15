@@ -227,6 +227,10 @@ separate decision. It gets logged as a new OQ, not built.
 *Until U8 builds ledger capture:* the dev seed creates one account opening on
 the seed batch's placement date with no transactions, so the derived balance
 is exactly the entered one.
+**Amendment proposed in chunk 8 (D34), pending sign-off:** this note named no
+amount, and Daniel has given none (OQ-40). His dev organisation gets no
+account, and the allocation refuses `'opening_cash'`. Only the synthetic
+organisation gets a labelled account.
 
 *Recommended.* **Moves into U6's build:** the engine function, the new key and
 the `EngineInput` field (TDD, engine side), and the tables. **Task 9** (reading
@@ -930,9 +934,9 @@ All are `security_invoker = true`.
 | View | Returns |
 |---|---|
 | `batches` | identity + current placement + current closure (null if open) |
-| `daily_records` | current rows. No `day_number`: the repository derives it with `dayNumberFor` (AD-77) |
+| `daily_records` | current rows, including `created_by` (amended by AD-86, approved 2026-09-14). No `day_number`: the repository derives it with `dayNumberFor` (AD-77) |
 | `feed_draws` | current rows |
-| `sales_orders` | current rows, with `bands` as a `jsonb` array in `dressed_floor_g` order |
+| `sales_orders` | current rows, with `bands` as a `jsonb` array in `dressed_floor_g` order, `price_cents_per_bird` as text inside it (amended by AD-91, approved 2026-09-15) |
 | `cash_accounts` | identity + current opening |
 | `cash_transactions` | current rows |
 | `<each>_history` | every version, with `is_current` and `superseded_at` |
@@ -1314,8 +1318,10 @@ schema. It now carries a proposed question.
 
 ## Chunk 7 — Repositories and data access
 
-**Status: draft, awaiting sign-off.** Planning only. No code and no database
-work.
+**Status: approved 2026-09-15, logged as AD-90 to AD-95** (D25 to D30, in
+order), with both amendments to chunk 5 below. T-RP1 is designated an
+architectural canary (`code-standards.md`). Planning only. No code and no
+database work.
 
 **Where it lives (D3).** `apps/web/lib/repositories`, plain TypeScript with
 `@supabase/supabase-js` and Zod, and no Next.js. `apps/web` holds only a
@@ -1506,6 +1512,16 @@ skips**, because a skipped integrity suite reports green.
   - This proves D5's explicit seeds, D27's mapping and TD-5's conversion
     together. A fixture that cannot be recorded (none expected) is listed with
     its reason, never silently omitted.
+  - **Standing note: T-RP1 is an architectural canary** (`code-standards.md`,
+    adopted 2026-09-15). Its failure means the engine and the database
+    disagree about what an `EngineInput` is. That is a failure of the whole
+    U6 schema strategy, not a normal test failure.
+  - **When it goes red, and it will at least once during chunk 5's
+    implementation: stop, find what diverged, fix it at the source.**
+  - Never "just make it pass" without understanding what diverged: no
+    adjusted expectation, no tolerance, no excluded field, no skipped
+    fixture. No explanation short of "the two sides really do agree" is
+    acceptable.
 - **T-RP2 · Snapshot rules.**
   - Two parameter sets on either side of `asOf`, plus a same-day revision: the
     right one is chosen.
@@ -1556,14 +1572,270 @@ skips**, because a skipped integrity suite reports green.
 
 ---
 
+## Chunk 8 — Seed: the dev dataset
+
+**Status: draft, awaiting sign-off.** Planning only. No code, no database work,
+and no MCP call. The seed writes to dev, so it runs only after planning ends and
+after the pre-flight gate in `SESSION.md` has passed.
+
+**The problem this chunk has to solve.** "Daniel's real figures as the dev
+dataset" meets rule 3 head-on. The golden fixtures are not his dataset. They
+are engineered to isolate one figure each: zero mortality, a zero reserve
+floor, a null abattoir fee. Taken as "his figures", every one of those would be
+a number he never gave. And the parameter set has required columns for which he
+has given no single figure. So this chunk is mostly about **provenance**: which
+seeded value came from whom, and what happens where nobody gave one.
+
+### What Daniel has actually given, checked 2026-09-15
+
+| Value | Seeded | Kind | Source |
+|---|---|---|---|
+| Slaughter target | 1,770 g | client | OQ-7 |
+| Abattoir fee, transport | 10c, 10c | client | OQ-2 (AD-55) |
+| Gate price per kg | 200c | client | OQ-4 ("about $2.00/kg") |
+| Feed terms | 30 days | client | brief (`project-overview.md`: draws due in 30 days) |
+| Feed delivery | 4,000c per tonne | client | OQ-28 (`SEED_DELIVERY_CENTS_PER_TONNE`) |
+| Dressing yield | 62% | client | OQ-7, his stated estimate; OQ-17 measures it |
+| Placement step | 1 bird | client | OQ-18 (`DEFAULT_PLACEMENT_STEP_BIRDS`) |
+| Max placement | 5,000 | client | OQ-23 ("most realistic starting example") |
+| Overheads | vaccine $42, electricity $140, labour $640 | client | Final Report (`SEED_OVERHEADS`); payment dates assumed, OQ-19 |
+| Planning bulk bands | 390c / 380c / 370c | client | `SEED_BULK_BANDS` |
+| Feed prices per bag | $30.60 / $29.60 / $28.60 | client | OQ-13 (AD-52) |
+| Breed curve and phase days, 50 kg bags | `breed_curve.json` | client | workbook Record sheet; day 40 flagged, OQ-6 |
+| **Gate price per bird** | 425c | **assumed** | OQ-4 gave "about $4.20 to $4.30"; $4.25 is our midpoint |
+| **Gate pricing basis** | `PER_BIRD` | **assumed** | OQ-4's answer was "neither"; flat is the settled default |
+| **Mortality fallback** | 15 bp, ramp from day 30, +35 bp | **assumed** | ours: U4 D1, OQ-1, OQ-12 |
+| **Calibration minimum** | 3 days | **assumed** | ours: OQ-12 |
+| **Gate capacity per day** | 750 | **assumed** | brief gives 500 to 1,000; **new OQ-39** |
+| **Reserve floor** | $20,000 | **assumed** | brief's highest selectable option, the cautious end (AD-55's precedent); **new OQ-38** |
+| **Cash on hand** | *not seeded* | none | **new OQ-40** |
+| **A real batch's records, draws, sales, closure** | *not seeded* | none | none were ever given |
+
+### D31 · Two organisations, with two different jobs
+
+- **"Daniel's farm (dev)"** holds **only values from the table above**. It is
+  what a screen looks like on his real figures, including the blanks.
+- **"SYNTHETIC test farm"** holds labelled synthetic data. It exists so that
+  capture, history, draws, sales and the allocation can be exercised by hand in
+  dev.
+- **The DB tests do not use the dev seed.** They run on the CI target, which is
+  thrown away, and create their own organisations and users per run (chunks 5
+  to 7). The tests and the seed share one builder, `buildPeople()`, so the
+  role set is defined once.
+
+*Why:* one dataset cannot be both. Mixing synthetic draws into Daniel's
+organisation would put numbers on his screens that he never gave, and nothing
+would mark them.
+
+| Option | Against |
+|---|---|
+| One organisation, everything in it | Synthetic facts become indistinguishable from his |
+| Only Daniel's organisation | Nothing to exercise draws, sales, cash or the own-record rule in dev |
+| Fixture data as "Daniel's" | The fixtures' zeroes and nulls are engineered, not his (above) |
+
+*Recommended.*
+
+### D32 · Every seeded value carries its provenance, and the engine's constants are imported, never retyped
+
+- **One typed manifest,** `supabase/seed/daniel-values.ts`. Each value is
+  `{ value, kind: 'client', source }` or `{ value, kind: 'assumed', owner }`,
+  where `owner` is the OQ or AD that owns the assumption.
+- **Where the engine already holds the figure, the seed imports it.**
+  `SEED_OVERHEADS`, `SEED_BULK_BANDS`, `SEED_BREED_CURVE` (points, phases, prices,
+  `bag_kg`), `SEED_ABATTOIR_FEE_CENTS`, `SEED_TRANSPORT_CENTS_PER_BIRD`,
+  `SEED_DELIVERY_CENTS_PER_TONNE`, `SEED_DRESSING_YIELD_PCT`,
+  `DEFAULT_PLACEMENT_STEP_BIRDS` and `DEFAULT_CALIBRATION_TRAILING_DAYS_MIN`. A
+  client answer changes one constant, and the seed follows.
+- **Overhead lines keep their `source` and `confidence`** from `SEED_OVERHEADS`
+  (D5).
+- **The set's `note`** lists the assumed values by name and owner, so an operator
+  looking at the set in a screen sees which figures are ours.
+
+*Recommended.*
+
+### D33 · A required value Daniel has not given is seeded as assumed, and owned by an open question
+
+Seven `parameter_sets` columns are `not null`, because the engine type is not
+nullable, and he has given no single figure for any of them: gate basis, the
+three mortality columns, calibration minimum, gate capacity and reserve floor.
+Gate price per bird is nullable, but he gave a range ("about $4.20 to $4.30"),
+not an unknown, and a null would blank every gate figure. So it is treated the
+same way. That makes eight values (the table above).
+
+- **Seeded with the value the engine or the brief already uses,** marked
+  `assumed` in the manifest and in the set's `note`.
+- **Each is owned by an open question.** Four already have one (OQ-4, OQ-1,
+  OQ-12). Two did not, so they are logged now with proposed wording:
+  - **OQ-38**, the reserve floor;
+  - **OQ-39**, gate capacity per day.
+- **This is the dev seed only.** The production seed (U11) is a separate script,
+  and it must not copy an `assumed` value without the operator confirming it on
+  a settings screen. Chunk 9 carries that onto U11's list.
+
+*Why not leave them out:* the columns are required, so the set could not be
+saved, and every engine read would raise `NoParametersInForce`. Dev would then
+show nothing at all, not the specific blanks invariant 5 asks for.
+
+*Why not make them nullable:* that is an engine type change (for example
+`reserve_floor_cents: Cents | null` plus a refusal), which AD-73's rule would
+require for each field. It is a reasonable change, but it is not a seed
+decision. Logged in the discussion points, not assumed.
+
+*Recommended.*
+
+### D34 · Daniel's organisation: his current set and curve, and no batch
+
+- **One parameter set, `effective_from = 2026-09-12`,** the date his last figure
+  in it was answered (feed delivery, transport, feed prices).
+- **The breed curve** from `breed_curve.json`, with its day-40 note in `source`
+  (OQ-6).
+- **No batch.**
+  - The only real batch on record is the 3,000-bird batch placed 2026-02-06
+    (Final Report). Placing it needs a parameter set in force on 2026-02-06.
+  - **Backdating the September set to February would be a false dated fact.** In
+    February he was on different feed prices (the Record sheet's per-kg set,
+    OQ-13), different overheads (the $400 line he retired, AD-51), and no
+    answered abattoir fee. Effective-dating (D7) exists to prevent exactly this.
+  - A February set built from the workbook would be sourced, but it would be
+    half nulls, and it would be a second dataset to maintain for a batch with
+    no records, draws or sales.
+  - **So Daniel's organisation shows its first batch when a real one is
+    captured** (U8).
+- **No cash account.**
+  - **This amends D8's note**, which said the dev seed "creates one account
+    opening on the seed batch's placement date". It named no amount, and he has
+    given none.
+  - **The allocation therefore refuses `'opening_cash'`**, which is AD-67
+    working.
+  - **OQ-40** logs the question with proposed wording.
+
+| Option | Against |
+|---|---|
+| Seed the February batch on the September set | False dated fact (above) |
+| Seed a February set from the workbook | Half nulls; a second dataset for a batch with no facts |
+| Seed an opening balance "to make allocation work" | A number he never gave, on his organisation |
+
+*Recommended.*
+
+### D35 · The synthetic organisation: labelled in every text field, built from the fixtures and the curve
+
+- **Every free-text field starts with `SYNTHETIC`:** organisation name,
+  parameter set `note`, overhead `source`, curve `name` and `source`, and cash
+  account name. A screenshot of any of them says what it is.
+- **The parameter set** uses golden fixture 10's parameters, with the abattoir
+  fee and transport at 10c. `max_placement_birds` is 5,000 and
+  `effective_from` is 2026-02-01.
+- **One batch:** fixture 1's placement (3,000 chicks on 2026-02-06 at 100c).
+- **Daily records, days 1 to 30:** weight and feed from the curve's standard
+  points, with mortality from fixture 10's ramp rounded down to whole birds.
+  - They are entered by the two synthetic WORKERs on alternate days, and a
+    MANAGER corrects day 12.
+  - So the own-record rule (AD-86) can be seen in dev: worker 1 can correct
+    day 1, cannot correct day 2, and cannot correct day 12.
+- **Feed draws:** fixture 9's five draws.
+- **One BULK sales order:** fixture 13's.
+- **One cash account:** $20,000 opening on 2026-02-06, labelled `SYNTHETIC`, so
+  the allocation runs.
+
+*Recommended.*
+
+### D36 · Mechanics: dev only, empty target only, data written through the write functions as the seeded OWNER
+
+- **Entry point:** `npm run seed:dev`, a TypeScript script in `supabase/seed/`.
+  Not `supabase/seed.sql`, because it needs Auth users and the engine's
+  constants.
+- **Dev only, stricter than D29.** The command resolves the project ref and
+  refuses anything but `zlvjmaorlxrjnuxhykuh`, including the CI ref and
+  production, whatever `RUNPRODUCE_SUPABASE_TARGET` says. The CI harness calls
+  the same builders directly; it never runs the command.
+- **Empty target only.** It refuses if any organisation exists. Re-seeding
+  means resetting dev first. It never merges into existing data, so a second
+  run cannot duplicate a fact chain.
+- **People, as the service role:**
+  - users are created through the Auth admin API;
+  - memberships are inserted into `private.memberships`;
+  - **each organisation gets one OWNER, one MANAGER and one WORKER.** The
+    synthetic organisation gets a second WORKER for the own-record rule, and one
+    signed-in user belongs to no organisation;
+  - emails are on a reserved `.test` domain;
+  - **passwords come from `RUNPRODUCE_DEV_SEED_PASSWORD`**, never committed, and
+    the script fails if it is unset.
+- **Data, through the write functions, signed in as the seeded users.**
+  Parameter sets, curves, batches, records, draws, orders and cash go through
+  `create_parameter_set`, `create_breed_curve` and the chunk 5 write functions.
+  Each is called as the organisation's OWNER, or as the WORKER or MANAGER named
+  in D35.
+  - **This amends AD-88's seed clause,** which had the seed insert into `facts`
+    directly with `created_by = null`.
+  - **Why:** some rules live only in a write function. D9 enforces exactly three
+    feed prices per set, and D11 creates a curve whole. A direct insert can
+    create a set the app never could, and the seed would then be the only place
+    such data exists.
+  - **It also makes `created_by` real,** which D35's own-record demonstration
+    needs.
+  - **Tests keep direct service-role inserts** where a case needs a row with no
+    author (T-AC1's seed-row case).
+
+*Recommended.*
+
+### Tests this chunk adds to the build (test-first)
+
+- **T-SD1 · Provenance.** Every value in `daniel-values.ts` is either `client`
+  with a non-empty `source`, or `assumed` with an `owner` that exists as a
+  heading in `current-issues.md` or an AD in `progress-tracker.md`. The set's
+  `note` names every `assumed` value.
+- **T-SD2 · Seed parity.** Seed Daniel's organisation on the CI target, then read
+  it back through `engine_snapshot`. The overheads, bands, feed prices, curve,
+  fee, transport, delivery, dressing yield, step and calibration minimum
+  deep-equal the engine's constants. This is D5's copy, proven.
+- **T-SD3 · Guards.**
+  - The command refuses the CI ref, a production ref and a non-empty target,
+    before any write.
+  - It fails if the password variable is unset.
+- **T-SD4 · Labelling.** Every free-text field in the synthetic organisation
+  starts with `SYNTHETIC`, and none in Daniel's does.
+- **T-SD5 · Smoke.**
+  - After seeding, `my_memberships()` for each seeded user matches D36's table.
+  - `loadEngineInput` on the synthetic batch returns an input as its OWNER, and
+    throws `Forbidden` as its WORKER.
+  - Worker 1 is refused correcting day 2 and day 12, and accepted on day 1.
+
+### What this chunk depends on
+
+- **Chunks 3 and 5 to 7 as approved,** plus the two amendments above: D8's
+  dev-seed note, and AD-88's seed clause.
+- **From the client: nothing blocks it.** OQ-38 and OQ-39 replace assumed
+  values when answered. OQ-40 adds a cash account to Daniel's organisation.
+  Each answer changes a constant or the manifest, not the design.
+
+### The discussion points, in short
+
+1. **Daniel's organisation has no batch and no cash account (D34).** His real
+   figures are a September parameter set. Backdating it to his February batch
+   would be a false dated fact, and there is no balance he has given.
+2. **Eight values are seeded as `assumed`, each owned by an OQ (D33).**
+   Two new client questions: OQ-38 (reserve floor) and OQ-39 (gate capacity).
+   The alternative is making those columns nullable with engine refusals, an
+   AD-73-style change per field, not proposed here.
+3. **The seed writes through the write functions as the seeded users (D36),**
+   amending AD-88, because direct inserts skip rules that live only in those
+   functions.
+4. **Two more canary candidates, not designated.** T-RT1 (the overhead round
+   trip) and AD-63's drift test also fail only when the engine and the database
+   disagree about a shape. Under the new doctrine, a test is a canary only once
+   named, so they stay ordinary tests unless approved.
+
+---
+
 ## Chunks still to come
 
-8. **Seed.** Daniel's real figures as the dev dataset. Two organisations and one
-   user per role for the access tests (chunk 6).
 9. **Build order (TDD), CI's database target (including AD-63's drift test),
    Task 9's placement**, and the plan task list. Already owed a slot: T-RT1 to T-RT3,
    T-DB1 to T-DB3 and T-AC1 to T-AC5 first, the per-project Auth checklist
    (sign-ups disabled), the `overhead_line` refusal (AD-73), deleting
    `mortality_history`, and the TD-5 decision not to retype feed in U6 (it must
    close before U9 starts). **Gate before the first migration:** the MCP
-   read-only check in `SESSION.md` has passed.
+   read-only check in `SESSION.md` has passed. **Also owed:** T-RP1 runs as an
+   architectural canary, so a red stops the build (`code-standards.md`); and
+   U11's list gets "the production seed takes no `assumed` value without the
+   operator confirming it" (chunk 8 D33).
