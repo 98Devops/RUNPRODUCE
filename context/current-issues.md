@@ -302,19 +302,17 @@ Daniel is logged here as an OQ with proposed question wording, and stops there.
 The user handles every question to Daniel, out of band and in a format they
 control. Nothing in this repository is a message to him.
 
-Every client question still open, checked against this file on 2026-09-14 (OQ-38 to OQ-40 added 2026-09-15):
+Every client question still open, checked against this file on 2026-09-14 (OQ-38 to OQ-41 added, OQ-35 to OQ-37 closed, 2026-09-15):
 
 | OQ | The gap | Shapes |
 |---|---|---|
 | OQ-32 | Does one feed collection ever serve two batches? | U6 chunk 5 feed draws |
 | OQ-33 | Are bulk runs booked ahead with a fixed weight? | U6 chunk 5 sales orders |
 | OQ-34 | Is feed ever collected before the chicks arrive? | U6 chunk 5; `buildDays` throws on it |
-| OQ-35 | What does a bird over 1.3 kg dressed pay? | Bulk value past the top band (AD-58), TD-4 #9 |
-| OQ-36 | Does the bulk buyer cap how many birds he takes? | Whether bulk can absorb a whole flock |
+| OQ-41 | Where does $3.70 end and $3.50 begin? | Building AD-96's fourth band; TD-4 #9 |
 | OQ-40 | How much cash does the farm hold when the planner starts? | Opening cash (AD-67); the allocation refuses without it |
 | OQ-39 | How many birds a day does the gate take? | `gate_capacity_per_day`, seeded as assumed (U6 chunk 8) |
 | OQ-38 | Which minimum cash reserve should the planner protect? | `reserve_floor_cents`, seeded as assumed (U6 chunk 8) |
-| OQ-37 | Is transport the same per bird on a direct delivery? | Bulk net when `delivery_mode = DIRECT` |
 | OQ-21 | Does the supplier ever charge for part of a bag? | Pricing a part-bag draw (refused today) |
 | OQ-17 | ~20 paired live and dressed weights | The bulk harvest day, every dressed price |
 | OQ-15 | Do labour and electricity scale at 30,000 birds? | Overheads at any scale but 3,000 |
@@ -599,6 +597,18 @@ same truck twice. An answered OQ-2 is **not** sufficient to proceed.
 
 ## Open questions — blocking
 
+### OQ-41 · Where does the $3.70 band end and the $3.50 price begin? 🟡 OPEN
+**Status:** open. **Raised:** 2026-09-15, from Daniel's answer to OQ-35 (AD-96).
+Absorbs TD-4 #9 (whether "1.3 kg" is a floor or a range).
+**Affects:** building AD-96's fourth band. Until answered, planning and sales
+keep refusing past the top band (AD-58).
+**What we have:** "heavier than 1.3 kg dressed" fetches about $3.50, against
+$3.70 at 1.3 kg. The boundary is not stated.
+**Proposed question:** *"You said birds heavier than 1.3 kg dressed fetch about
+$3.50. At what dressed weight does a bird stop getting $3.70 and start getting
+$3.50: just over 1.3 kg, at 1.4 kg, or somewhere else?"*
+**Meanwhile:** AD-58's refusal stands, and no boundary is chosen.
+
 ### OQ-40 · How much cash does the farm hold when the planner starts? 🟡 OPEN
 **Status:** open, never asked. **Raised:** 2026-09-15, from U6 chunk 8 (seed).
 **Affects:** the opening cash balance (AD-67). Without an account opening, the
@@ -643,7 +653,10 @@ fall below?"*
 owned by this OQ (chunk 8 D33). The highest option errs toward calling a
 placement unaffordable, the cautious direction, as AD-55 chose for transport.
 **Not zero:** zero means "no floor", which the brief rules out.
-### OQ-37 · Is transport the same per bird on a direct delivery? 🟡 OPEN
+### OQ-37 · Is transport the same per bird on a direct delivery? ✅ CLOSED 2026-09-15 — moot, AD-98
+**Answer (Daniel, 2026-09-15):** delivery is always to the abattoir; the buyer collects there. No direct run exists, so the question does not arise. `delivery_mode` stays `ABATTOIR`, and no screen asks for it (AD-98).
+
+**Superseded detail below.**
 **Status:** open, never answered. **Raised:** 2026-09-12 (Daniel list #11), logged
 as an OQ 2026-09-14. **Affects:** bulk net when `delivery_mode = DIRECT`.
 `bulkNetCentsPerBird` drops the abattoir fee on a direct delivery but charges
@@ -655,7 +668,10 @@ of the abattoir, does transport cost the same per bird, more, or less?"*
 second parameter, `direct_transport_cents_per_bird`, nullable and refused when
 null on a DIRECT order.
 
-### OQ-36 · Does the bulk buyer cap how many birds he takes? 🟡 OPEN
+### OQ-36 · Does the bulk buyer cap how many birds he takes? ✅ CLOSED 2026-09-15 — no cap, AD-97
+**Answer (Daniel, 2026-09-15):** no cap. Bulk absorbs whatever the gate does not, at any batch size (AD-97). No `bulk_capacity` parameter.
+
+**Superseded detail below.**
 **Status:** open, never answered. **Raised:** 2026-09-12 (Daniel list #8), logged
 as an OQ 2026-09-14. **Affects:** the gate/bulk split. The brief calls bulk a
 "guaranteed outlet" with no ceiling, and the allocation treats it as unbounded.
@@ -664,7 +680,10 @@ take from one batch, or in one week?"*
 **Meanwhile:** no cap. **If capped:** a nullable `bulk_capacity` parameter that
 bounds the split, beside `gate_capacity_per_day`.
 
-### OQ-35 · What does a bird over 1.3 kg dressed pay? 🟡 OPEN
+### OQ-35 · What does a bird over 1.3 kg dressed pay? ✅ CLOSED 2026-09-15 — LESS, ~$3.50, AD-96
+**Answer (Daniel, 2026-09-15):** heavier than 1.3 kg dressed is worth **less**, about $3.50 a bird against the 1.3 kg band's $3.70. AD-58's refusal was right in direction as well as magnitude, and holding past 1.3 kg is to be penalised in planning, not merely blank (AD-96). **Not built:** where $3.70 ends and $3.50 begins is unstated (OQ-41, absorbing TD-4 #9), so AD-58's refusal stands.
+
+**Superseded detail below.**
 **Status:** open, never asked. **Raised:** 2026-09-12 as OQ-30's client half
 (Daniel list #2). OQ-30 closed on our side by AD-58; this is what it left.
 Logged as its own OQ 2026-09-14. **Affects:** bulk value past the top band,

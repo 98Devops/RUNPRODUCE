@@ -677,6 +677,58 @@ Tracked in `current-issues.md`.
 
 ## Architecture Decisions
 
+**AD-98 · Bulk delivery is always to the abattoir, and the buyer collects there. `delivery_mode` stays, and no screen asks for it.**
+Answered by Daniel 2026-09-15; closes OQ-37.
+- **The answer.** Birds always go to the abattoir, and the bulk buyer collects
+  from there.
+- **`delivery_mode` always defaults to `ABATTOIR`,** and `DIRECT` is never used
+  in practice.
+- **The field stays.** It is harmless and future-proof, and the engine already
+  handles both values.
+- **No screen asks for it.**
+- **Where the field lives.** It is on `Parameters` (`parameter_sets.delivery_mode`
+  in U6), not on `SalesOrder`. The decision is the same.
+- **OQ-37 closes as moot.** There is no direct run, so a direct transport rate
+  never applies. `transport_cents_per_bird` (10c, AD-55) is the abattoir run.
+- **Not built:** nothing changes in the engine or the schema.
+
+**AD-97 · The bulk buyer has no cap on how many birds he takes.**
+Answered by Daniel 2026-09-15; closes OQ-36.
+- **The answer.** There is no cap.
+- **The allocation's reading of bulk as unbounded was right,** and no
+  `bulk_capacity` parameter is added.
+- **This closes the implicit question** of whether a large batch can be
+  absorbed. Gate capacity limits how fast a batch turns into same-day cash
+  (OQ-23), and bulk takes the rest. The sales channels cap no batch size. What
+  still limits it is cash (the reserve floor) and `max_placement_birds`.
+- **Not built:** nothing changes.
+
+**AD-96 · A bird over 1.3 kg dressed pays LESS: about $3.50, against the top band's $3.70. Holding past 1.3 kg is to be penalised, not merely left blank.**
+Answered by Daniel 2026-09-15; closes OQ-35, the client half of OQ-30.
+- **The answer.** Birds heavier than 1.3 kg dressed are worth less to the buyer:
+  about **$3.50 a bird**, against $3.70 in the 1.3 kg band.
+- **AD-58's refusal was doubly correct.** It was right not only because the value
+  was unknown. Extrapolating the top band upward would have been wrong in
+  **direction as well as magnitude**, pricing an over-held bird at $3.70 when it
+  fetches about $3.50. AD-58's first reason, that the extrapolation ran
+  optimistic, is now confirmed by the client rather than inferred from the
+  trend.
+- **The planning rule.** A planning path that considers holding birds past
+  1.3 kg dressed is **penalised, not just marked unknown**. Holding past the top
+  band is a known loss, and a blank lets "hold" look neutral where it is worse.
+- **Not built. Today's behaviour is unchanged:** planning and sales refuse past
+  the top band (AD-58), which errs safe.
+- **Building it waits on one boundary nobody has given.** "Heavier than 1.3 kg"
+  does not say where $3.70 ends and $3.50 begins (TD-4 #9). Picking one would
+  invent a number, so it is logged as **OQ-41**.
+- **When built:** both paths change together, since there is one schedule
+  (AD-58).
+  - A fourth band is added to `SEED_BULK_BANDS` and to the planning set.
+  - The bulk half of fixture 10 and the hold-cost figures is regenerated under
+    an AD.
+  - M4's hold-versus-sell comparison carries the drop as a cost.
+  - "About $3.50" stays visible as assumed-grade until an invoice confirms it.
+
 **AD-95 · Write repositories are thin, one per write function (U6 D30).**
 Approved 2026-09-15.
 - One repository per write function: `recordBatch`, `recordBatchPlacement`,
@@ -1265,6 +1317,7 @@ receipts alone (ranks on the wrong quantity, the trap OQ-26 already warns off).
 
 **AD-58 · The planning path refuses past the top band too. One schedule, one
 policy.**
+*Confirmed by AD-96 (2026-09-15):* a bird over 1.3 kg dressed pays about $3.50, less than the top band, so the refusal was right in direction as well as magnitude.
 Decided 2026-09-12, closing OQ-30 the day after AD-57 opened it.
 `bandForDressedG` now returns null **above** the top band as well as below it,
 so M4's harvest planning refuses exactly where a real invoice refuses.
