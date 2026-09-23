@@ -4,6 +4,37 @@ Update this file after every meaningful implementation change.
 
 ## Current Phase
 
+**U9 v1 — decision console, three cards, 2026-09-23 (branch `u9-first-screen`,
+from main).** Fixture 7 hardcoded, no database, no auth. U6 chunk 7 is set down
+at its red phase on `u6-supabase-schema` (pushed).
+- **Scaffold:** Next.js 15, Tailwind 4, Geist, shadcn Card and Badge, Recharts.
+  `apps/web/package.json`, `tsconfig.json` and `vitest.config.ts` are chunk 7's
+  content verbatim with Next's added beside it. **When chunk 7 resumes, take all
+  three from this branch unchanged** (and the lockfile), so the branches merge
+  without a conflict. Then rerun its typecheck: expected red on the 9 enum
+  exports only. Not yet verified against chunk 7's own files.
+- **Rulings for v1 (user, 2026-09-23):** TD-5 does not gate v1, since values
+  only flow engine to display. OQ-29 is handled by precomputing at build
+  (`force-static`); memoised or incremental scoring is still required before
+  live data. DESIGN.md and PRODUCT.md are extracted after v1 settles.
+- **What the engine could and could not answer on fixture 7:**
+  - **Maximum Growth answers with the floor unchecked:** 5,000 birds on 22 Mar.
+    There is no opening balance (OQ-25), so candidates go through `pickWinner`
+    unprojected, with the same shape `computeAllocation` uses when it cannot
+    project. So v1 never reaches the 20.8 s path.
+  - **The calendar plots net cash since placement, not a balance,** and names
+    the reserve floor rather than drawing it. No fixture has a sales order and
+    the engine forecasts none (M6), so the line only falls: −$19,562 at
+    12 Apr.
+  - **Cover Fast and Build Reserve name what they need** (a sales forecast;
+    plus the opening balance for Build Reserve), per ui-context.md's
+    absent-value rule.
+- **Tests:** formatters and the view model, test-first (23). The view model's
+  test pins the hardcoded input to golden fixture 7.
+- **Not yet done:** the `<Explained>` popover, `web-design-guidelines` audit,
+  `/impeccable audit` (impeccable is not installed; skills.md says to install
+  it from a plain terminal).
+
 **U5 — pre-merge review fix wave, 2026-09-14.** An independent review of the
 whole branch (base `fd0fa80`) returned "with fixes": 13 findings, the first
 five reproduced. Fixed test-first, one commit each:
