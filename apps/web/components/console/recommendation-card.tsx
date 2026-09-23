@@ -1,11 +1,13 @@
 import type { ConsoleView } from '@/lib/u9/console';
 import { formatBirds, formatDayDate, formatShortDate } from '@/lib/format';
+import { Explain } from './explain';
 import { ConfidenceBadge, Panel, Row } from './primitives';
 
 /** Card 1: Maximum Growth's answer, the only mode that answers today. */
 export function RecommendationCard({ view }: { readonly view: ConsoleView }) {
   const rec = view.recommendation;
   const basis = rec.confidence_basis;
+  const ex = view.explained;
 
   return (
     <Panel
@@ -17,9 +19,14 @@ export function RecommendationCard({ view }: { readonly view: ConsoleView }) {
         <p className="text-xs text-muted">Next batch, Maximum Growth</p>
         <p className="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-1">
           <span className="text-sm">Place</span>
-          <span className="figures text-4xl font-medium tracking-tight">{formatBirds(rec.birds)}</span>
+          <Explain explained={ex.birds} label="Birds to place">
+            <span className="figures text-4xl font-medium tracking-tight">{formatBirds(rec.birds)}</span>
+          </Explain>
           <span className="text-sm">
-            birds on <span className="figures">{formatShortDate(rec.placement_date)}</span>
+            birds on{' '}
+            <Explain explained={ex.placement_date} label="Placement date">
+              <span className="figures">{formatShortDate(rec.placement_date)}</span>
+            </Explain>
           </span>
         </p>
         <p className="mt-3 max-w-prose text-sm">
@@ -33,12 +40,31 @@ export function RecommendationCard({ view }: { readonly view: ConsoleView }) {
 
       <dl className="mx-5 mb-5 divide-y divide-line rounded-md border border-line bg-raised">
         <Row label="This batch clears">
-          {formatDayDate(view.calendar.harvest.day, rec.harvest_completion_date)}
+          <Explain explained={ex.harvest_completion} label="This batch clears">
+            {formatDayDate(view.calendar.harvest.day, rec.harvest_completion_date)}
+          </Explain>
         </Row>
-        <Row label="Biosecurity gap">{rec.gap_days} days</Row>
-        <Row label="Your placement ceiling">{formatBirds(rec.ceiling_birds)} birds</Row>
-        <Row label="Placement dates that tie">{formatBirds(rec.tied_candidates)}, earliest chosen</Row>
-        <Row label="Options considered">{formatBirds(rec.candidates_considered)}</Row>
+        <Row label="Biosecurity gap">
+          <Explain explained={ex.gap_days} label="Biosecurity gap">
+            {rec.gap_days} days
+          </Explain>
+        </Row>
+        <Row label="Your placement ceiling">
+          <Explain explained={ex.ceiling} label="Your placement ceiling">
+            {formatBirds(rec.ceiling_birds)} birds
+          </Explain>
+        </Row>
+        <Row label="Placement dates that tie">
+          <Explain explained={ex.tied_candidates} label="Placement dates that tie">
+            {formatBirds(rec.tied_candidates)}
+          </Explain>
+          , earliest chosen
+        </Row>
+        <Row label="Options considered">
+          <Explain explained={ex.candidates_considered} label="Options considered">
+            {formatBirds(rec.candidates_considered)}
+          </Explain>
+        </Row>
       </dl>
 
       <p className="border-t border-line px-5 py-3 text-xs text-muted">

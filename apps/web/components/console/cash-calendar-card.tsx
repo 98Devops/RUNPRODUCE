@@ -2,6 +2,7 @@ import type { Cents } from '@runproduce/engine';
 import type { ConsoleView } from '@/lib/u9/console';
 import { formatDayDate, formatMoney, formatShortDate } from '@/lib/format';
 import { CashChart } from './cash-chart';
+import { Explain } from './explain';
 import { ConfidenceBadge, Panel } from './primitives';
 
 const money = (cents: number) => formatMoney(BigInt(cents) as Cents);
@@ -41,11 +42,19 @@ export function CashCalendarCard({ view }: { readonly view: ConsoleView }) {
 
       <dl className="grid grid-cols-1 divide-y divide-line sm:grid-cols-3 sm:divide-x sm:divide-y-0">
         <Stat label="Lowest point">
-          <p className="figures text-2xl font-medium">{money(cal.trough.net_cents)}</p>
+          <p className="figures text-2xl font-medium">
+            <Explain explained={view.explained.trough} label="Lowest point">
+              {money(cal.trough.net_cents)}
+            </Explain>
+          </p>
           <p className="figures text-xs text-muted">{formatDayDate(cal.trough.day, cal.trough.date)}</p>
         </Stat>
         <Stat label="Going out, these 45 days">
-          <p className="figures text-2xl font-medium text-flow-out">{money(cal.out_in_window_cents)}</p>
+          <p className="figures text-2xl font-medium text-flow-out">
+            <Explain explained={view.explained.out_in_window} label="Going out, these 45 days">
+              {money(cal.out_in_window_cents)}
+            </Explain>
+          </p>
         </Stat>
         <Stat label="Coming in, these 45 days">
           {cal.receipts_cents === 0 ? (

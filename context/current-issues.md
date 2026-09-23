@@ -2254,6 +2254,20 @@ sales, the null-fee guard, gate-order refusal), as are 6, 7 and 11. These remain
 | R2-a | Invariant 16 now counts from the latest `order_date`, which has no upper bound: a mistyped far-future date silently pushes the placement floor out | Input validation, for U6/U8's sales ledger, not the engine |
 | R2-b | `batchCashFlows` is exported and allowlisted as internal; it can be called without `cashFlowsMissingInputs` first | Acceptable while the allowlist entry stands; do not re-export it from index.ts |
 
+### TD-8 · The engine defines `Explained<T>` and emits none 🟠
+**Raised:** 2026-09-23, building U9 v1's explainability popovers.
+`code-standards.md` says every module returns `Explained<T>` for values the UI
+displays, and `architecture.md` lists an `explain.ts`. Neither exists: the type
+is in `types.ts` and no engine function returns one.
+**Interim, U9 v1:** `apps/web/lib/u9/console.ts` assembles each figure's
+`Explained<T>` from engine output, using the engine's type. Honesty rests on
+`tests/u9/explained.test.ts`: it recomputes every value from its own inputs
+(sizes × dates = options, flows by kind sum to the trough, and so on), so an
+explanation cannot sound right without adding up.
+**Fix:** the engine returns `Explained<T>` for its display values, and the view
+model reads them. Until then the formula wording lives in the UI, one step from
+the arithmetic it describes. **Due:** before U9 binds to live data.
+
 ### TD-7 · Migration 6 does not apply to a fresh local database 🟠
 **Raised:** 2026-09-23, during chunk 7's red run. `20260915071004_security_definer_comments`
 revokes EXECUTE on `public.rls_auto_enable()`, a hosted-platform default that the

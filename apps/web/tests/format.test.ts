@@ -4,7 +4,7 @@
  * text.
  */
 import type { Cents, IsoDate } from '@runproduce/engine';
-import { formatBirds, formatDayDate, formatMoney, formatShortDate } from '../lib/format.js';
+import { formatBirds, formatDayDate, formatInput, formatMoney, formatShortDate } from '../lib/format.js';
 
 const cents = (n: bigint) => n as Cents;
 
@@ -53,5 +53,23 @@ describe('dates', () => {
 
   it('shows both the cycle day and the calendar date', () => {
     expect(formatDayDate(30, '2026-03-07' as IsoDate)).toBe('Day 30 · 7 Mar');
+  });
+});
+
+describe('formatInput, for an explanation’s inputs', () => {
+  it('prints money with cents, since the popover is where the detail is', () => {
+    expect(formatInput(-500_000n)).toBe('−$5,000.00');
+  });
+
+  it('prints an ISO date as a short date', () => {
+    expect(formatInput('2026-03-08')).toBe('8 Mar');
+  });
+
+  it('prints a count with thousands separated', () => {
+    expect(formatInput(5000)).toBe('5,000');
+  });
+
+  it('prints any other text as it is', () => {
+    expect(formatInput('Not checked')).toBe('Not checked');
   });
 });

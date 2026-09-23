@@ -1,6 +1,7 @@
 import type { AllocationMode } from '@runproduce/engine';
 import type { ConsoleView, ModeNeed } from '@/lib/u9/console';
 import { formatBirds, formatShortDate } from '@/lib/format';
+import { Explain } from './explain';
 import { Panel } from './primitives';
 
 const MODE_NAME: Record<AllocationMode, string> = {
@@ -42,8 +43,13 @@ export function ModesCard({ view }: { readonly view: ConsoleView }) {
             {mode.answered ? (
               <div className="text-sm">
                 <p>
-                  <span className="figures">{formatBirds(mode.birds)}</span> birds on{' '}
-                  <span className="figures">{formatShortDate(mode.placement_date)}</span>
+                  <Explain explained={view.explained.birds} label="Birds to place">
+                    <span className="figures">{formatBirds(mode.birds)}</span>
+                  </Explain>{' '}
+                  birds on{' '}
+                  <Explain explained={view.explained.placement_date} label="Placement date">
+                    <span className="figures">{formatShortDate(mode.placement_date)}</span>
+                  </Explain>
                 </p>
                 {!mode.reserve_floor_checked && (
                   <p className="text-xs text-muted">Reserve floor not checked</p>

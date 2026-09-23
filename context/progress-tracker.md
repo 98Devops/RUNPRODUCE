@@ -34,7 +34,11 @@ at its red phase on `u6-supabase-schema` (pushed).
     absent-value rule.
 - **Tests:** formatters and the view model, test-first (23). The view model's
   test pins the hardcoded input to golden fixture 7.
-- **Not yet done:** the `<Explained>` popover, `web-design-guidelines` audit,
+- **Explained popovers, 2026-09-23:** every figure on the three cards opens its
+  formula, inputs with sources, and confidence. The engine emits no
+  `Explained<T>` (TD-8), so the view model assembles them, and a reconciliation
+  test recomputes each value from its own inputs (44 web tests).
+- **Not yet done:** the flow breakdown, `web-design-guidelines` audit,
   `/impeccable audit` (impeccable is not installed; skills.md says to install
   it from a plain terminal).
 

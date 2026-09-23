@@ -49,3 +49,17 @@ export function formatShortDate(date: IsoDate): string {
 export function formatDayDate(dayNumber: number, date: IsoDate): string {
   return `Day ${dayNumber} · ${formatShortDate(date)}`;
 }
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * One input of an `Explained<T>`, whose value is typed `unknown`: money is
+ * bigint cents (with cents, since the popover is the detail view), a date is an
+ * ISO string, a count is a number, and anything else is already words.
+ */
+export function formatInput(value: unknown): string {
+  if (typeof value === 'bigint') return formatMoney(value as Cents, { cents: true });
+  if (typeof value === 'number') return formatBirds(value);
+  if (typeof value === 'string' && ISO_DATE.test(value)) return formatShortDate(value as IsoDate);
+  return String(value);
+}

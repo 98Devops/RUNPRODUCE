@@ -3,6 +3,7 @@
  * engine; this module only picks figures and shapes them for three cards.
  */
 import {
+  DEFAULT_PLACEMENT_STEP_BIRDS,
   addDays,
   computeDecision,
   dayNumberFor,
@@ -12,12 +13,17 @@ import {
   projectCashCalendar,
   type AllocationMode,
   type Candidate,
+  type CashDay,
+  type CashFlow,
+  type CashFlowKind,
   type Cents,
   type Confidence,
   type EngineInput,
+  type Explained,
   type IsoDate,
   type ScoredCandidate
 } from '@runproduce/engine';
+import { formatBirds, formatShortDate } from '../format.js';
 
 /** The calendar card's horizon, counted from `asOf` inclusive. */
 const WINDOW_DAYS = 45;
@@ -82,6 +88,61 @@ export interface ConsoleView {
     readonly harvest: { readonly day: number; readonly date: IsoDate };
   };
   readonly modes: readonly ModeView[];
+  /**
+   * Every business figure on the console, with its formula, inputs and
+   * confidence. TD-8: the engine defines `Explained<T>` but emits none, so these
+   * are assembled here from engine output. `tests/u9/explained.test.ts`
+   * recomputes each value from its own inputs.
+   */
+  readonly explained: {
+    readonly birds: Explained<number>;
+    readonly placement_date: Explained<IsoDate>;
+    readonly harvest_completion: Explained<IsoDate>;
+    readonly gap_days: Explained<number>;
+    readonly ceiling: Explained<number>;
+    readonly tied_candidates: Explained<number>;
+    readonly candidates_considered: Explained<number>;
+    readonly trough: Explained<Cents>;
+    readonly out_in_window: Explained<Cents>;
+  };
+}
+
+const RANK: Record<Confidence, number> = { assumed: 0, calibrated: 1, measured: 2 };
+
+/** A figure is only as sure as its least sure input. */
+function weakest(...levels: readonly Confidence[]): Confidence {
+  return levels.reduce((a, b) => (RANK[b] < RANK[a] ? b : a));
+}
+
+export const FLOW_LABEL: Record<CashFlowKind, string> = {
+  CHICK_COST: 'Chicks',
+  FEED_DRAW_PAYMENT: 'Feed, drawn',
+  PLANNED_FEED_DRAW_PAYMENT: 'Feed, planned draws',
+  FEED_DELIVERY_PAYMENT: 'Feed delivery',
+  PLANNED_FEED_DELIVERY_PAYMENT: 'Feed delivery, planned',
+  OVERHEAD: 'Overheads',
+  GATE_RECEIPT: 'Gate sales',
+  BULK_RECEIPT: 'Bulk sales'
+};
+
+/**
+ * Flows summed by kind, one explanation input per kind. `sign` picks money out
+ * as a positive magnitude (-1) or signed net movement (1).
+ */
+function byKind(days: readonly CashDay[], keep: (f: CashFlow) => boolean, sign: 1n | -1n) {
+  const totals = new Map<CashFlowKind, { cents: bigint; count: number }>();
+  for (const flow of days.flatMap((d) => d.flows).filter(keep)) {
+    const t = totals.get(flow.kind) ?? { cents: 0n, count: 0 };
+    totals.set(flow.kind, { cents: t.cents + flow.amount_cents * sign, count: t.count + 1 });
+  }
+  const inputs: Record<string, { value: unknown; source: string }> = {};
+  for (const [kind, t] of totals) {
+    inputs[FLOW_LABEL[kind]] = {
+      value: t.cents,
+      source: `Cash calendar, ${t.count} ${t.count === 1 ? 'payment' : 'payments'}`
+    };
+  }
+  return inputs;
 }
 
 function exact(cents: Cents): number {
@@ -127,7 +188,8 @@ export function buildConsole(input: EngineInput): ConsoleView {
 
   const ceiling = input.parameters.max_placement_birds;
   if (ceiling === undefined) throw new Error('U9 v1 needs max_placement_birds (OQ-23)');
-  const scored = enumerateCandidates(input, harvestCompletion, ceiling).map(unchecked);
+  const candidates = enumerateCandidates(input, harvestCompletion, ceiling);
+  const scored = candidates.map(unchecked);
 
   const growth = pickWinner('MAXIMUM_GROWTH', scored);
   if (growth === null) throw new Error('Maximum Growth found no candidate');
@@ -159,7 +221,112 @@ export function buildConsole(input: EngineInput): ConsoleView {
     return { mode, answered: false, needs };
   });
 
+  const dates = [...new Set(candidates.map((c) => c.placement_date))].sort();
+  const sizes = new Set(candidates.map((c) => c.chick_count)).size;
+  const gapDays = daysBetween(harvestCompletion, winner.placement_date);
+  const calendarConfidence = weakest(calendar.overhead_timing, calendar.planned_feed_confidence);
+  const firstDate = dates[0]!;
+  const lastDate = dates[dates.length - 1]!;
+  const first = windowDays[0]!;
+  const last = windowDays[windowDays.length - 1]!;
+
+  const explained: ConsoleView['explained'] = {
+    birds: {
+      value: winner.chick_count,
+      formula:
+        'Maximum Growth places the most birds the reserve floor allows. With no opening balance the floor ' +
+        'cannot be checked, so it rules nothing out, and the most is your ceiling.',
+      inputs: {
+        'Your placement ceiling (birds)': { value: ceiling, source: 'Stated by Daniel (OQ-23)' },
+        'Reserve floor': { value: 'Not checked', source: 'No opening cash balance yet (OQ-25)' }
+      },
+      confidence: harvest.confidence
+    },
+    placement_date: {
+      value: winner.placement_date,
+      formula:
+        'The day this batch clears, plus the biosecurity gap. Every later date ties on birds, so the earliest ' +
+        'is chosen.',
+      inputs: {
+        'This batch clears': { value: harvestCompletion, source: 'Harvest plan' },
+        'Biosecurity gap (days)': { value: gapDays, source: 'Stated by Daniel, 2026-09-10 (invariant 16)' }
+      },
+      confidence: harvest.confidence
+    },
+    harvest_completion: {
+      value: harvestCompletion,
+      formula:
+        'The day this batch was placed, plus the last day of the harvest plan’s gate window, less one. ' +
+        'Gate birds are paid per bird, so each day past the window adds feed cost and no revenue.',
+      inputs: {
+        'This batch placed': { value: placement, source: 'Batch record' },
+        'Last gate day (cycle day)': { value: harvest.gate_window.last_day, source: 'Harvest plan' },
+        'Dressing yield (%)': {
+          value: harvest.assumed_dressing_yield_pct,
+          source: 'Daniel’s estimate, not yet measured (OQ-17)'
+        }
+      },
+      confidence: harvest.confidence
+    },
+    gap_days: {
+      value: gapDays,
+      formula:
+        'A fixed floor between this batch’s last bird and the next placement, for spraying and disinfecting ' +
+        'the house. Cash never overrides it.',
+      inputs: { Rule: { value: 'Spraying and disinfection', source: 'Stated by Daniel, 2026-09-10 (invariant 16)' } },
+      confidence: 'measured'
+    },
+    ceiling: {
+      value: ceiling,
+      formula: 'The most birds you said you would place today. Entered, not computed.',
+      inputs: { 'Stated ceiling (birds)': { value: ceiling, source: 'Daniel, OQ-23 (answered 2026-09-11)' } },
+      confidence: 'measured'
+    },
+    tied_candidates: {
+      value: growth.tied_candidates,
+      formula:
+        `Every one of these dates can take the full ${formatBirds(ceiling)} birds, and the unchecked floor ` +
+        'rules none out, so they all tie. The earliest is chosen.',
+      inputs: {
+        'Placement dates': { value: dates.length, source: `${formatShortDate(firstDate)} to ${formatShortDate(lastDate)}` }
+      },
+      confidence: 'measured'
+    },
+    candidates_considered: {
+      value: growth.candidates_considered,
+      formula: 'Every placement size from 1 bird up to your ceiling, on every date the biosecurity gap allows: sizes × dates.',
+      inputs: {
+        'Sizes, 1 bird to the ceiling': { value: sizes, source: `Up to your ${formatBirds(ceiling)}-bird ceiling` },
+        'Placement step (birds)': {
+          value: input.parameters.placement_step_birds ?? DEFAULT_PLACEMENT_STEP_BIRDS,
+          source: 'The hatchery invoices per chick (OQ-18)'
+        },
+        'Placement dates': { value: dates.length, source: `${formatShortDate(firstDate)} to ${formatShortDate(lastDate)}` }
+      },
+      confidence: 'measured'
+    },
+    trough: {
+      value: calendar.minimum_cents,
+      formula:
+        `Net cash since placement at its lowest, on ${formatShortDate(calendar.minimum_date)}: every payment ` +
+        `from ${formatShortDate(placement)} to then, added up. No sales are recorded, so nothing offsets them.`,
+      inputs: byKind(
+        calendar.days.filter((d) => d.date <= calendar.minimum_date),
+        () => true,
+        1n
+      ),
+      confidence: calendarConfidence
+    },
+    out_in_window: {
+      value: windowDays.reduce((sum, d) => sum + d.out_cents, 0n) as Cents,
+      formula: `Every payment due from ${formatShortDate(first.date)} to ${formatShortDate(last.date)}, added up.`,
+      inputs: byKind(windowDays, (f) => f.amount_cents < 0n, -1n),
+      confidence: calendarConfidence
+    }
+  };
+
   return {
+    explained,
     batch: {
       placement_date: placement,
       chick_count: input.batch.chick_count,
