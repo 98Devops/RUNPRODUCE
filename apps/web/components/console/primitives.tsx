@@ -29,7 +29,7 @@ export function Panel({
       role="region"
     >
       <header className="flex items-start justify-between gap-4 border-b border-line px-5 py-4">
-        <h2 id={labelledBy} className="text-lg font-medium leading-tight">
+        <h2 id={labelledBy} className="text-lg font-medium leading-tight text-balance">
           {title}
         </h2>
         {aside}

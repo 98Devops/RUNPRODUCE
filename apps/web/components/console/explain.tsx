@@ -26,7 +26,7 @@ export function Explain({
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="cursor-pointer rounded-sm underline decoration-line-strong decoration-dotted decoration-1 underline-offset-4 hover:decoration-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          className="inline-block min-h-6 cursor-pointer rounded-sm py-0.5 underline decoration-line-strong decoration-dotted decoration-1 underline-offset-4 hover:decoration-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         >
           {children}
           <span className="sr-only">, how this is worked out</span>
@@ -40,12 +40,12 @@ export function Explain({
         <p className="px-4 py-3 text-sm leading-relaxed">{explained.formula}</p>
         <dl className="divide-y divide-line border-t border-line">
           {Object.entries(explained.inputs).map(([name, { value, source }]) => (
-            <div key={name} className="px-4 py-2">
-              <div className="flex items-baseline justify-between gap-3">
-                <dt className="text-xs">{name}</dt>
-                <dd className="figures text-right text-sm">{formatInput(value)}</dd>
-              </div>
-              <p className="text-xs text-muted">{source}</p>
+            <div key={name} className="flex items-baseline justify-between gap-3 px-4 py-2">
+              <dt className="text-xs">
+                {name}
+                <span className="block text-muted">{source}</span>
+              </dt>
+              <dd className="figures text-right text-sm">{formatInput(value)}</dd>
             </div>
           ))}
         </dl>

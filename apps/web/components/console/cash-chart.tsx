@@ -57,7 +57,13 @@ export function CashChart({
 
   return (
     <ResponsiveContainer width="100%" height={380}>
-      <LineChart data={[...points]} margin={{ top: 16, right: 16, bottom: 4, left: 8 }}>
+      <LineChart
+        data={[...points]}
+        margin={{ top: 16, right: 16, bottom: 4, left: 8 }}
+        // The figure's caption carries the text alternative and the bill table
+        // carries the detail, so the chart is not a keyboard stop of its own.
+        accessibilityLayer={false}
+      >
         <CartesianGrid stroke="var(--border-default)" strokeDasharray="0" vertical={false} />
         <XAxis
           dataKey="date"

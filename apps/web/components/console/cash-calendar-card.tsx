@@ -70,7 +70,8 @@ export function CashCalendarCard({ view }: { readonly view: ConsoleView }) {
       </dl>
 
       <figure className="border-t border-line px-2 pt-2 pb-1">
-        <div role="img" aria-label={chartSummary(view)}>
+        <figcaption className="sr-only">{chartSummary(view)}</figcaption>
+        <div aria-hidden="true">
           <CashChart points={cal.points} trough={cal.trough} harvest={cal.harvest} />
         </div>
       </figure>

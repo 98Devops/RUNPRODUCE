@@ -24,6 +24,9 @@ export function OutgoingTable({ view }: { readonly view: ConsoleView }) {
       <h3 id="outgoing-title" className="px-5 pt-4 text-sm font-medium">
         Going out, bill by bill
       </h3>
+      {rows.length === 0 ? (
+        <p className="px-5 pt-2 pb-4 text-sm text-muted">No payments fall due in these 45 days.</p>
+      ) : (
       <div className="overflow-x-auto px-5 pb-4">
         <table className="mt-2 w-full min-w-[32rem] text-sm">
           <thead>
@@ -68,6 +71,7 @@ export function OutgoingTable({ view }: { readonly view: ConsoleView }) {
           </p>
         )}
       </div>
+      )}
     </section>
   );
 }

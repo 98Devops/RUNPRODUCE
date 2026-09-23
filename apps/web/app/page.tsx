@@ -26,7 +26,7 @@ export default function DecisionConsole() {
       <header className="mb-6 flex flex-wrap items-end justify-between gap-x-6 gap-y-2 border-b border-line pb-4">
         <div>
           <p className="text-xs text-muted">Decision console</p>
-          <h1 className="text-2xl font-medium tracking-tight">
+          <h1 className="text-2xl font-medium tracking-tight text-balance">
             Batch placed {formatShortDate(view.batch.placement_date)},{' '}
             <span className="figures">{formatBirds(view.batch.chick_count)}</span> birds
           </h1>

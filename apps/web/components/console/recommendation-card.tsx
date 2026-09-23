@@ -12,7 +12,7 @@ export function RecommendationCard({ view }: { readonly view: ConsoleView }) {
   return (
     <Panel
       labelledBy="recommendation-title"
-      title="Today's recommendation"
+      title="Today’s recommendation"
       aside={<ConfidenceBadge confidence={rec.confidence} />}
     >
       <div className="px-5 pt-5 pb-4">

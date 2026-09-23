@@ -51,9 +51,12 @@ at its red phase on `u6-supabase-schema` (pushed).
   planned feed runs to day 41 while the harvest plan clears the flock on day
   31, so two draws ($6,869.72) cover days after harvest. Marked on screen, not
   fixed.
-- **Not yet done:** `web-design-guidelines` audit,
-  `/impeccable audit` (impeccable is not installed; skills.md says to install
-  it from a plain terminal).
+- **Accessibility audit (web-design-guidelines), 2026-09-23:** run by code and
+  in the browser. Eight trivial findings fixed in the same pass; five recorded
+  as exceptions with reasons in `current-issues.md` ("U9 v1 ·
+  web-design-guidelines audit").
+- **Not yet done:** whether impeccable adds anything on top of `ui-context.md`
+  and this audit. The user decides; it stays uninstalled until then.
 
 **U6 — chunk 7 red phase, 2026-09-23.** Failing tests for `public.engine_snapshot`
 and `loadEngineInput` (AD-90 to AD-93), local stack only. **Dev was not touched,

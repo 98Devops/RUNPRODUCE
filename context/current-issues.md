@@ -2326,6 +2326,32 @@ sales, the null-fee guard, gate-order refusal), as are 6, 7 and 11. These remain
 | R2-a | Invariant 16 now counts from the latest `order_date`, which has no upper bound: a mistyped far-future date silently pushes the placement floor out | Input validation, for U6/U8's sales ledger, not the engine |
 | R2-b | `batchCashFlows` is exported and allowlisted as internal; it can be called without `cashFlowsMissingInputs` first | Acceptable while the allowlist entry stands; do not re-export it from index.ts |
 
+### U9 v1 · web-design-guidelines audit, exceptions recorded 🟡
+**Run:** 2026-09-23, against `apps/web/app` and `components/console`, by code
+and in the browser (focus order, target sizes, accessible names, contrast).
+**Fixed in the same pass:** the chart was a focusable, unnamed
+`role="application"` inside a `role="img"` (now not a tab stop, with a
+figcaption as its text alternative); Explain targets were 17-20px tall (now
+24px minimum); no `theme-color` or `color-scheme` (now light, matching the
+page); invalid `dl` nesting in the popover; a straight apostrophe in a
+heading; headings not balanced; no empty state for the bill table; no
+`touch-action: manipulation`. Contrast checked: muted text is 5.4:1 on white
+and 5.0:1 on the page background; the flow colours are over 6:1.
+**Exceptions, each with its reason:**
+- **Fixed formats, not `Intl.*`.** `ui-context.md` specifies them exactly
+  ("$11,504", "Day 30 · 8 Mar"), for one locale, and money stays bigint to the
+  glass. `Intl.NumberFormat` would localise separators the spec fixes.
+- **Sentence case, not Title Case, for headings.** Chosen for the sober ledger
+  voice. Settled when DESIGN.md is extracted.
+- **No skip link.** Nothing interactive precedes `<main>`. Needed once
+  navigation exists.
+- **The chart's per-day tooltip is pointer-only.** The figcaption states the
+  range, start, lowest point and harvest, and the bill table carries every
+  payment, so no figure is reachable only by hover.
+- **The bill table shows the engine's raw descriptions**, such as "PER_BATCH,
+  HARVEST_COMPLETE". Honest but not plain language. A copy follow-up, not
+  accessibility.
+
 ### TD-9 · Planned feed runs to the curve's last day, not the harvest day 🟠
 **Raised:** 2026-09-23, found by U9's outgoing breakdown, by running the engine
 on fixture 7. `computeFeedLiability` plans draws until the breed curve's last

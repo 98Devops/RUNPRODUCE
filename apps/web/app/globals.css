@@ -57,9 +57,15 @@
   --color-destructive: var(--state-error);
 }
 
+:root {
+  color-scheme: light;
+}
+
 body {
   background: var(--bg-base);
   color: var(--text-primary);
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .figures {
