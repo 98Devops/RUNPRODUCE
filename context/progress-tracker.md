@@ -29,8 +29,9 @@ both sides.
   no AD-67 summing function. So `engine_snapshot` returns the `cash` section
   (tested at the SQL level), and `loadEngineInput` does not map it until AD-67's
   engine side lands.
-- **Assumption pinned by the unit tests:** a snapshot that fails Zod is a
-  `RepositoryError`. D28's table lists SQLSTATEs only.
+- **A snapshot that fails Zod is a `RepositoryError`.** The unit tests pin it.
+  D28's table listed SQLSTATEs only, so this is logged as an amendment to AD-93
+  (below), not an extension of it.
 
 **Three findings from the red run:**
 1. **Migration 6 does not apply to a fresh local database.** `rls_auto_enable()`
@@ -47,6 +48,15 @@ both sides.
 3. **Local stack ports moved from 5542x to 5442x** (`supabase/config.toml`).
    Windows reserved TCP 55404 to 55503 after a reboot, a shifting WinNAT
    exclusion. This is local only.
+
+**Discipline note, 2026-09-23: a root `.gitignore` rule can swallow a deep
+folder.** This is a recurring trap, not a one-off. With `core.ignorecase` on a
+case-insensitive filesystem, an unanchored rule such as `Lib/` matches every
+`lib/` at any depth. It swallowed `scripts/` before, and `apps/web/lib/` in
+chunk 7.
+**Rule: any new folder is checked against `.gitignore` before its first
+commit**, with `git check-ignore -v <folder>/<a file>`. An empty result is the
+pass; any output names the rule that matched.
 
 **Discipline note, 2026-09-23: the specific action was safe, and the rule still
 applied.** SESSION.md's rule is that a new session verifies MCP read-only mode
@@ -897,6 +907,19 @@ Approved 2026-09-15.
   the date.
 - `RP001` and `RP002` are each raised in exactly one function; T-RP3 asserts
   the mapping.
+
+**Amendment (2026-09-23, logged as an amendment, not folded in silently).** A
+snapshot that fails Zod validation is a `RepositoryError`. D28's table
+enumerated SQLSTATEs only. A validation failure has no SQLSTATE, and it still
+needs a typed error: the caller must be able to tell it apart from `Forbidden`
+and from a `MissingInput`.
+- **It covers every refusal by the schema.** The tests pin four: an unknown
+  enum value (AD-73), money that is a number or a non-integer string, bags that
+  are a number or carry three decimals, and a feed price missing for a phase.
+- **It is not `IntegrityRejected`.** That is the database refusing a write
+  (23514). This is the application refusing what the database returned.
+- Pinned by the chunk 7 unit tests (`load-engine-input.test.ts`), red until
+  the green phase.
 
 **AD-92 · Assembling `EngineInput`: a fixed mapping, whose only arithmetic is `dayNumberFor` and grams to kg (U6 D27).**
 Approved 2026-09-15.
