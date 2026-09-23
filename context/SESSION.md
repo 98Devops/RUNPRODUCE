@@ -1,5 +1,5 @@
 # RunProduce - Session State
-Last updated: 2026-09-15 (chunk 5 shipped to dev; week closed) · Branch: `u6-supabase-schema`
+Last updated: 2026-09-23 (chunk 7 red phase committed; implementation not started) · Branch: `u6-supabase-schema`
 
 ## HARD RULE: Daniel's production Supabase project is off-limits
 - **No U6 work touches Daniel's production Supabase project.** Every connection string, MCP target and deploy script defaults to the **dev** project.
@@ -20,7 +20,7 @@ Last updated: 2026-09-15 (chunk 5 shipped to dev; week closed) · Branch: `u6-su
   - Before any MCP call, check that the URL still reads `project_ref=zlvjmaorlxrjnuxhykuh`.
 - ~~**Read-only is NOT yet confirmed in effect.**~~ **CONFIRMED 2026-09-15** after the user re-authenticated: `SELECT 1` ok; `transaction_read_only` = `on` as `supabase_read_only_user`; `CREATE TABLE _readonly_test` rejected (25006); no `apply_migration` tool offered. Earlier note: At the end of chunk 3 the live connection predated the URL change (`transaction_read_only` = `off`, user `postgres`; `apply_migration` offered). **Re-checked 2026-09-14 after chunk 5 approval:** `claude mcp list` shows `supabase` (URL with `project_ref=zlvjmaorlxrjnuxhykuh&read_only=true`) as **"Needs authentication"**, so no `supabase` tools are loaded and the check could not run. The claude.ai Supabase connector shows connected; it is denied and was not used.
 - **PRE-FLIGHT GATE before any migration runs. The user handles this step (2026-09-14); make no MCP call for it.** The check: no `apply_migration` in the tool list; `CREATE TABLE _readonly_test (id int)` rejected; `SELECT 1` succeeds and `transaction_read_only` reads `on`. No schema code from any chunk until the user reports it passed and planning has ended.
-- **Writes on dev: 6 migrations, 2026-09-15** (chunk 5, versions listed under In progress), in one write window the user opened. The user restores `read_only=true` out of band; **a new session verifies read-only (the check in step 3) before any MCP call.** No other write has touched dev.
+- **Writes on dev: 6 migrations, 2026-09-15** (chunk 5, versions listed under In progress), in one write window the user opened. The user restores `read_only=true` out of band; **a new session verifies read-only (the check in step 3) before any MCP call.** No other write has touched dev. **2026-09-23: dev was not touched at all (read or write) by the user's instruction, until they verify read-only on both sides.** The one read made at session start (`list_migrations`, before the read-only check completed) showed the six canonical migrations and no drift; see the discipline note in `progress-tracker.md`.
 
 ## What this is
 A decision console for Daniel, a broiler farmer, that turns his daily batch records into feed, cost, cash and harvest figures. Its headline job is telling him how many birds to place next and when, under three named strategies.
@@ -40,10 +40,10 @@ npm monorepo: a pure TypeScript engine (`packages/engine`) behind a Next.js app 
 - **U6 Task 0** shared refusal list (TD-4 #8, AD-60).
 - **U6 chunk 5 shipped, 2026-09-15:** 6 migrations applied to dev, DB suite 50/50 locally.
 - **Daniel's answers 2026-09-15:** AD-96 (over 1.3 kg dressed pays less, ~$3.50; not built, OQ-41), AD-97 (bulk buyer no cap), AD-98 (delivery always abattoir).
-- **Status:** 348 unit tests. Golden 11 written / 11 passing / 1 held. Lint, typecheck, build clean.
+- **Status:** engine 348 unit tests; golden 11 written / 11 passing / 1 held; lint clean. `apps/web` unit suite 49 red and `tsc` red on 9 enum exports, by design (chunk 7 red phase). DB suite 35 red / 37 green of 72, by design.
 
 ## In progress
-**U6 status: chunk 5 complete; chunks 7 and 8 planned, not started.** Spec: `context/plans/u6-supabase-schema.md`.
+**U6 status: chunk 5 complete; chunk 7 red phase committed (`engine_snapshot` + `loadEngineInput`), implementation next; chunk 8 planned.** Spec: `context/plans/u6-supabase-schema.md`.
 - **Chunk 5 SHIPPED to dev, 2026-09-15.** Six migrations applied through the MCP. The MCP stamps its own versions, so the files were renamed to match (`eb393ee`). **These are the canonical file names:**
   - `20260915064600_access_baseline`
   - `20260915065245_parameters`
@@ -57,7 +57,7 @@ npm monorepo: a pure TypeScript engine (`packages/engine`) behind a Next.js app 
   - DB suite `packages/db-tests` is 50/50 on a local stack (not yet run against dev): T-DB2 as OWNER and WORKER, T-RP1 canary on 11 fixtures (mutation-checked), AD-63 drift on 14 constraints, T-RT1 part 3, T-RT2, T-RT3, T-DB1, T-DB3.
   - Integrity lock is `FOR NO KEY UPDATE` (T-DB2 found `FOR UPDATE` deadlocks).
   - Not done: T-AC1 to T-AC5, a CI DB job, TD-6.
-  - T-RP1 uses a test-local loader until chunk 7's `loadEngineInput`.
+  - T-RP1 (and T-RT2, T-RT3) now read through `loadEngineInput`; the test-local loader is deleted (2026-09-23).
 - **Task 0 done:** one shared refusal list, `missingInputsFor` in `refusals.ts` (TD-4 #8, AD-60).
 - **Chunk 1** (framing, dev project): drafted.
 - **Chunk 2** (parameters, opening cash, D4-D8): approved, AD-61 to AD-67.
@@ -93,12 +93,22 @@ npm monorepo: a pure TypeScript engine (`packages/engine`) behind a Next.js app 
   - D29 / AD-94: one client factory with the project-ref guard; service role only in `admin.ts`.
   - D30 / AD-95: thin write repositories, `clientRequestId` from the caller, a no-op returns the existing id.
   - **T-RP1 is an architectural canary** (`code-standards.md`, 2026-09-15): a red means the engine and database disagree on `EngineInput`. Stop, find the divergence, fix at source; never just make it pass.
+  - **RED PHASE COMMITTED, 2026-09-23 (local stack only).** Scope: `engine_snapshot` + `loadEngineInput`.
+    - **Built (stubs only, bodies throw):** `apps/web/lib/repositories/{index,load-engine-input,errors}.ts`. `index.ts` is the only entry point; every test imports through it. `apps/web` now has `test`/`typecheck` scripts, a tsconfig and a vitest config.
+    - **The snapshot contract:** `apps/web/tests/repositories/snapshot-fixture.ts`, with sections `batch`, `parameter_set` (+ `overhead_lines`, `planning_bulk_bands`, `feed_prices`), `curve` (+ `points`, `phases`), `daily_records`, `feed_draws`, `sales_orders` (+ `bands`), `cash` (`accounts`, `transactions`). Money and `bags` are strings; lists arrive already ordered.
+    - **Unit, `apps/web/tests/repositories/`:** `load-engine-input.test.ts` (one `rpc` call; the full D27 mapping; max omitted; `{lines: []}`; `[]` bands; missing feed price refused; 2^53+1; money-as-number and non-integer money refused; bags as a number or with 3 decimals refused; 10 unknown enum values refused, per AD-73; each D28 SQLSTATE to its typed error). `enums.test.ts` (9 runtime arrays, compile-time `Same<>` against the engine unions).
+    - **DB, `packages/db-tests/tests/engine-snapshot.test.ts`:** invoker, stable, `search_path=''`; `authenticated` yes, `anon` no; exactly the contract sections; the set in force (4 dates, including a same-day revision and a set after placement); the curve priced from the set in force; RP002 and `NoParametersInForce` naming the date; max omitted or present; empty lists; current rows only; facts after `asOf` kept; voided draws out; bands `null` or ordered; every money/bags value a string; 2^53+1 end to end; the cash section (current opening; unlinked transactions before placement only); access (MANAGER yes; WORKER `Forbidden` even with no set in force; a stranger and a missing batch get the same 42501).
+    - **Implementation must also:** make `Forbidden` and the other typed errors *not* subclass `RepositoryError` (a test pins this); add Zod (`zod` is not installed yet); move the enum arrays out of `enum-drift.test.ts` into the repository layer and point the drift test at them (a refactor, which must stay green); write `engine_snapshot` as migration 7, applied locally only.
+    - **Assumption pinned:** a snapshot failing Zod is a `RepositoryError`.
+    - **Not mapped: opening cash** (no engine field until AD-67's engine side). `engine_snapshot` still returns `cash`, tested at the SQL level.
+    - **Still chunk 7, not in this red phase:** T-RP4 (client factory guard), T-RP5 (import-boundary lint), D30 write repositories, `myMemberships`, T-AC1's AD-86 extension.
 - **Chunk 8** (seed, D31-D36): **drafted, awaiting sign-off.** Two organisations: "Daniel's farm (dev)" with only his sourced figures (a September parameter set and the curve; no batch, since backdating to February would be a false dated fact; no cash account), and a "SYNTHETIC" organisation for hands-on use. A provenance manifest (`client` with source, or `assumed` with an owning OQ); engine constants imported, not retyped. Eight assumed values; new OQ-38 (reserve floor), OQ-39 (gate capacity), OQ-40 (cash on hand). Seed writes through the write functions as seeded users (proposed amendment to AD-88); dev only, empty target only. Tests T-SD1 to T-SD5.
 - **Chunk 9** to come: build order.
 
 ## Blockers
 | Blocker | Blocks | Who resolves |
 |---|---|---|
+| TD-7: migration 6 fails on a fresh local DB (`rls_auto_enable` is hosted-only) | `db reset --local` through migration 6; any future CI DB job | The user: guard the revoke, or a local shim. Workaround: `--version 20260915065625` |
 | OQ-25: engine holds no opening cash balance | M5b Task 9, wiring `decision.allocation` (getter throws) | Us, U6. Design approved (D8, AD-67); not built |
 | OQ-26: Cover Fast can't answer structurally (candidates have no forecast sales) | 1 of 3 modes | Us, via M6 |
 | OQ-31: Build Reserve pinned null for the same reason (AD-59) | 1 of 3 modes. Only Maximum Growth answers | Us, via M6 |
@@ -147,9 +157,9 @@ Full log: `progress-tracker.md` § Architecture Decisions.
 8. `context/ui-context.md`, `ui-build-playbook.md`, `card-system-and-decision-ux.md`: only for UI units (U7-U11). For U9, read the OQ-29 section first.
 
 ## Recommended next action
-Start chunk 7 test-first with `public.engine_snapshot` and `loadEngineInput` (AD-90, AD-92), so T-RP1 drops its test-local loader, ahead of chunk 8 because chunk 7 is already approved while chunk 8's seed is unsigned and waits on OQ-38 to OQ-40.
+**Check in with the user before implementing** (their instruction, 2026-09-23). Then take chunk 7's red phase to green: migration 7 `public.engine_snapshot` and the Zod-backed `loadEngineInput`, on the local stack only. T-RP1 green again is the proof: any red there is a canary and gets its stop-and-diagnose treatment. Dev stays untouched until the user has verified read-only mode on both sides, and TD-7 wants their decision before the next dev apply.
 
-Session notes, not part of the recommendation: verify MCP read-only first. Local suite: `npx supabase start -x studio,imgproxy,storage-api,edge-runtime,logflare,vector,supavisor,realtime,postgres-meta,mailpit`, `npx supabase db reset --local`, `npm run test:db:local`. On a surprising Daniel answer, reshape chunk 5 per that OQ's entry.
+Session notes, not part of the recommendation: **do not batch a gate check with anything that depends on it** (discipline note, `progress-tracker.md`, 2026-09-23). Local suite: Docker Desktop running, then `npx supabase start -x studio,imgproxy,storage-api,edge-runtime,logflare,vector,supavisor,realtime,postgres-meta,mailpit`, then **`npx supabase db reset --local --version 20260915065625`** (TD-7; add migration 7's version once it exists, still skipping 6), then `npm run test:db:local`. Local ports are now 5442x (Windows reserved 55404 to 55503). Unit: `npm test -w @runproduce/web`. On a surprising Daniel answer, reshape chunk 5 per that OQ's entry.
 
 ## Maintaining this file
 - Update at the end of every unit, and on any commit that changes state a future session needs.

@@ -2246,6 +2246,20 @@ sales, the null-fee guard, gate-order refusal), as are 6, 7 and 11. These remain
 | R2-a | Invariant 16 now counts from the latest `order_date`, which has no upper bound: a mistyped far-future date silently pushes the placement floor out | Input validation, for U6/U8's sales ledger, not the engine |
 | R2-b | `batchCashFlows` is exported and allowlisted as internal; it can be called without `cashFlowsMissingInputs` first | Acceptable while the allowlist entry stands; do not re-export it from index.ts |
 
+### TD-7 · Migration 6 does not apply to a fresh local database 🟠
+**Raised:** 2026-09-23, during chunk 7's red run. `20260915071004_security_definer_comments`
+revokes EXECUTE on `public.rls_auto_enable()`, a hosted-platform default that the
+local Supabase image does not ship. On a fresh local database the revoke fails
+with **42883** (function does not exist), so `npx supabase db reset --local` has
+failed since `9495068`. The 50/50 local run predates migration 6, which was only
+ever applied on dev, where the function exists. **Workaround in use:**
+`npx supabase db reset --local --version 20260915065625` (migrations 1 to 5).
+Nothing in chunk 7 depends on migration 6. **Decision needed (the user's):**
+(a) guard the revoke with `if exists`, which changes the text of a migration dev
+has already applied (the behaviour on dev is identical); or (b) leave migration 6
+as dev ran it and create the function locally first, for example in a local-only
+seed. Must close before a CI database job exists, since CI starts from empty.
+
 ### TD-6 · No schema safety-net test for RLS on every table 🟡
 **Raised:** 2026-09-15, after the chunk 5 dev apply. **Scheduled:** next week's
 budget; do not build before then. Today nothing in `packages/db-tests` enumerates
@@ -2498,7 +2512,8 @@ recommendation — divergences are the most valuable data available.
 
 | Work | Blocked by |
 |---|---|
-| **U6 · applying chunk 5's migrations to dev** | **An MCP write window.** Five migrations are committed and pass 50/50 on a local stack. Applying them needs `read_only=true` removed from `.mcp.json` and `supabase` reconnected in `/mcp`, which is an interactive step. Then restore read-only and verify (`SESSION.md`) |
+| ~~U6 · applying chunk 5's migrations to dev~~ | **DONE 2026-09-15.** Six migrations applied in one write window (`SESSION.md`) |
+| **U6 · a clean local reset through migration 6** | **TD-7.** Reset to `--version 20260915065625` until it closes |
 | **U6 · a CI database job** | No CI-only project or throwaway dev branch exists. The DB suite runs locally only (`npm run test:db:local`) and refuses dev |
 | Calibrated `MaxSafeBatchSize` | OQ-1 (mortality data) |
 | ~~M5b · Task 8, the enumeration ceiling~~ | **UNBLOCKED 2026-09-11.** ~~OQ-23~~ answered: the ceiling is an operator-entered `max_placement_birds`, no derived cap. Tasks 1-8 built; Task 9 now blocked on OQ-25 below |
