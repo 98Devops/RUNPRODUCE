@@ -110,7 +110,7 @@ npm monorepo: a pure TypeScript engine (`packages/engine`) behind a Next.js app 
 | Blocker | Blocks | Who resolves |
 |---|---|---|
 | TD-7: migration 6 fails on a fresh local DB (`rls_auto_enable` is hosted-only) | `db reset --local` through migration 6; any future CI DB job | The user: guard the revoke, or a local shim. Workaround: `--version 20260915065625` |
-| OQ-25: engine holds no opening cash balance | M5b Task 9, wiring `decision.allocation` (getter throws) | Us, U6. Design approved (D8, AD-67); not built |
+| OQ-25: engine holds no opening cash balance. **Reframed 2026-09-23:** Daniel described two revolving facilities (chick $30k, feed $40k), not a balance. See the amendment | M5b Task 9; U9's "floor checked"; AD-67's shape | Daniel's follow-ups (the user asks). Nothing wired meanwhile |
 | OQ-26: Cover Fast can't answer structurally (candidates have no forecast sales) | 1 of 3 modes | Us, via M6 |
 | OQ-31: Build Reserve pinned null for the same reason (AD-59) | 1 of 3 modes. Only Maximum Growth answers | Us, via M6 |
 | OQ-29: `computeAllocation` takes 20.8 s at 5k birds, ~2 min at 30k | **U9 live data, hard.** v1 precomputes at build (ruling 2026-09-23); a design answer is still required | Us: profile first |

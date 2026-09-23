@@ -34,6 +34,13 @@ at its red phase on `u6-supabase-schema` (pushed).
     absent-value rule.
 - **Tests:** formatters and the view model, test-first (23). The view model's
   test pins the hardcoded input to golden fixture 7.
+- **Finding, 2026-09-23: OQ-25 reframed.** Asked for an opening balance, Daniel
+  described two revolving facilities: a chick account ($30,000) and a feed
+  account ($40,000, on the 30-day terms). That is "facility usage against
+  limits", not "a balance against a floor". Logged as an amendment to OQ-25,
+  naming both structures and the question that decides. **Nothing wired:** no
+  `opening_cash_cents` value, no facility model in the engine, no UI wording
+  changed. His term "operating capital" waits for the shape.
 - **Explained popovers, 2026-09-23:** every figure on the three cards opens its
   formula, inputs with sources, and confidence. The engine emits no
   `Explained<T>` (TD-8), so the view model assembles them, and a reconciliation
@@ -1350,6 +1357,9 @@ for the service role too.
 *Why:* `supabase-js` has no multi-table transaction, and a half-written set
 would be in force the moment its parent row landed.
 **AD-67 · Opening cash is a ledger fact, summed by the engine, carried in `EngineInput` (U6 D8, OQ-25).**
+*Under question 2026-09-23 (OQ-25's amendment): Daniel described two revolving
+credit facilities, not a cash balance. Not amended until his follow-up answers
+decide the structure.*
 Approved 2026-09-14. `EngineInput.opening_cash_cents: Cents | null` is the cash
 held at the start of the running batch's placement day, not today's balance and
 not `reserve_floor_cents`. Stored as `cash_accounts` + `cash_transactions`

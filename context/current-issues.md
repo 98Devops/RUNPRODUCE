@@ -228,7 +228,7 @@ and the first three executed on 2026-09-12.
 | 8 | Offal fields on `SalesOrder` | Queued. |
 | 9 | `mortality_history` dead key | Queued — wire or delete. |
 | **10** | OQ-28 feed delivery field | ✅ **DONE** — AD-54, paid on the collection date. |
-| 11 | OQ-25 cash balance | Blocked on U6. **Now the only thing between `computeAllocation` and the `decision.allocation` getter.** |
+| 11 | OQ-25 cash balance | Blocked on U6. **Now the only thing between `computeAllocation` and the `decision.allocation` getter.** **Reframed 2026-09-23:** Daniel described two credit facilities, not a balance; the structure is open (see OQ-25's amendment). |
 | 12 | OQ-26 Cover Fast | Blocked on M6. |
 | 13 | OQ-29 — a 1-bird grid takes 20.8 s | **New 2026-09-12.** Ours. Should land before M5b Task 9. |
 | 14 | OQ-30 — the band schedule extrapolates in planning, refuses in sales | **New 2026-09-12.** Half ours, half question 2 on the Daniel list. |
@@ -1905,11 +1905,83 @@ compute — days to first receipt, or the running batch's receipts alone — wou
 produce a number that ranks, and a ranking built on the wrong quantity is worse
 than a blank. Same reasoning as AD-43's refusal to sentinel a null.
 
-### OQ-25 · The engine has no cash balance, and M5b needs one 🔴 BLOCKS M5b TASK 9
-**Status:** Open. **Raised:** 2026-09-11, from executing M5b Task 9.
+### OQ-25 · The engine has no cash balance, and M5b needs one 🔴 BLOCKS M5b TASK 9 · 🔁 REFRAMED 2026-09-23
+**Status:** Open, **reframed by Daniel's answer (2026-09-23), see the amendment
+directly below.** **Raised:** 2026-09-11, from executing M5b Task 9.
 **Affects:** whether `decision.allocation` can be wired at all.
 **This is ours, not Daniel's** — it is a decision about what the engine is
-entitled to assume, not a question he can answer.
+entitled to assume, not a question he can answer. *(Superseded in part: the
+amendment below needs his follow-up answers.)*
+
+**Amendment (2026-09-23, logged as an amendment, not folded in silently). OQ-25
+assumed a shape Daniel does not describe.** Everything after this amendment, and
+AD-67, asks for *a cash balance drawn down against a reserve floor*. Asked for
+that balance, Daniel described no bank balance. He described **two revolving
+credit facilities**:
+
+| Facility, in his words | Limit | Scope |
+|---|---|---|
+| Chick account | $30,000, revolving | Chick purchases |
+| Feed account | $40,000, revolving | Feed, tied to the 30-day feed terms |
+
+His own word for the money the business runs on is **"operating capital"**. It
+goes into the UI once the shape is understood, not before.
+
+**Nothing is wired and no number is set.** `opening_cash_cents` is not $70,000
+or any other figure, and the engine does not model the facilities. The facilities
+are not the balance the engine asks for under another name. The two structures
+below are different models, and choosing between them is Daniel's follow-up
+answers, not ours.
+
+**The two structures, named, not chosen:**
+
+| | **A · Cash + reserve floor** (what the engine models) | **B · Facility limits + facility usage** (what Daniel described) |
+|---|---|---|
+| The state | One cash balance | Per facility: its limit, and how much is drawn |
+| A cost | Lowers the balance | Uses headroom on its facility |
+| A receipt | Raises the balance | Pays a facility down: which one, in what order, is unknown |
+| The constraint | Balance ≥ `reserve_floor_cents`, every day | Usage ≤ limit, on each facility, every day |
+| Where it lives today | AD-67 (`opening_cash_cents`); `cash_accounts` + `cash_transactions` (built, U6 chunk 5, on dev); `engine_snapshot`'s `cash` section (chunk 7 red tests); `reserve_floor_cents`; `projectCashCalendar`'s `openingCents` | CONTEXT.md's **Facility** and **Headroom** (feed only); `credit_facilities` in architecture.md, deferred by AD-80; M3's "no `headroom`, the limit is not in `Parameters`" |
+
+They are not exclusive. B may sit **on top of** A: the facilities fund chicks and
+feed, and a cash float pays everything else. That possibility is the question.
+
+**The question that decides (proposed wording, for the user's follow-up; not sent
+by us):** *"Apart from the chick and feed accounts, is there money of the farm's
+own, a bank balance, that pays for what the accounts do not cover (labour,
+electricity, vaccine, the feed delivery paid on collection) and where sale
+proceeds land?"*
+- **If no: B alone.** The constraint is headroom on each facility.
+  `reserve_floor_cents` becomes a headroom floor or goes, and
+  `opening_cash_cents` is the wrong field: the likely shape is a new
+  `EngineInput` field (facility limits and usage), not a reuse of it.
+- **If yes: A and B together.** A cash balance for costs outside the facilities,
+  and two facilities for chicks and feed. The floor applies to the cash; the
+  limits apply to the facilities. `opening_cash_cents` survives, scoped to the
+  cash alone.
+
+A hint, not an answer: feed delivery is paid "on the spot when the feed is
+collected" (client, 2026-09-12), so something pays outside the feed terms.
+
+**Follow-ups that shape either answer**, for the same message:
+1. When a sale comes in, what does it pay down first: the chick account, the
+   feed account, or neither until a due date?
+2. Does the chick account have terms (a due date per purchase), or is it repaid
+   whenever?
+3. What is drawn on each account today?
+
+**What this touches, when the answer lands, and not before:**
+- **AD-67 stands but is under question.** Its tables are built and harmless.
+  Under B alone they hold nothing the engine needs.
+- **U9 v1's wording.** Card 1 and Build Reserve say "needs your opening cash
+  balance". That may be the wrong ask. It changes with the answer, not before.
+- **CONTEXT.md.** **Facility** is defined as the feed supplier's line only, and
+  **account** is a banned synonym for it, yet it is Daniel's word for both. The
+  glossary changes once the shape is settled: a second facility, and whether
+  "operating capital" names the sum of headroom, the cash, or both.
+- **Cover Fast** already measures days to clear **core credit** (chick + feed,
+  invariant 15): the same scope as the two facilities. B may fit it more naturally than
+  A does.
 
 **The defect in the plan.** Task 9's getter passes
 `input.parameters.reserve_floor_cents` as `computeAllocation`'s `openingCents`.
