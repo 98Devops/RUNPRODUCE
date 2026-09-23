@@ -1,9 +1,9 @@
 /**
  * T-RP1 · Golden fixtures through the database. AN ARCHITECTURAL CANARY.
  *
- * Each golden fixture's input is written through the write functions, read back
- * through the views as the organisation's OWNER, and assembled into
- * `EngineInput`. The engine's decision on the loaded input must equal its
+ * Each golden fixture's input is written through the write functions and read
+ * back through `loadEngineInput` (one `engine_snapshot` call, AD-90) as the
+ * organisation's OWNER. The engine's decision on the loaded input must equal its
  * decision on the fixture's in-memory input, across the whole decision.
  *
  * When this goes red, the engine and the database disagree about what an
@@ -16,7 +16,7 @@ import { addDays, computeDecision, type EngineInput, type IsoDate } from '@runpr
 import { loadFixtures, parseFixtureInput } from '../../engine/tests/golden/_shared.js';
 import { curvePayload, parameterSetPayload } from '../src/payloads.js';
 import { newMember, newOrg, pool, rpc, uuid, type Member } from '../src/harness.js';
-import { loadEngineInputForTest } from '../src/load-engine-input.js';
+import { loadEngineInput } from '../../../apps/web/lib/repositories/index.js';
 
 afterAll(async () => {
   await pool.end();
@@ -143,7 +143,7 @@ describe('T-RP1 · golden fixtures through the database (architectural canary)',
     const owner = await newMember(orgId, 'OWNER');
 
     const batchId = await recordFixture(owner, orgId, input);
-    const loaded = await loadEngineInputForTest(owner.client, batchId, input.asOf as IsoDate);
+    const loaded = await loadEngineInput(owner.client, batchId, input.asOf as IsoDate);
 
     expect(decisionOutcomes(loaded)).toEqual(decisionOutcomes(input));
   });

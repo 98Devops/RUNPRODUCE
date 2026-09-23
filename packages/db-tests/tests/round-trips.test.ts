@@ -14,7 +14,7 @@ import {
 } from '@runproduce/engine';
 import { BASE_PARAMETERS, newBatch, newFarm, type Farm } from '../src/payloads.js';
 import { pool, refused, rpc, uuid } from '../src/harness.js';
-import { loadEngineInputForTest } from '../src/load-engine-input.js';
+import { loadEngineInput } from '../../../apps/web/lib/repositories/index.js';
 
 let farm: Farm;
 
@@ -55,7 +55,7 @@ describe('T-RT2 · a BANDED BULK order round-trips to the cash calendar', () => 
     await rpc(farm.owner, 'record_sales_order', { payload: bulkOrder(batchId, 'BULK') });
 
     const asOf = '2026-03-18' as IsoDate;
-    const loaded = await loadEngineInputForTest(farm.owner.client, batchId, asOf);
+    const loaded = await loadEngineInput(farm.owner.client, batchId, asOf);
 
     const order: SalesOrder = {
       channel: 'BULK',
@@ -137,7 +137,7 @@ describe('T-RT3 · corrections and voids round-trip to production', () => {
     ]);
 
     const asOf = '2026-02-10' as IsoDate;
-    const loaded = await loadEngineInputForTest(farm.owner.client, batchId, asOf);
+    const loaded = await loadEngineInput(farm.owner.client, batchId, asOf);
     const record = (day: number, mortality: number): DailyRecord =>
       ({
         day_number: day,
