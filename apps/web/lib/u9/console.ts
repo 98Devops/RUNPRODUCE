@@ -88,6 +88,19 @@ export interface ConsoleView {
     readonly harvest: { readonly day: number; readonly date: IsoDate };
   };
   readonly modes: readonly ModeView[];
+  /** The money going out in the calendar's window, one row per engine flow. */
+  readonly outgoing: {
+    readonly rows: readonly OutgoingRow[];
+    /**
+     * TD-9: the engine plans feed to the curve's last day, not the harvest
+     * plan's. Null when no planned draw runs past the harvest day.
+     */
+    readonly feed_past_harvest: {
+      readonly harvest_day: number;
+      readonly planned_to_day: number;
+      readonly draws: number;
+    } | null;
+  };
   /**
    * Every business figure on the console, with its formula, inputs and
    * confidence. TD-8: the engine defines `Explained<T>` but emits none, so these
@@ -105,6 +118,21 @@ export interface ConsoleView {
     readonly trough: Explained<Cents>;
     readonly out_in_window: Explained<Cents>;
   };
+}
+
+export interface OutgoingRow {
+  readonly date: IsoDate;
+  readonly day: number;
+  readonly kind: CashFlowKind;
+  readonly label: string;
+  /** The engine's own words for the flow. */
+  readonly description: string;
+  /** Money out, as a positive amount. */
+  readonly amount_cents: bigint;
+  /** A projection, not a recorded payment. */
+  readonly planned: boolean;
+  /** Planned feed covering days after the harvest plan's gate day (TD-9). */
+  readonly after_harvest: boolean;
 }
 
 const RANK: Record<Confidence, number> = { assumed: 0, calibrated: 1, measured: 2 };
@@ -325,8 +353,34 @@ export function buildConsole(input: EngineInput): ConsoleView {
     }
   };
 
+  const gateDay = harvest.gate_window.last_day;
+  const pastHarvest = feed.planned_draws.filter((d) => d.covers_last_day > gateDay);
+  const pastHarvestDue = new Set(pastHarvest.map((d) => d.due_date));
+  const rows: OutgoingRow[] = windowDays.flatMap((d) =>
+    d.flows
+      .filter((f) => f.amount_cents < 0n)
+      .map((f) => ({
+        date: f.date,
+        day: d.day_number,
+        kind: f.kind,
+        label: FLOW_LABEL[f.kind],
+        description: f.description,
+        amount_cents: -f.amount_cents,
+        planned: f.kind.startsWith('PLANNED_'),
+        after_harvest: f.kind === 'PLANNED_FEED_DRAW_PAYMENT' && pastHarvestDue.has(f.date)
+      }))
+  );
+  const plannedToDay = Math.max(...feed.planned_draws.map((d) => d.covers_last_day));
+
   return {
     explained,
+    outgoing: {
+      rows,
+      feed_past_harvest:
+        pastHarvest.length === 0
+          ? null
+          : { harvest_day: gateDay, planned_to_day: plannedToDay, draws: pastHarvest.length }
+    },
     batch: {
       placement_date: placement,
       chick_count: input.batch.chick_count,

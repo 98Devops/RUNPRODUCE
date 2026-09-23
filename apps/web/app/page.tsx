@@ -38,7 +38,7 @@ export default function DecisionConsole() {
       </header>
 
       {/* Stacks 1, 2, 3 on a phone; on a wide screen the calendar takes the right column. */}
-      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-12">
+      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-12 lg:grid-rows-[auto_1fr]">
         <div className="lg:col-span-5">
           <RecommendationCard view={view} />
         </div>

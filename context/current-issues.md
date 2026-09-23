@@ -2326,6 +2326,21 @@ sales, the null-fee guard, gate-order refusal), as are 6, 7 and 11. These remain
 | R2-a | Invariant 16 now counts from the latest `order_date`, which has no upper bound: a mistyped far-future date silently pushes the placement floor out | Input validation, for U6/U8's sales ledger, not the engine |
 | R2-b | `batchCashFlows` is exported and allowlisted as internal; it can be called without `cashFlowsMissingInputs` first | Acceptable while the allowlist entry stands; do not re-export it from index.ts |
 
+### TD-9 · Planned feed runs to the curve's last day, not the harvest day 🟠
+**Raised:** 2026-09-23, found by U9's outgoing breakdown, by running the engine
+on fixture 7. `computeFeedLiability` plans draws until the breed curve's last
+day (41) whatever the harvest plan says. Fixture 7's harvest plan clears the
+flock on day 31, yet the calendar books planned draws for days 29-35 ($3,517.80,
+due 5 Apr) and 36-41 ($3,351.92, due 12 Apr). Part of the $13,704 going out,
+and the -$19,562 trough itself, is feed for birds already sold.
+**Not the documented upper bound.** The flat flock (AD-24, "planned quantities
+are an upper bound") is about *how many* birds eat; this is about *how long*
+they eat. Nothing records it.
+**Shown, not fixed:** U9 marks those draws "after harvest" and says the total
+and the lowest point may be overstated. **Fix, ours:** end the planned schedule
+at the harvest plan's completion, test-first against fixture 7. It moves the
+trough, so it is an engine change under its own review, not a UI patch.
+
 ### TD-8 · The engine defines `Explained<T>` and emits none 🟠
 **Raised:** 2026-09-23, building U9 v1's explainability popovers.
 `code-standards.md` says every module returns `Explained<T>` for values the UI

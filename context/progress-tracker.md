@@ -45,7 +45,13 @@ at its red phase on `u6-supabase-schema` (pushed).
   formula, inputs with sources, and confidence. The engine emits no
   `Explained<T>` (TD-8), so the view model assembles them, and a reconciliation
   test recomputes each value from its own inputs (44 web tests).
-- **Not yet done:** the flow breakdown, `web-design-guidelines` audit,
+- **Outgoing breakdown, 2026-09-23:** Card 2 lists the $13,704 bill by bill:
+  one row per engine flow, with its kind, the engine's own description, and a
+  planned tag. The rows sum to the card's figure (tested). **Finding, TD-9:**
+  planned feed runs to day 41 while the harvest plan clears the flock on day
+  31, so two draws ($6,869.72) cover days after harvest. Marked on screen, not
+  fixed.
+- **Not yet done:** `web-design-guidelines` audit,
   `/impeccable audit` (impeccable is not installed; skills.md says to install
   it from a plain terminal).
 

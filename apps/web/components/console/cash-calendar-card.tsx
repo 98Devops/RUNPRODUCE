@@ -3,6 +3,7 @@ import type { ConsoleView } from '@/lib/u9/console';
 import { formatDayDate, formatMoney, formatShortDate } from '@/lib/format';
 import { CashChart } from './cash-chart';
 import { Explain } from './explain';
+import { OutgoingTable } from './outgoing-table';
 import { ConfidenceBadge, Panel } from './primitives';
 
 const money = (cents: number) => formatMoney(BigInt(cents) as Cents);
@@ -73,6 +74,8 @@ export function CashCalendarCard({ view }: { readonly view: ConsoleView }) {
           <CashChart points={cal.points} trough={cal.trough} harvest={cal.harvest} />
         </div>
       </figure>
+
+      <OutgoingTable view={view} />
 
       <p className="border-t border-line px-5 py-3 text-xs text-muted">
         Reserve floor ({money(cal.reserve_floor.cents)}) not drawn: it is a bank balance, and there is no opening
