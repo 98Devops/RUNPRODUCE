@@ -1,6 +1,66 @@
 @import 'tailwindcss';
 
+/*
+ * Tokens from context/ui-context.md ("Colors"). Light mode only, by decision:
+ * the capture screen is read in direct sun. These move to DESIGN.md once U9 v1
+ * has settled them.
+ */
+:root {
+  --bg-base: #f7f7f5;
+  --bg-surface: #ffffff;
+  --bg-raised: #fafaf8;
+  --text-primary: #1a1a17;
+  --text-muted: #6b6b63;
+  --accent-primary: #0f6b3f;
+  --accent-hover: #0b5230;
+  --border-default: #dfdfd8;
+  --border-strong: #b8b8ae;
+  --state-error: #b42318;
+  --state-warning: #b54708;
+  --state-success: #0f6b3f;
+  --flow-in: #0f6b3f;
+  --flow-out: #b42318;
+  --flow-pending: #b54708;
+}
+
 @theme inline {
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
+  --color-base: var(--bg-base);
+  --color-surface: var(--bg-surface);
+  --color-raised: var(--bg-raised);
+  --color-ink: var(--text-primary);
+  --color-muted: var(--text-muted);
+  --color-accent: var(--accent-primary);
+  --color-accent-hover: var(--accent-hover);
+  --color-line: var(--border-default);
+  --color-line-strong: var(--border-strong);
+  --color-flow-in: var(--flow-in);
+  --color-flow-out: var(--flow-out);
+  --color-flow-pending: var(--flow-pending);
+
+  /* The names shadcn's generated components read, pointed at ours. */
+  --color-background: var(--bg-base);
+  --color-foreground: var(--text-primary);
+  --color-card: var(--bg-surface);
+  --color-card-foreground: var(--text-primary);
+  --color-muted-foreground: var(--text-muted);
+  --color-border: var(--border-default);
+  --color-ring: var(--accent-primary);
+  --color-primary: var(--accent-primary);
+  --color-primary-foreground: var(--bg-surface);
+  --color-secondary: var(--bg-raised);
+  --color-secondary-foreground: var(--text-primary);
+  --color-destructive: var(--state-error);
+}
+
+body {
+  background: var(--bg-base);
+  color: var(--text-primary);
+}
+
+.figures {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
 }
