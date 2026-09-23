@@ -4,6 +4,9 @@ Update this file after every meaningful implementation change.
 
 ## Current Phase
 
+**U9 v1 standing on `u9-first-screen` (2026-09-23). U6 set down at chunk 7's
+red phase (pushed), implementation not started; chunk 8 planned.**
+
 **U9 v1 — decision console, three cards, 2026-09-23 (branch `u9-first-screen`,
 from main).** Fixture 7 hardcoded, no database, no auth. U6 chunk 7 is set down
 at its red phase on `u6-supabase-schema` (pushed).
@@ -34,6 +37,147 @@ at its red phase on `u6-supabase-schema` (pushed).
 - **Not yet done:** the `<Explained>` popover, `web-design-guidelines` audit,
   `/impeccable audit` (impeccable is not installed; skills.md says to install
   it from a plain terminal).
+
+**U6 — chunk 7 red phase, 2026-09-23.** Failing tests for `public.engine_snapshot`
+and `loadEngineInput` (AD-90 to AD-93), local stack only. **Dev was not touched,
+read or write,** by the user's instruction, until they verify read-only mode on
+both sides.
+- **Pushed and set down, 2026-09-23** (`48f893b`), for the UI sprint (U9 v1
+  above). Its suite is red by design wherever it runs, until the green phase.
+- **Unit (`apps/web`, fake client): 49 red.** 40 hit the stub, 9 are the missing
+  enum arrays (and a compile-time red in `tsc`).
+- **DB (`packages/db-tests`): 35 red, 37 green of 72.** 22 new `engine-snapshot`
+  tests (function absent, or the stub). T-RP1's 11 fixtures, T-RT2 and T-RT3 now
+  read through `loadEngineInput`, so they are red at the stub. The 37 green are
+  the prior 50 minus those 13.
+- **T-RP1's test-local loader is deleted,** as its header promised, not kept
+  beside the real one.
+- **Engine unchanged:** 348 unit tests, golden 11 passing and 1 held. Lint clean.
+- **Snapshot contract pinned once:** `apps/web/tests/repositories/snapshot-fixture.ts`.
+  The DB half asserts the real function returns the same sections.
+- **Scoped out of this red phase, still chunk 7:** the client factory and its
+  guard (T-RP4), import-boundary lint (T-RP5), the write repositories (D30),
+  `myMemberships`, and T-AC1's AD-86 extension.
+- **Not mapped: opening cash.** The engine has no `opening_cash_cents` field and
+  no AD-67 summing function. So `engine_snapshot` returns the `cash` section
+  (tested at the SQL level), and `loadEngineInput` does not map it until AD-67's
+  engine side lands.
+- **A snapshot that fails Zod is a `RepositoryError`.** The unit tests pin it.
+  D28's table listed SQLSTATEs only, so this is logged as an amendment to AD-93
+  (below), not an extension of it.
+
+**Three findings from the red run:**
+1. **Migration 6 does not apply to a fresh local database.** `rls_auto_enable()`
+   is a hosted-platform default the local image lacks, so its `revoke` fails with
+   42883. `db reset --local` has been broken since `9495068`. The 50/50 local run
+   predates migration 6, which was only ever applied on dev. **The red run used
+   `db reset --local --version 20260915065625`** (migrations 1 to 5). **Open, the
+   user's call:** guard the revoke (`if exists`), or leave migration 6 as dev ran
+   it and add a local shim. Either way the file dev ran would change or grow.
+2. **`.gitignore`'s venv rules swallowed `apps/web/lib/`.** This is the same trap
+   as `scripts/`: with `core.ignorecase`, an unanchored `Lib/` matches any `lib/`.
+   The rules are now anchored to the root (`/Lib/`, `/Scripts/`, `/share/`,
+   `/pyvenv.cfg`).
+3. **Local stack ports moved from 5542x to 5442x** (`supabase/config.toml`).
+   Windows reserved TCP 55404 to 55503 after a reboot, a shifting WinNAT
+   exclusion. This is local only.
+
+**Discipline note, 2026-09-23: a root `.gitignore` rule can swallow a deep
+folder.** This is a recurring trap, not a one-off. With `core.ignorecase` on a
+case-insensitive filesystem, an unanchored rule such as `Lib/` matches every
+`lib/` at any depth. It swallowed `scripts/` before, and `apps/web/lib/` in
+chunk 7.
+**Rule: any new folder is checked against `.gitignore` before its first
+commit**, with `git check-ignore -v <folder>/<a file>`. An empty result is the
+pass; any output names the rule that matched.
+
+**Discipline note, 2026-09-23: the specific action was safe, and the rule still
+applied.** SESSION.md's rule is that a new session verifies MCP read-only mode
+before *any* MCP call. At session start, `list_migrations` was sent in the same
+parallel batch as the read-only check (`transaction_read_only`). The auto-mode
+classifier denied the check, so `list_migrations` ran first, unverified. The call
+was harmless: a catalogue read, with `apply_migration` absent from the tool list.
+**It was still a break.** The rule is an ordering rule, "verify, then call". An
+action that turns out safe does not satisfy an ordering rule it skipped. The
+pattern to keep is that a gate check runs alone and is read before anything that
+depends on it is sent, never batched with it. This is not a defect. It is
+recorded so the ordering stays explicit.
+
+---
+
+**U6 — chunk 5 shipped to dev, 2026-09-15.** Six migrations are applied to the
+dev project (`zlvjmaorlxrjnuxhykuh`) through the MCP. The MCP's `apply_migration`
+stamps its own versions, so the local files were renamed to match (`eb393ee`).
+**These versions are the canonical file names:**
+
+| Dev version | Migration | Contents |
+|---|---|---|
+| `20260915064600` | `access_baseline` | schemas, grants, memberships, `has_role` |
+| `20260915065245` | `parameters` | parameter sets and breed curves |
+| `20260915065409` | `facts` | version tables, named CHECKs, RLS, deferred `SECURITY DEFINER` integrity triggers |
+| `20260915065443` | `views` | current and history views (`security_invoker`) |
+| `20260915065625` | `write_functions` | write functions, `capture_batches`, the AD-89 grants sweep |
+| `20260915071004` | `security_definer_comments` | explicit revoke on `rls_auto_enable`; AD-88/89 comments on the 12 RPCs (`9495068`) |
+
+**Dev end state, verified:**
+- 10 tables in `facts`, 8 in `public`, and `private.memberships`, all with RLS on.
+- 13 `security_invoker` views in `public`.
+- 12 `SECURITY DEFINER` RPCs that `authenticated` can execute and `anon` cannot.
+- No client INSERT, UPDATE, DELETE or TRUNCATE grants; `anon` has no table grants.
+
+**One platform default quarantined:** `public.rls_auto_enable()` and its
+`ensure_rls` event trigger ship with every Supabase project and are not our code.
+Only `postgres` and `service_role` can execute the function. Migration 6 states
+`authenticated`'s revoke explicitly (it was already absent after the sweep). No
+test enumerates tables yet: **TD-6** (next week) adds one, excluding the default
+by name.
+
+**Advisor findings, all accounted for:**
+- Security, INFO `rls_enabled_no_policy`: `private.memberships`. Intended; service role only (AD-85).
+- Security, WARN `authenticated_security_definer_function_executable`, 12 findings: the 12 RPCs. Intended (AD-88, AD-89); each now carries a comment saying so.
+- Performance, INFO `unindexed_foreign_keys`, 54 findings: `org_id`, `created_by` and composite parent/supersedes foreign keys. Left until real volumes exist.
+- Performance, INFO `unused_index`, 6 findings: expected on an empty database.
+
+**Verified locally before the dev apply:** the DB suite `packages/db-tests` (`npm run test:db:local`, against
+`npx supabase start`) is 50/50.
+- **T-DB2**, integrity, as OWNER and as WORKER.
+- **T-RP1**, the architectural canary, on all 11 golden fixtures. Mutation-checked:
+  a planted mapping error turned 10 of 11 red.
+- **AD-63's drift test** on 14 constraints.
+- **T-RT1 part 3, T-RT2, T-RT3, T-DB1, T-DB3.**
+- **Tests were committed red** (`505bc3c`) before any migration (`2af39b4`).
+
+**Found by T-DB2, fixed at source:** the integrity check locks the batch
+`FOR NO KEY UPDATE`, not `FOR UPDATE` as the plan wrote.
+- Inserts hold `FOR KEY SHARE` on the batch through their foreign keys.
+- So `FOR UPDATE` deadlocked two concurrent writers (40P01), where one should
+  have been rejected.
+- `NO KEY UPDATE` still serialises the checks.
+
+**Honest limits:**
+- **T-RP1 reads through a test-local loader,** because chunk 7's `loadEngineInput`
+  and `engine_snapshot` are next week. It is deleted when they land.
+- **No golden fixture carries daily records,** so T-RP1 does not exercise the
+  records mapping. T-RT3 does.
+- **Fixture 13 compares a refusal only.**
+- **The chunk 6 access tests T-AC1 to T-AC5 are not written.**
+- **There is no CI database job:** no CI project or branch exists.
+- **The DB suite has run against the local stack only,** not against dev.
+
+## Previous Phase (U6 opening move)
+
+**U6 — opening move: one shared refusal list, 2026-09-14.** TD-4 finding 8
+closed before any schema work, so `decision.allocation` is never wired onto
+drifted checks. `missingInputsFor` moved to `packages/engine/src/refusals.ts`
+and absorbed `cashFlowsMissingInputs` (deleted) and the sales bird-count
+check; `computeDecision`, `projectCashCalendar`'s guard and
+`computeAllocation` all call it. Three drifts pinned by tests that failed
+first: a BANDED bulk order with no bands and an unpriced gate order both
+returned `ok` from `computeDecision`; an oversold batch was scored by the
+allocation. Fixture 13's `why` text changed (AD-60). **348 unit tests**,
+golden 11 / 11 / 1 held, lint and build clean.
+
+---
 
 **U5 — pre-merge review fix wave, 2026-09-14.** An independent review of the
 whole branch (base `fd0fa80`) returned "with fixes": 13 findings, the first
@@ -550,7 +694,9 @@ completeness fixture.
 
 ## In Progress
 
-Nothing — between units. **U5 M5b is merged to `main`** (2026-09-14, `6a73ad0`):
+**U6** — started 2026-09-14. **Status: chunk 5 complete; chunks 7 and 8
+planned, not started.** Task 0 (shared refusal list, TD-4 #8) done; chunk 5's six
+migrations are on dev (2026-09-15, see Current Phase). **U5 M5b is merged to `main`** (2026-09-14, `6a73ad0`):
 M5a done, M5b Tasks 1-8 done, Daniel's six answers wired (AD-52 to AD-57), band
 refusal made consistent (AD-58), pre-merge review fixed (AD-59). What is left in
 U5 is blocked, not in progress — see Next Up.
@@ -605,7 +751,9 @@ U5 is blocked, not in progress — see Next Up.
 7. **U6** — Supabase schema, RLS, repositories. Supplies the opening balance
    OQ-25 needs.
 8. **U9** is additionally hard-blocked on **OQ-29** (20.8 s allocation at 5k
-   birds) — a design answer is required before it is planned.
+   birds) — a design answer is required before it is planned — and on **TD-5**:
+   the engine's feed quantities must be grams, like the database's, before any
+   screen binds against either.
 
 **Outstanding client questions, as of 2026-09-14** — **OQ-8** (fixture 6
 chick price), **OQ-17** (measured dressing yield — highest value, since day 31
@@ -692,6 +840,639 @@ Tracked in `current-issues.md`.
 
 ## Architecture Decisions
 
+**AD-98 · Bulk delivery is always to the abattoir, and the buyer collects there. `delivery_mode` stays, and no screen asks for it.**
+Answered by Daniel 2026-09-15; closes OQ-37.
+- **The answer.** Birds always go to the abattoir, and the bulk buyer collects
+  from there.
+- **`delivery_mode` always defaults to `ABATTOIR`,** and `DIRECT` is never used
+  in practice.
+- **The field stays.** It is harmless and future-proof, and the engine already
+  handles both values.
+- **No screen asks for it.**
+- **Where the field lives.** It is on `Parameters` (`parameter_sets.delivery_mode`
+  in U6), not on `SalesOrder`. The decision is the same.
+- **OQ-37 closes as moot.** There is no direct run, so a direct transport rate
+  never applies. `transport_cents_per_bird` (10c, AD-55) is the abattoir run.
+- **Not built:** nothing changes in the engine or the schema.
+
+**AD-97 · The bulk buyer has no cap on how many birds he takes.**
+Answered by Daniel 2026-09-15; closes OQ-36.
+- **The answer.** There is no cap.
+- **The allocation's reading of bulk as unbounded was right,** and no
+  `bulk_capacity` parameter is added.
+- **This closes the implicit question** of whether a large batch can be
+  absorbed. Gate capacity limits how fast a batch turns into same-day cash
+  (OQ-23), and bulk takes the rest. The sales channels cap no batch size. What
+  still limits it is cash (the reserve floor) and `max_placement_birds`.
+- **Not built:** nothing changes.
+
+**AD-96 · A bird over 1.3 kg dressed pays LESS: about $3.50, against the top band's $3.70. Holding past 1.3 kg is to be penalised, not merely left blank.**
+Answered by Daniel 2026-09-15; closes OQ-35, the client half of OQ-30.
+- **The answer.** Birds heavier than 1.3 kg dressed are worth less to the buyer:
+  about **$3.50 a bird**, against $3.70 in the 1.3 kg band.
+- **AD-58's refusal was doubly correct.** It was right not only because the value
+  was unknown. Extrapolating the top band upward would have been wrong in
+  **direction as well as magnitude**, pricing an over-held bird at $3.70 when it
+  fetches about $3.50. AD-58's first reason, that the extrapolation ran
+  optimistic, is now confirmed by the client rather than inferred from the
+  trend.
+- **The planning rule.** A planning path that considers holding birds past
+  1.3 kg dressed is **penalised, not just marked unknown**. Holding past the top
+  band is a known loss, and a blank lets "hold" look neutral where it is worse.
+- **Not built. Today's behaviour is unchanged:** planning and sales refuse past
+  the top band (AD-58), which errs safe.
+- **Building it waits on one boundary nobody has given.** "Heavier than 1.3 kg"
+  does not say where $3.70 ends and $3.50 begins (TD-4 #9). Picking one would
+  invent a number, so it is logged as **OQ-41**.
+- **When built:** both paths change together, since there is one schedule
+  (AD-58).
+  - A fourth band is added to `SEED_BULK_BANDS` and to the planning set.
+  - The bulk half of fixture 10 and the hold-cost figures is regenerated under
+    an AD.
+  - M4's hold-versus-sell comparison carries the drop as a cost.
+  - "About $3.50" stays visible as assumed-grade until an invoice confirms it.
+
+**AD-95 · Write repositories are thin, one per write function (U6 D30).**
+Approved 2026-09-15.
+- One repository per write function: `recordBatch`, `recordBatchPlacement`,
+  `recordBatchClosure`, `recordDailyRecords`, `recordFeedDraw`,
+  `recordSalesOrder`, `recordCashAccount`, `recordCashTransaction`,
+  `createParameterSet`, `createBreedCurve`.
+- **Zod checks types and shapes only.** Business rules belong to the database
+  and the engine.
+- **`clientRequestId` comes from the caller** (the `Idempotency-Key` header),
+  never generated server-side.
+- **A no-op write returns the existing id** (AD-75), so a retry and a first write
+  look the same to the caller.
+
+**AD-94 · One client factory with a project-ref guard; the service role stays out of the request path (U6 D29).**
+Approved 2026-09-15.
+- **`createRepositoryClient` is the only `createClient` call**, enforced by
+  ESLint `no-restricted-imports`.
+- **The guard runs before a client exists.** Dev ref `zlvjmaorlxrjnuxhykuh` by
+  default. CI only with `RUNPRODUCE_SUPABASE_TARGET=ci` and
+  `RUNPRODUCE_CI_PROJECT_REF`. Production only with
+  `RUNPRODUCE_SUPABASE_TARGET=production` and a matching
+  `RUNPRODUCE_PRODUCTION_PROJECT_REF` (U11). Anything else throws, including a
+  missing URL.
+- **User requests use the caller's session**, so RLS and role checks apply.
+- **The service-role client lives in `apps/web/lib/repositories/admin.ts`**,
+  importable only by the seed, the DB test harness and `netlify/functions`.
+- No repository source names `facts.` or `_versions` (T-DB1).
+
+**AD-93 · Database errors are typed by SQLSTATE; a permission is never a missing input (U6 D28).**
+Approved 2026-09-15.
+
+| SQLSTATE | Typed error |
+|---|---|
+| `42501` | `Forbidden` |
+| `23514` | `IntegrityRejected` |
+| `23505` | `Conflict` |
+| `RP001` | `StaleCorrection` |
+| `RP002` | `NoParametersInForce` |
+| anything else | `RepositoryError` |
+
+- **`Forbidden` is thrown before any mapping.** A WORKER never reaches Zod or the
+  engine (T-AC4, AD-87).
+- **`NoParametersInForce` is an error, not a `MissingInput`.**
+  `EngineInput.parameters` is not nullable, and a missing settings row is
+  missing configuration, not a client fact to compute around. The error names
+  the date.
+- `RP001` and `RP002` are each raised in exactly one function; T-RP3 asserts
+  the mapping.
+
+**Amendment (2026-09-23, logged as an amendment, not folded in silently).** A
+snapshot that fails Zod validation is a `RepositoryError`. D28's table
+enumerated SQLSTATEs only. A validation failure has no SQLSTATE, and it still
+needs a typed error: the caller must be able to tell it apart from `Forbidden`
+and from a `MissingInput`.
+- **It covers every refusal by the schema.** The tests pin four: an unknown
+  enum value (AD-73), money that is a number or a non-integer string, bags that
+  are a number or carry three decimals, and a feed price missing for a phase.
+- **It is not `IntegrityRejected`.** That is the database refusing a write
+  (23514). This is the application refusing what the database returned.
+- Pinned by the chunk 7 unit tests (`load-engine-input.test.ts`), red until
+  the green phase.
+
+**AD-92 · Assembling `EngineInput`: a fixed mapping, whose only arithmetic is `dayNumberFor` and grams to kg (U6 D27).**
+Approved 2026-09-15.
+- **The curve is always passed**, joined from the pinned curve and the set's
+  `feed_prices`.
+- **Every parameter is explicit.** A null `max_placement_birds` is omitted,
+  never passed as null.
+- **Overheads are always `{ lines }`**, and zero rows is `lines: []`. Bulk bands
+  are always an array.
+- **`day_number = dayNumberFor(placement_date, record_date)`.** Feed kg is grams
+  / 1000 (TD-5, closes before U9).
+- **An order with zero band rows gets `bands: null`.**
+- **Opening cash is summed by the engine's AD-67 function**, not the repository.
+- **Enum parity.** Each engine union has one runtime array,
+  `as const satisfies readonly Union[]`, with a completeness check. Zod enums and
+  AD-63's drift test both read those arrays.
+- **Proven by T-RP1,** an architectural canary (`code-standards.md`): its
+  failure is a design question, not a bug ticket.
+
+**AD-91 · Money and bags travel as strings; a money field arriving as a JSON number fails validation (U6 D26).**
+Approved 2026-09-15.
+- **Strings on the wire.** `engine_snapshot` emits every `bigint` money column
+  and `bags` as `text`.
+- **`public.sales_orders.bands` carries `price_cents_per_bird` as text.** This
+  amends chunk 5's view.
+- **Zod parses strings only.** `centsString` accepts only `/^-?\d+$/` and yields
+  `Cents`; a number is never coerced. `bagsString` allows at most two decimals.
+- **Money in RPC payloads is sent as strings.**
+
+**AD-90 · One engine read is one database statement: `public.engine_snapshot` (U6 D25).**
+Approved 2026-09-15.
+- **One call.** `loadEngineInput` calls
+  `engine_snapshot(p_batch_id, p_as_of) returns jsonb`, which is
+  `SECURITY INVOKER`, `STABLE` and `search_path = ''`.
+- **Role check first.** It checks `has_role(batch org, OWNER/MANAGER)` before
+  reading, and raises 42501 otherwise (AD-88's single message).
+- **One document:** batch, the parameter set in force with its lists, the pinned
+  curve, current records, draws and orders, and the cash rows AD-67 needs.
+- **"In force" is defined once, here:** latest `effective_from <= asOf`, then
+  highest `revision`.
+- **Nothing else is filtered by `asOf`.** The engine does its own filtering.
+- *Why:* PostgREST gives each request its own transaction. Several reads would
+  be several snapshots, and a correction landing between them would produce
+  wrong numbers with no error.
+- *Rejected:* one read per view; a `SECURITY DEFINER` snapshot (bypasses RLS);
+  a view per engine input.
+
+**AD-89 · The grants baseline revokes Supabase's defaults explicitly (U6 D24).**
+Approved 2026-09-14.
+- **`anon`:** nothing in `public`, `facts` or `private`.
+- **`authenticated`:**
+  - `SELECT` only on the `public` views, the parameter and curve tables, and
+    `organizations`;
+  - `USAGE` plus `SELECT` on `facts` tables, which the `security_invoker`
+    views need, with rows limited by RLS;
+  - `EXECUTE` on the write functions, `capture_batches`, `my_memberships` and
+    `private.has_role`.
+- **No client role holds `INSERT`, `UPDATE` or `DELETE` anywhere.**
+- **Default privileges are revoked with `ALTER DEFAULT PRIVILEGES`**, so a later
+  migration cannot inherit them.
+- **RLS is on for every table in all three schemas**, and every
+  `SECURITY DEFINER` function sets `search_path = ''`.
+- **Sign-ups are disabled per project:** an Auth setting on chunk 9's
+  checklist.
+- **Enforced by T-AC5**, a catalog lint run in CI.
+
+**AD-88 · Write functions take the organisation from the row, and the author from the session (U6 D23).**
+Approved 2026-09-14.
+- **Organisation.** A write function reads `org_id` from the batch or account it
+  writes to, never from the payload. Only the functions that create a top-level
+  row take an organisation argument, and they check the caller's role in it.
+- **Author.** `created_by` is `auth.uid()`, set inside the function.
+- **No session, no write.** A caller with no `auth.uid()` is refused. The seed
+  and tests write as the service role directly into `facts`, with
+  `created_by = null`, and the triggers still hold.
+- **One refusal.** "Not permitted" and "does not exist" both raise 42501 with
+  one message, so no organisation can probe another's ids.
+
+**AD-87 · A role reads a table whole or not at all; WORKER is kept from money by tables, not columns (U6 D22).**
+Approved 2026-09-14.
+
+*The constraint.* Every signed-in user reaches Postgres as `authenticated`.
+Column grants cannot tell app roles apart, and RLS hides rows, not columns.
+
+*The rule.*
+- **Money-bearing tables are OWNER and MANAGER only.** A table holding a money
+  column, or joined to one in a view, is readable by OWNER and MANAGER only.
+- **No partial rows.** A WORKER gets zero rows from `public.batches`, never a
+  batch with a blank placement that reads as unplaced.
+- **What a WORKER reads.** `daily_records`, and `public.capture_batches()`: batch
+  id, code, placement date and chick counts, with no money column in its return
+  type.
+
+*Two consequences, approved as fixes:*
+1. **Integrity trigger functions are `SECURITY DEFINER`, `search_path = ''`.**
+   This amends chunk 5 and AD-76. Deferred checks run at commit as the caller,
+   and RLS would hide the placement row from a WORKER, so the flock bound would
+   be checked against nothing. T-DB2 runs as a WORKER.
+2. **Permission is never reported as a missing input.** The chunk 7 repository
+   layer throws `Forbidden` when a caller may not assemble `EngineInput`. It
+   never passes the engine nulls that it would refuse as `gate_price` and
+   similar. Tested in T-AC4.
+
+*Rejected:*
+- column grants;
+- a Postgres role per app role via a JWT hook: stale demotions for up to an
+  hour, and hook configuration that migrations do not carry;
+- splitting placement into price and count tables;
+- `security_invoker = false` views.
+
+**AD-86 · The role matrix, with daily-record corrections limited to the author for WORKER (U6 D21, amended).**
+Approved 2026-09-14 with one amendment.
+
+| Data | Read (O · M · W) | Write (O · M · W) |
+|---|---|---|
+| Parameter sets, overheads, bands, feed prices; breed curves; cash opening balances ("settings") | ✓ · ✓ · — | ✓ · — · — |
+| Batches: place, correct placement | ✓ · ✓ · — | ✓ · ✓ · — |
+| Batches: close or reopen | ✓ · ✓ · — | ✓ · — · — |
+| Daily records: create | ✓ · ✓ · ✓ | ✓ · ✓ · ✓ |
+| Daily records: correct or void | — | ✓ any · ✓ any · **own only** |
+| Feed draws, sales orders, cash transactions | ✓ · ✓ · — | ✓ · ✓ · — |
+
+**Amendment (2026-09-14, logged as an amendment, not folded in silently).** The
+draft let a WORKER correct or void any daily record. As approved, a WORKER
+creates daily records and corrects or voids only their own.
+- **Own** means the current version being superseded has
+  `created_by = auth.uid()`. A record a manager has corrected is no longer the
+  worker's to change.
+- **Every other case is refused with 42501**: a WORKER entering a date someone
+  else has recorded (which would supersede that record), and a WORKER correcting
+  a seed row (`created_by` null).
+- The message names the day and says a manager or owner can correct it. A
+  multi-day call containing one such row writes nothing.
+- An identical resubmission still writes nothing, and is not refused.
+- `public.daily_records` exposes `created_by`, so a screen offers "correct" only
+  where the database will allow it. The database is the enforcement.
+
+*Why:* a worker rewriting another worker's record silently makes the audit trail
+only as strong as the weakest worker on the farm. It is the same least-privilege
+principle as the rest of the matrix. MANAGER and OWNER can correct any record.
+
+**Scope: these are defaults for U6, not final positions.** Three rows are
+approved as defaults: MANAGER reads settings, MANAGER places batches, and WORKER
+reads no breed curve. **Per-org overrides may follow once OQ-5 lands**, and
+Daniel's actual delegation model may need per-organisation configuration. An
+override would be additive: a per-org policy table read by `private.has_role`.
+It is not built in U6.
+
+**AD-85 · Memberships live in a private schema, checked by one function (U6 D20).**
+Approved 2026-09-14.
+- **The table.** `private.memberships (org_id, user_id, role)`,
+  `PRIMARY KEY (org_id, user_id)`, with `memberships_role_values`
+  (`OWNER`, `MANAGER`, `WORKER`). Not exposed through the API.
+- **The check.** `private.has_role(org, roles[])` is `SECURITY DEFINER`, `STABLE`
+  and `search_path = ''`, uses `(select auth.uid())`, and is served by an index
+  on `(user_id, org_id)`. Every policy and write function uses it.
+- **What the app sees.** `public.my_memberships()` tells the app which screens to
+  offer. It is never authorisation.
+- **Changes.** Memberships change only through the service role in U6. A client
+  function comes with the settings screen. People are banned in Auth, never
+  deleted, so `created_by` keeps its author.
+- **Not covered by AD-63.** The engine has no role union, so chunk 7 compares
+  Zod's `Role` enum with the CHECK instead.
+
+**AD-84 · A daily record on the wrong date is voided and re-entered, never moved (U6 chunk 5).**
+Approved 2026-09-14. Every correction chain stays on one batch: the self-reference
+is the composite FK `(supersedes_id, batch_id)`. For daily records it is
+`(supersedes_id, batch_id, record_date)`, so a record dated the 12th cannot
+supersede one dated the 11th. A wrong date is fixed by voiding the entry and
+entering it again on the right date. Feed draws and sales orders are not keyed
+by date, so a correction may change their date.
+*Why:* a daily record is "the record for that date". Moving one onto another
+date's chain could collide with that date's own record, and the cumulative
+triggers (AD-76) would have to re-check two dates in one write. Void and
+re-enter leaves both facts visible: what was typed, and that it was withdrawn.
+*Rejected:* allowing `record_date` to change along a chain.
+
+**AD-83 · A feed draw's price is required (U6 chunk 5).**
+Approved 2026-09-14 "for now". `price_per_bag_cents not null`, `> 0`. Every
+draw recorded so far carries its price on the docket, and `FeedDraw` types the
+price non-null, so the engine has no refusal for an unpriced draw.
+*Why not nullable now:* a nullable price would be a state nothing produces and
+nothing refuses. Adding a refusal for a case no one has reported is speculation.
+*Revisit when:* Daniel reports a docket that arrives without its price, or any
+answer implies one. Then: the column becomes nullable (additive under AD-65), and
+the engine gains a typed `feed_draw_price` refusal in `missingInputsFor` under
+AD-73's standing rule, test-first. No open OQ asks this directly; OQ-21 (part
+bags) is about quantity, not price.
+
+**AD-82 · Feed amounts on a daily record are required, with no default (U6 chunk 5).**
+Approved 2026-09-14. `feed_starter_g`, `feed_grower_g` and `feed_finisher_g`
+are `not null` with no `DEFAULT 0`. A day with no finisher is entered as `0`; a
+blank field fails to save.
+*Why:* a default of zero turns "not entered" into "none eaten". That is the CD-1
+pattern applied at the point of entry: refusing the blank before it is stored
+rather than refusing a wrong number after it has been computed on.
+
+**AD-81 · Facts and identities live in `facts`; parameters stay in `public` (U6 chunk 5).**
+Approved 2026-09-14. `facts` holds the identity tables (`batches`,
+`cash_accounts`) and every `*_versions` table, with RLS enabled, and is not
+exposed through PostgREST. `public` holds the current and `_history` views
+(AD-75), the chunk 3 parameter tables (which are already immutable by
+`revision`, AD-69, and need no current-row filter), and the write functions.
+*Why:* the identity rows are only ever read joined to their current facts, so
+exposing them alone would offer a half-picture under a plain name. Parameter
+sets are read whole by id, so there is nothing for a view to hide.
+
+**AD-80 · Tables with no engine reader wait for the feature that needs them (U6 D19).**
+Approved 2026-09-14. Not built in U6: `credit_facilities`, `feed_allocations`,
+`feed_payments`, `receipts`, `expenses`, `offal_disposition`,
+`offal_value_cents`. Built: `cash_accounts` and `cash_transactions`, because
+AD-67 reads them. Nothing can be entered before a capture screen exists, so
+waiting loses no data, and each addition is additive (AD-65).
+*Open:* OQ-32 decides whether feed draws need a shared collection and a
+per-batch split. That would be the first deferred table to be pulled forward.
+
+**AD-79 · Sales orders store forward orders and no derived money (U6 D18).**
+Approved 2026-09-14. A forward-dated order is stored, because `cash.ts` reads
+orders past `asOf` by design. `avg_live_weight_g` is required, because the
+engine types it non-null. The bands are written with the order in one call.
+`CHECK (pricing_basis <> 'BANDED' OR channel = 'BULK')` rejects nonsense. A null
+price, dressed weight or band set is "not supplied", which the engine refuses.
+`gross_cents`, `net_cents`, `abattoir_fee_cents`, `transport_cents` and
+`status` are not stored.
+*Open:* OQ-33, whether a booked run carries a fixed weight distinct from the
+weighed one.
+
+**AD-78 · A feed draw belongs to one batch, and a part bag is recordable (U6 D17).**
+Approved 2026-09-14. `batch_id not null`. `bags numeric` with at most two decimals (a CHECK on `scale`, because
+`numeric(8,2)` would silently round a third), so a real
+part-bag invoice is stored and the engine refuses it with `feed_draw_bags`
+(OQ-21), instead of the database rejecting what was typed. The draw's weight is
+stored in grams alongside `bags`, because `kgDiscrepancy` compares the two.
+`due_date` is a generated column; no total is stored.
+*Open:* OQ-32 (a collection shared by two batches) and OQ-34 (feed collected
+before placement, which `buildDays` throws on today).
+
+**AD-77 · Daily records store the date and grams (U6 D16).**
+Approved 2026-09-14. `record_date`, not `day_number`: the repository derives the
+day number with `dayNumberFor`, so a corrected placement date moves every day
+number with it. Feed is stored as integer grams (CLAUDE.md rule 2), and the
+repository converts to the engine's kg. Weight and sample size are null
+together or present together.
+*Tech debt:* the engine's `DailyRecord` feed fields are kg `number`, TD-5.
+Deferred out of U6, and **must close before U9 starts** (approved 2026-09-14).
+
+**AD-76 · The database refuses an impossible fact; the engine refuses an inconsistent one (U6 D15).**
+*Amended by AD-87:* the integrity trigger functions are `SECURITY DEFINER`, so a WORKER's commit is checked against rows RLS hides from them.
+Approved 2026-09-14. Deferred constraint triggers, checked at commit and taking a
+lock on the batch row, enforce:
+- current cumulatives that never decrease;
+- removals no greater than the flock;
+- current orders totalling no more than the flock;
+- a record not dated before placement.
+
+They fire from either side of each bound, placement corrections included.
+"Sold more than were alive that day" stays the engine's `sales_bird_count`
+refusal, because the database enforcing it would reject a true mortality record
+entered after a true sale. Payment and facility limits wait for their tables
+(AD-80). Writes go through one `SECURITY DEFINER` function per fact, with no
+direct write grants. The triggers hold the integrity, so the service role cannot
+skip it.
+
+**AD-75 · Corrections append, and the obvious name only ever returns current rows (U6 D14).**
+Approved 2026-09-14. Nothing is updated or deleted.
+- **How a correction is written.** It inserts a row whose `supersedes_id` points
+  at the row it replaces. `UNIQUE (supersedes_id)` keeps the history one chain.
+  An entry made in error is superseded by a row with `voided = true`.
+- **Idempotency.** `client_request_id uuid unique` carries the Idempotency-Key.
+  A repeat, or a resubmission identical to the current row, writes nothing.
+
+**Where the "not superseded and not void" filter lives: both layers, and the
+database is the guarantee** (answered 2026-09-14, not deferred):
+1. **Raw rows are not reachable under the obvious name.**
+   - **Version tables.** The append-only tables live in a `facts` schema and are
+     named for what they hold: `facts.daily_record_versions`,
+     `facts.feed_draw_versions`, and so on.
+   - **Current views.** The plain names are views in `public` that return only
+     current rows: `public.daily_records`, `public.feed_draws`,
+     `public.sales_orders`, `public.batches`, `public.cash_transactions`.
+   - **History views.** Screens that need corrections read
+     `public.<table>_history`. The name says what it holds, and every row
+     carries `is_current`.
+   - This replaces chunk 4's `current_<table>` naming. That naming left the raw
+     table under the plain name, which is exactly the failure this AD exists to
+     prevent.
+2. **The API cannot reach raw rows at all.** `facts` is not in PostgREST's
+   exposed schemas, so supabase-js can only query the views.
+   - The views are `security_invoker = true`, so RLS on the version tables still
+     applies to whoever reads them.
+   - A direct SQL session (migrations, the SQL editor, the service role) can
+     still read `facts.*`. There, the schema and the `_versions` suffix say
+     "every version" in the query text itself.
+3. **Repositories read only the `public` views.** This is backed by a test, not
+   by memory: a repository test fails if any repository source names `facts.`
+   or `_versions`.
+4. **CI checks it.**
+   - An API client querying `facts.daily_record_versions` gets an error.
+   - After one correction, `public.daily_records` returns one row for that date.
+   - The project's exposed-schemas setting does not include `facts`.
+
+*Why:* a consumer that forgets a filter must get a safe default, not a mix of
+current and superseded rows with nothing to warn it. It is the same drift class
+as "one number, one source of truth". A filter that only repositories know
+about fails the first time something else queries the table.
+*Rejected:* repository-only filtering, a flag column every query must remember,
+and a `current_` prefix on the view.
+
+**AD-74 · A batch is an identity row plus placement and closure facts (U6 D13).**
+Approved 2026-09-14. `facts.batches (code, breed_curve_id)` never changes and is
+what every fact references. Placement (date, chicks, extras, chick price) and
+closure (`closed_on`) are version tables under AD-75. Reopening a batch is a
+voided closure. Status is derived, never stored. `public.batches` joins the
+identity to its current placement and closure.
+
+**AD-73 · An overhead line the engine does not recognise is refused, not dated at placement.**
+Approved 2026-09-14, from T-RT1. The CD-1 pattern, the same one the reserve
+floor follows when the balance it needs is unknown:
+- **Typed refusal.** `missingInputsFor` emits a typed refusal, `'overhead_line'`,
+  that names the line and the unrecognised value.
+- **Guard.** `cash.ts` dates overheads with an exhaustive check whose final
+  branch throws "call missingInputsFor() first", for a caller that skipped the
+  list.
+- **Scope.** Today `if HARVEST_COMPLETE … if MONTHLY … else placement` sends
+  **any** other value to day 1.
+- **Basis too.** `overheadLineCents` has the same fall-through for `basis`,
+  where anything not `PER_BATCH` is charged per bird, so the same refusal and
+  guard cover basis.
+
+Built test-first: the failing tests (an unknown timing and an unknown basis
+each dated or charged without error) come first. No fixture changes, because
+every existing line is valid. The key joins AD-63's governed `MissingInputKey`
+list.
+
+*Why:* silent defaulting looks conservative, but it invents a fact. Here the
+invented fact is that an overhead of unknown timing falls on day 1. That moves
+money into the early-cycle trough, and the trough is what the reserve-floor
+filter reads (AD-43), so it changes which placements are judged affordable. A
+wrong day 1 is not safe just because it is early. It is a date nobody gave us,
+presented as the calendar.
+*Relation to AD-72:* AD-72 is the round trip that catches a stored misspelling.
+This AD is what the engine does with a bad value from any source.
+
+**Scope confirmed 2026-09-14: timing AND basis.** Same failure shape, same fix;
+including basis is the rule applied, not scope creep.
+
+**Standing rule (approved 2026-09-14).** Any categorical field added later whose
+code has a fallback path, meaning a final branch that treats every unlisted
+value as one of the listed ones, gets this treatment by default: a typed
+refusal in `missingInputsFor` naming the field and the value, plus an exhaustive
+guard throw. It needs no new AD. Keeping a fallback does: that AD has to show the
+fallback is a client fact, not an invented one. Recorded in `code-standards.md`.
+
+**AD-72 · Overhead cadences are proven by a round trip (U6 T-RT1).**
+Approved 2026-09-14 with chunk 3. Before the first migration, and before any
+table, function or repository that would make it pass, a test writes overhead
+lines through `create_parameter_set`, reads them back through the repository,
+assembles `EngineInput`, and compares `batchCashFlows` against the engine's
+calendar. It runs three cases: `SEED_OVERHEADS` against the seeded default
+(one line per cadence: `PLACEMENT`, `MONTHLY`, `HARVEST_COMPLETE`); every
+`OverheadTiming` × `OverheadBasis` pair and every `Confidence`; and a misspelt
+timing (`monthly_split`, and a case variant), which the database rejects on
+`overhead_lines_timing_values` with no row written. What the engine does with
+an unrecognised value from any source is AD-73.
+*Why:* a misspelt cadence passed silently. Labour or electricity landed on day 1
+and the calendar still looked plausible.
+
+**AD-71 · `bag_kg` lives on `feed_prices`, beside the price (U6 D12, amends AD-64).**
+Approved 2026-09-14. The supplier sets bag size together with the price, so a
+move from 50 kg to 25 kg bags is a new parameter set, not a new breed curve.
+`breed_curve_phases` holds only day ranges. No engine change.
+
+**AD-70 · Breed curves are immutable, created whole, and pinned by the batch (U6 D11).**
+Approved 2026-09-14. `create_breed_curve(payload jsonb)` checks that days run
+contiguously from 1 and that each point's phase agrees with the phase ranges. A
+calibrated curve is a new curve. `batches.breed_curve_id` is not null. This
+pinning is the opposite of AD-66 on purpose: a price change should reach a
+running batch, but the genetics of chicks already placed do not change.
+
+**AD-69 · Parameter sets carry a `revision`, so a same-day mistake can be corrected (U6 D10, amends AD-66).**
+Approved 2026-09-14. `UNIQUE (org_id, effective_from, revision)`. The set in
+force is the latest `effective_from <= asOf`, then the highest `revision`. The
+function assigns `revision`, and superseded revisions stay readable.
+
+**AD-68 · A parameter set is written by one database function, in one transaction (U6 D9).**
+Approved 2026-09-14. `create_parameter_set(payload jsonb) returns uuid` is the
+only insert path. It is `SECURITY DEFINER` with `search_path = ''`, and checks
+the caller's membership itself. No client role has direct write grants on the
+four tables. A `BEFORE UPDATE OR DELETE` trigger raises, so immutability holds
+for the service role too.
+*Why:* `supabase-js` has no multi-table transaction, and a half-written set
+would be in force the moment its parent row landed.
+**AD-67 · Opening cash is a ledger fact, summed by the engine, carried in `EngineInput` (U6 D8, OQ-25).**
+Approved 2026-09-14. `EngineInput.opening_cash_cents: Cents | null` is the cash
+held at the start of the running batch's placement day, not today's balance and
+not `reserve_floor_cents`. Stored as `cash_accounts` + `cash_transactions`
+(`batch_id` nullable). A new pure engine function sums opening balances plus
+transactions before placement, excluding the projected batch's own, and refuses
+with `'opening_cash'` when there is no account or one opens after placement.
+The key is checked inside `computeAllocation`, not in the shared `refusals.ts`
+list (AD-60), and `computeAllocation` drops its `openingCents` argument.
+Reconciliation against the real bank balance is a separate OQ, not built.
+Full reasoning: `plans/u6-supabase-schema.md` D8.
+
+**AD-66 · Parameter sets are immutable and effective-dated; a batch does not pin one (U6 D7).**
+Approved 2026-09-14. A change inserts a new set. The set in force is the latest
+with `effective_from <= asOf`. `is_active` and `batches.parameter_set_id` are
+not stored. A report on a closed batch passes `asOf = closed_at`.
+*Amended by AD-69 (D10):* a `revision` column, so a same-day correction is possible.
+
+**AD-65 · Engine-shaped tables leave the door open for display columns (U6, attached to D6).**
+Decided 2026-09-14. U6's tables are shaped by `EngineInput`, and screens will
+later want more: aggregation flags, denormalised totals, display order, labels,
+annotations. **None of that is built in U6.** Instead, the parts expensive to
+change later are chosen now for the shape a UI is likely to need, so each later
+addition is an additive migration (a nullable column, a new table, an index):
+- **Primary keys:** every table, child tables included, has its own
+  `id uuid`. Natural uniqueness is a separate `UNIQUE` constraint. A screen can
+  then reference, annotate or key a single overhead line or curve point without
+  a composite key being threaded through.
+- **Foreign keys:** every row carries `org_id`, and child rows reference their
+  parent by `(parent_id, org_id)`, so RLS and later display tables filter by org
+  without joins, and a child can never claim a different org than its parent.
+- **Time columns:** business dates are `date` (they compare against `asOf`);
+  audit time is `created_at timestamptz` plus `created_by`. "Price history",
+  "what was in force on day X" and "who changed it" are then queries, not
+  migrations.
+*Why:* a display need arriving at U7-U10 should cost one additive migration, not
+a key or FK rewrite under a screen deadline.
+*Not:* a licence to add display columns in U6.
+
+**AD-64 · Feed prices live on the parameter set, not the breed curve (U6 D6).**
+Approved 2026-09-14. `breed_curve_phases` holds day ranges (genetics);
+`feed_prices` holds price per bag per phase (what the supplier charges). The
+repository joins them back into `BreedCurve.phases`. No engine change.
+`bag_kg` moved to `feed_prices` by AD-71 (D12). The display-column rule is
+AD-65.
+
+**AD-63 · Enum-drift protocol: an engine value list and its database constraint change in the same commit.**
+Decided 2026-09-14, attached to D4/D5. **When the engine adds, removes or renames
+a value of a union type that a database column mirrors, the migration that
+adjusts that column's constraint lands in THE SAME COMMIT.** Not a follow-up
+commit, and not "when we get to it".
+- **Covers** every column constrained to an engine union: `Phase`, `Channel`,
+  `PricingBasis`, `SalePricingBasis`, `Confidence`, `DeliveryMode`,
+  `OverheadKey`, `OverheadBasis`, `OverheadTiming`, and `MissingInputKey`
+  wherever refusals are stored (recommendations, chunk 4 onward).
+- **Governed by name, as of chunk 3** (added 2026-09-14, approved with chunk 3).
+  This is not only "the protocol exists": **each constraint below is governed by
+  it, so any addition, removal or rename of any of its values requires the engine
+  change and the schema change in the same commit.** In the approval's own names,
+  `overhead_line_type` is `overhead_lines_key_values` and
+  `overhead_lines_basis_values`, `timing_basis` is `overhead_lines_timing_values`,
+  and `contract_type` is chunk 4's `sales_orders_channel_values` and
+  `sales_orders_pricing_basis_values`:
+  - `parameter_sets_gate_pricing_basis_values` (`PricingBasis`)
+  - `parameter_sets_delivery_mode_values` (`DeliveryMode`)
+  - `overhead_lines_key_values` (`OverheadKey`)
+  - `overhead_lines_basis_values` (`OverheadBasis`)
+  - `overhead_lines_timing_values` (`OverheadTiming`)
+  - `overhead_lines_confidence_values` (`Confidence`)
+  - `feed_prices_phase_values`, `breed_curve_points_phase_values` and
+    `breed_curve_phases_phase_values` (`Phase`)
+  - Added with chunk 4 (approved) under chunk 5's table names (AD-75):
+    `feed_draw_versions_phase_values` (`Phase`),
+    `sales_order_versions_channel_values` (`Channel`),
+    `sales_order_versions_pricing_basis_values` (`SalePricingBasis`),
+    `cash_transaction_versions_direction_values` (`CashDirection`, new with
+    AD-67), and `MissingInputKey` gains `'overhead_line'` (AD-73)
+
+  Chunk 4 adds its constraints, including the sales contract's basis and
+  channel, to this list when it is approved. The overhead cadences are also
+  covered by a behavioural round-trip test, T-RT1 in the U6 spec (AD-72). That test is
+  needed because `cash.ts` dates an unrecognised timing at placement rather than
+  throwing.
+- **Mechanism:** `text` with a named `CHECK` (`<table>_<column>_values`), not a
+  Postgres `ENUM`. A Postgres enum cannot drop a value, so removing a key, the
+  direction this protocol exists for, would need a type rebuild.
+  Removing a value that rows still hold makes the migration fail when
+  the constraint is re-added. The same migration must map or delete those rows
+  explicitly.
+- **Enforced, not remembered.** Each mirrored union is exported from the engine
+  as a runtime `as const` array, with the type derived from it. A schema test in
+  CI's database job compares every array against its `CHECK` definition in
+  `pg_constraint` and fails on any difference in either direction. A commit that
+  changes one side only cannot go green.
+*Why:* the value of a database constraint is catching drift structurally. Drift
+where the engine changes and the schema doesn't is the failure it would
+otherwise miss: a new refusal the database rejects on write, or a removed key
+the database still accepts.
+
+**AD-62 · Seeds are copied into the row when a set is created (U6 D5).**
+Approved 2026-09-14. The repository passes every optional `Parameters` field
+explicitly. "Absent means seed" never crosses the database, so changing a seed
+constant cannot silently change stored or closed data. An empty
+`overhead_lines` set means "no overheads". A null `max_placement_birds` is
+mapped to an omitted field, never passed as `null`. The drift protocol for the
+constrained columns is AD-63.
+
+**AD-61 · Typed columns for scalars, child tables for lists (U6 D4).**
+Approved 2026-09-14. One column per `Parameters` scalar, typed as the engine
+types it (money `bigint`, grams `integer`, enums `text` + `CHECK`), nullable
+exactly where the engine type is `| null`. Overheads and planning bands are child
+tables. Key/value rows and JSONB rejected: the database could not check a value.
+
+**AD-60 · Fixture 13's refusal wording is the shared refusal's.**
+Decided 2026-09-14, with TD-4 finding 8. Fixture 13's `kind`, keys and their
+order are unchanged; only the two `why` strings changed. They read "Client has
+not provided the abattoir fee per bird (OQ-2)" and "…transport cost per bird
+(OQ-2)", while the calendar's own list said both were answered (2026-09-10 and
+2026-09-12) and only absent from this input.
+
+*Why:* one list means one wording, and the fixture's wording was the false one.
+Keeping it would have sent a reader back to Daniel for two numbers he has
+already given.
+
+*Rejected:* keeping the fixture text and changing the calendar's (restores a
+stale claim), and comparing keys only in the golden runner (weakens every
+fixture to protect one string).
+
 **AD-59 · Build Reserve scores null until a candidate has forecast sales.**
 Decided 2026-09-14, from the pre-merge review, closing the confident half of
 OQ-31. `scoreCandidate` sets `build_reserve_cents` to null for every
@@ -712,6 +1493,7 @@ receipts alone (ranks on the wrong quantity, the trap OQ-26 already warns off).
 
 **AD-58 · The planning path refuses past the top band too. One schedule, one
 policy.**
+*Confirmed by AD-96 (2026-09-15):* a bird over 1.3 kg dressed pays about $3.50, less than the top band, so the refusal was right in direction as well as magnitude.
 Decided 2026-09-12, closing OQ-30 the day after AD-57 opened it.
 `bandForDressedG` now returns null **above** the top band as well as below it,
 so M4's harvest planning refuses exactly where a real invoice refuses.

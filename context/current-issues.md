@@ -295,7 +295,35 @@ first pass was itself incomplete. Items 5 and 6 were only visible by executing
 the engine rather than reading it. **Treat any NEW client question arising on
 this topic as evidence this pass missed something**, and check here first.
 
-## THE DANIEL LIST — bulk revenue, complete, 2026-09-12
+## Client questions outstanding — index, 2026-09-14
+
+**How client questions work (standing rule, 2026-09-14):** a gap that needs
+Daniel is logged here as an OQ with proposed question wording, and stops there.
+The user handles every question to Daniel, out of band and in a format they
+control. Nothing in this repository is a message to him.
+
+Every client question still open, checked against this file on 2026-09-14 (OQ-38 to OQ-41 added, OQ-35 to OQ-37 closed, 2026-09-15):
+
+| OQ | The gap | Shapes |
+|---|---|---|
+| OQ-32 | Does one feed collection ever serve two batches? | U6 chunk 5 feed draws |
+| OQ-33 | Are bulk runs booked ahead with a fixed weight? | U6 chunk 5 sales orders |
+| OQ-34 | Is feed ever collected before the chicks arrive? | U6 chunk 5; `buildDays` throws on it |
+| OQ-41 | Where does $3.70 end and $3.50 begin? | Building AD-96's fourth band; TD-4 #9 |
+| OQ-40 | How much cash does the farm hold when the planner starts? | Opening cash (AD-67); the allocation refuses without it |
+| OQ-39 | How many birds a day does the gate take? | `gate_capacity_per_day`, seeded as assumed (U6 chunk 8) |
+| OQ-38 | Which minimum cash reserve should the planner protect? | `reserve_floor_cents`, seeded as assumed (U6 chunk 8) |
+| OQ-21 | Does the supplier ever charge for part of a bag? | Pricing a part-bag draw (refused today) |
+| OQ-17 | ~20 paired live and dressed weights | The bulk harvest day, every dressed price |
+| OQ-15 | Do labour and electricity scale at 30,000 birds? | Overheads at any scale but 3,000 |
+| OQ-19 | Which day is labour paid, "when the batch is done"? | Overhead cash dates |
+| OQ-8 | Was the 2,675 break-even worked at 85c a chick? | Fixture 6 |
+| OQ-6 | Is day 40's 2,789 g a typo? | Curve past day 39 |
+| OQ-5 | Who does daily capture, and who else sees money? | Which memberships are created (U6 chunk 6) |
+
+---
+
+## THE DANIEL LIST — bulk revenue, complete, 2026-09-12 (historical: six answered 2026-09-12; what is still open is in the index above)
 
 ### SEND FIRST, ALONE — the pricing question
 
@@ -568,6 +596,146 @@ same truck twice. An answered OQ-2 is **not** sufficient to proceed.
 ---
 
 ## Open questions — blocking
+
+### OQ-41 · Where does the $3.70 band end and the $3.50 price begin? 🟡 OPEN
+**Status:** open. **Raised:** 2026-09-15, from Daniel's answer to OQ-35 (AD-96).
+Absorbs TD-4 #9 (whether "1.3 kg" is a floor or a range).
+**Affects:** building AD-96's fourth band. Until answered, planning and sales
+keep refusing past the top band (AD-58).
+**What we have:** "heavier than 1.3 kg dressed" fetches about $3.50, against
+$3.70 at 1.3 kg. The boundary is not stated.
+**Proposed question:** *"You said birds heavier than 1.3 kg dressed fetch about
+$3.50. At what dressed weight does a bird stop getting $3.70 and start getting
+$3.50: just over 1.3 kg, at 1.4 kg, or somewhere else?"*
+**Meanwhile:** AD-58's refusal stands, and no boundary is chosen.
+
+### OQ-40 · How much cash does the farm hold when the planner starts? 🟡 OPEN
+**Status:** open, never asked. **Raised:** 2026-09-15, from U6 chunk 8 (seed).
+**Affects:** the opening cash balance (AD-67). Without an account opening, the
+allocation refuses `'opening_cash'`. Cover Fast and Build Reserve refuse, and
+Maximum Growth answers with the reserve floor unchecked.
+**Proposed question:** *"On the day you start using the planner, how much cash
+will the farm have available, bank and cash on hand together?"*
+**Meanwhile:** Daniel's dev organisation has no cash account (chunk 8 D34), and
+the refusal shows. No balance is seeded on his organisation. The synthetic
+organisation has a labelled one.
+**When answered:** one account opening, dated the day he gives. In production
+it is entered on a settings screen on the day, not seeded from this answer.
+
+### OQ-39 · How many birds a day does the gate actually take? 🟡 OPEN
+**Status:** open, never asked as one figure. **Raised:** 2026-09-15, from U6
+chunk 8. **Affects:** `gate_capacity_per_day`, a required parameter. It sets the
+gate window, the max safe batch size and the gate/bulk split.
+**What we have:** the brief says gate sales "run at 500-1,000 birds/day"
+(`project-overview.md`). OQ-23's call says "7k birds on the gate", which is a
+total over a harvest, not a rate. The fixtures use 750, the midpoint, and that
+is ours.
+**Proposed question:** *"On a normal harvest day, about how many birds do you
+sell at the gate? Your brief says 500 to 1,000 a day. Is there one number in
+that range you would plan around?"*
+**Meanwhile:** 750, seeded as `assumed` and owned by this OQ (chunk 8 D33).
+**If he gives a range with no single figure:** the parameter stays assumed. A
+low/high pair would be a design change (the gate window reads one rate), logged
+then.
+
+### OQ-38 · Which minimum cash reserve should the planner protect? 🟡 OPEN
+**Status:** open. The amount was left unanswered by OQ-3 (whose question asked
+"how much reserve is enough"; the answer settled the objective, not the
+amount). **Raised as its own OQ:** 2026-09-15, from U6 chunk 8.
+**Affects:** `reserve_floor_cents`, a required parameter that AD-43's filter
+reads. It decides which placements the allocation calls affordable.
+**What we have:** the 30,000 brief makes the reserve a hard floor, selectable
+at $5,000, $10,000, $15,000 or $20,000, with an explicit override path.
+**Proposed question:** *"Your brief lists a minimum cash reserve of $5,000,
+$10,000, $15,000 or $20,000. Which one should the planner never let the cash
+fall below?"*
+**Meanwhile:** $20,000, the highest option he listed, seeded as `assumed` and
+owned by this OQ (chunk 8 D33). The highest option errs toward calling a
+placement unaffordable, the cautious direction, as AD-55 chose for transport.
+**Not zero:** zero means "no floor", which the brief rules out.
+### OQ-37 · Is transport the same per bird on a direct delivery? ✅ CLOSED 2026-09-15 — moot, AD-98
+**Answer (Daniel, 2026-09-15):** delivery is always to the abattoir; the buyer collects there. No direct run exists, so the question does not arise. `delivery_mode` stays `ABATTOIR`, and no screen asks for it (AD-98).
+
+**Superseded detail below.**
+**Status:** open, never answered. **Raised:** 2026-09-12 (Daniel list #11), logged
+as an OQ 2026-09-14. **Affects:** bulk net when `delivery_mode = DIRECT`.
+`bulkNetCentsPerBird` drops the abattoir fee on a direct delivery but charges
+the same `transport_cents_per_bird` (`cash.test.ts`: "whether transport is the
+SAME per bird is unanswered"; due-diligence item 7 above).
+**Proposed question:** *"If you ever deliver birds straight to the buyer instead
+of the abattoir, does transport cost the same per bird, more, or less?"*
+**Meanwhile:** one transport rate for both modes, as built. **If different:** a
+second parameter, `direct_transport_cents_per_bird`, nullable and refused when
+null on a DIRECT order.
+
+### OQ-36 · Does the bulk buyer cap how many birds he takes? ✅ CLOSED 2026-09-15 — no cap, AD-97
+**Answer (Daniel, 2026-09-15):** no cap. Bulk absorbs whatever the gate does not, at any batch size (AD-97). No `bulk_capacity` parameter.
+
+**Superseded detail below.**
+**Status:** open, never answered. **Raised:** 2026-09-12 (Daniel list #8), logged
+as an OQ 2026-09-14. **Affects:** the gate/bulk split. The brief calls bulk a
+"guaranteed outlet" with no ceiling, and the allocation treats it as unbounded.
+**Proposed question:** *"Is there a limit on how many birds the bulk buyer will
+take from one batch, or in one week?"*
+**Meanwhile:** no cap. **If capped:** a nullable `bulk_capacity` parameter that
+bounds the split, beside `gate_capacity_per_day`.
+
+### OQ-35 · What does a bird over 1.3 kg dressed pay? ✅ CLOSED 2026-09-15 — LESS, ~$3.50, AD-96
+**Answer (Daniel, 2026-09-15):** heavier than 1.3 kg dressed is worth **less**, about $3.50 a bird against the 1.3 kg band's $3.70. AD-58's refusal was right in direction as well as magnitude, and holding past 1.3 kg is to be penalised in planning, not merely blank (AD-96). **Not built:** where $3.70 ends and $3.50 begins is unstated (OQ-41, absorbing TD-4 #9), so AD-58's refusal stands.
+
+**Superseded detail below.**
+**Status:** open, never asked. **Raised:** 2026-09-12 as OQ-30's client half
+(Daniel list #2). OQ-30 closed on our side by AD-58; this is what it left.
+Logged as its own OQ 2026-09-14. **Affects:** bulk value past the top band,
+blank from day 34 today; TD-4 #9 (whether "1.3 kg" is a floor or a range).
+**Proposed question:** *"Your contract pays $3.90 at 1.1 kg dressed, $3.80 at
+1.2 and $3.70 at 1.3. What does it pay for a bird over 1.3 kg dressed? And does
+1.3 kg mean exactly 1.3, or anything from 1.30 to 1.39?"*
+**Meanwhile:** planning and sales both refuse past the top band (AD-58). **When
+answered:** both paths change together, since there is only one.
+
+### OQ-34 · Is feed ever collected before the chicks arrive? 🟠 SHAPES U6
+**Status:** open. **Raised:** 2026-09-14,
+while drafting U6 chunk 5. **Affects:** `feed_draw_versions`, and today's engine.
+
+`cash.ts` `buildDays` **throws** on any flow dated before placement. A draw
+collected the day before the chicks come in books its delivery payment on the
+collection date, so one true entry would take the whole calendar down. The
+throw assumes such a flow was folded into `openingCents`. Under AD-67 that fold
+covers `cash_transactions`, but not feed draws.
+**Assumed for chunk 5:** never (answer a). A trigger rejects a draw before the
+current placement date, which keeps the engine's precondition true. **If b or
+c:** an engine change, decided then: pre-placement draws fold into opening
+cash (AD-67), or the calendar starts earlier.
+**Proposed question:** *"Do you ever collect starter feed before the chicks
+arrive? (a) No, same day or after; (b) yes, a day or two before; (c) yes,
+sometimes a week or more before."*
+
+### OQ-33 · Are bulk runs booked ahead with a fixed weight? 🟠 SHAPES U6
+**Status:** open. **Raised:** 2026-09-14, U6 D18 (AD-79).
+**Affects:** `sales_order_versions`. `SalesOrder.avg_live_weight_g` is
+non-null, and forward-dated orders reach the calendar by design.
+**Assumed for chunk 5:** not booked with a fixed weight (a or b). One live-weight
+column, entered as the expected weight and corrected (AD-75) once weighed.
+**If c:** a contracted weight column separate from the weighed one, and an
+engine decision on which prices the order.
+**Proposed question:** *"When you sell a run to a bulk buyer, how far ahead is
+it agreed? (a) Not ahead, arranged on the day or once weighed; (b) booked ahead
+with a date and a number of birds, weight and money settled when weighed;
+(c) booked ahead with a weight or weight range fixed in the deal."*
+
+### OQ-32 · Does one feed collection ever serve two batches? 🟠 SHAPES U6
+**Status:** open. **Raised:** 2026-09-14, U6 D17 (AD-78).
+**Affects:** whether feed draws are one-to-one with a batch or need a collection
+table plus a per-batch split. `EngineInput.draws` is per batch, and the
+architecture sketch assumed a split (`feed_allocations`).
+**Assumed for chunk 5:** no (answer a). **If b:** a collection table and a split,
+where a split by bags can create part bags (OQ-21). **If c:** per-batch feed
+cost has no recorded basis. That needs a new allocation rule, which is an
+engine and client decision.
+**Proposed question:** *"When one batch is still being sold and the next is
+already placed, does one feed collection ever feed both? (a) No; (b) sometimes,
+and I split the bags between them; (c) sometimes, and I don't track the split."*
 
 ### OQ-21 · A fractional-bag draw crashes the engine 🟠 CRASH FIXED — CLIENT HALF OPEN
 **Status:** **The crash is fixed** (2026-09-11). The engine now refuses with a
@@ -1548,6 +1716,14 @@ screen where Daniel types a batch and presses a button**, and 20.8 s at his real
 scale, ~2 min at 30,000, is not a slow screen. It is a screen he will assume has
 crashed.
 
+**Ruling for U9 v1 (the user, 2026-09-23): precompute at build time.** v1 renders
+fixture 7 with the decision computed once at build (`force-static`) and baked
+into the page, with the reason in a comment in `apps/web/app/page.tsx`. **A v1
+shortcut, not a resolution:** a chosen answer below (memoised or incremental
+scoring) is still required before U9 binds to live data. v1 does not reach the
+20.8 s path at all: with no opening balance (OQ-25), no candidate is projected
+against the floor.
+
 ### This must be designed, not noted
 
 **U9 does not start without a chosen answer to this.** "Consider performance" in
@@ -2031,6 +2207,17 @@ across the two columns — see invariant 13.
 ### OQ-5 · Who performs daily capture 🟡
 **Status:** Named as "someone on the farm," no individual identified.
 
+**Also affects U6 chunk 6 (2026-09-14):** which memberships the production seed
+creates. The schema builds `OWNER`, `MANAGER` and `WORKER` as `architecture.md`
+specifies either way; a WORKER sees no money (D22).
+**Proposed question:** *"Who will enter the daily records: you, or someone on
+the farm? And apart from you, does anyone need to see prices, costs or the cash
+position, for example a farm manager?"*
+**Meanwhile:** Daniel is the only OWNER; no MANAGER or WORKER is seeded in
+production until answered. The role matrix's delegation rows (MANAGER reads
+settings and places batches; WORKER reads no curve) are U6 defaults (AD-86); the
+answer may call for per-org overrides.
+
 If the owner ends up doing capture himself, it will happen in bursts
 from memory rather than daily, and the forecast degrades.
 
@@ -2059,13 +2246,57 @@ sales, the null-fee guard, gate-order refusal), as are 6, 7 and 11. These remain
 
 | # | Finding | Why deferred |
 |---|---|---|
-| 8 | Refusals are spread across `missingInputsFor` (index.ts), `cashFlowsMissingInputs` and `salesMissingInputs`, and have drifted: a BANDED bulk order with no bands gives `computeDecision → ok`. `missingInputsFor` is also exported from index.ts only for a test | Harmless while the decision carries no cash output. **Must be one shared refusal before U6 wires `decision.allocation`** |
+| 8 | ✅ **Fixed 2026-09-14 as U6's opening task** (`refusals.ts`, AD-60). Was: refusals are spread across `missingInputsFor` (index.ts), `cashFlowsMissingInputs` and `salesMissingInputs`, and have drifted: a BANDED bulk order with no bands gives `computeDecision → ok`. `missingInputsFor` is also exported from index.ts only for a test | Harmless while the decision carries no cash output. **Must be one shared refusal before U6 wires `decision.allocation`** |
 | 9 | A schedule of floors gives the top band zero width: 1,300 g pays $3.70, 1,301 g refuses. If "1.3 kg" means 1.30-1.39 kg, valid invoices are refused | Errs toward a blank, not a wrong number. **A Daniel question**, to go with question 2 on the Daniel list; pinned by a boundary test |
 | 10 | `cash.ts` dates a HARVEST_COMPLETE overhead at the last curve day (or day 1) when the slaughter target is never reached, where `planHarvest` throws. And feed delivery falls back to its seed rate silently while AD-55 refuses a null abattoir fee: two policies for the same kind of client fact | The first is an invented date and should refuse; the second is AD-54 vs AD-55 and needs one policy chosen, not a patch |
 | 12 | `PlaceNothing.overhead_still_incurred_cents` is hard-coded `0n`, copied from the plan with no derivation | Whether labour or any line is paid with no batch housed is unknown (OQ-15 territory). Zero is a claim; this should be null or derived |
 | 13 | A bulk contract grossing under 20c a bird books a negative receipt with no refusal | Unrealistic; noted rather than guarded |
 | R2-a | Invariant 16 now counts from the latest `order_date`, which has no upper bound: a mistyped far-future date silently pushes the placement floor out | Input validation, for U6/U8's sales ledger, not the engine |
 | R2-b | `batchCashFlows` is exported and allowlisted as internal; it can be called without `cashFlowsMissingInputs` first | Acceptable while the allowlist entry stands; do not re-export it from index.ts |
+
+### TD-7 · Migration 6 does not apply to a fresh local database 🟠
+**Raised:** 2026-09-23, during chunk 7's red run. `20260915071004_security_definer_comments`
+revokes EXECUTE on `public.rls_auto_enable()`, a hosted-platform default that the
+local Supabase image does not ship. On a fresh local database the revoke fails
+with **42883** (function does not exist), so `npx supabase db reset --local` has
+failed since `9495068`. The 50/50 local run predates migration 6, which was only
+ever applied on dev, where the function exists. **Workaround in use:**
+`npx supabase db reset --local --version 20260915065625` (migrations 1 to 5).
+Nothing in chunk 7 depends on migration 6. **Decision needed (the user's):**
+(a) guard the revoke with `if exists`, which changes the text of a migration dev
+has already applied (the behaviour on dev is identical); or (b) leave migration 6
+as dev ran it and create the function locally first, for example in a local-only
+seed. Must close before a CI database job exists, since CI starts from empty.
+
+### TD-6 · No schema safety-net test for RLS on every table 🟡
+**Raised:** 2026-09-15, after the chunk 5 dev apply. **Scheduled:** next week's
+budget; do not build before then. Today nothing in `packages/db-tests` enumerates
+tables: `enum-drift.test.ts` looks up named CHECK constraints only, so a new
+table created without RLS would pass the suite. **Fix:** a DB test that lists
+every table in `public` (and `facts`, `private`) from `pg_class` and asserts
+`relrowsecurity`. Exclude `public.rls_auto_enable` and its `ensure_rls` event
+trigger by name, with a comment naming them as a Supabase platform default,
+since they appear on every fresh Supabase database and are not our code.
+
+### TD-5 · The engine types feed quantities as kg `number` 🟠 MUST CLOSE BEFORE U9
+**Consistency debt, with a deadline (approved 2026-09-14).** Deferred out of U6
+correctly, but it **must close before U9 (the decision screen) starts**. While it
+is open, the database holds feed in grams and the engine in kg. A screen reading
+one side in kg and the other in grams would show a figure 1,000 times wrong
+with no error: the silent wrong answer this project is built to prevent. U9
+planning checks this entry first.
+
+**Ruling for U9 v1 (the user, 2026-09-23): does not gate v1.** v1 reads the
+engine only and formats kg at the display boundary; no screen reads the
+database, so no figure crosses the two units. It still closes before U9 binds to
+repository data.
+
+**Raised:** 2026-09-14, U6 D16 (AD-77). `DailyRecord.feed_*_kg` and `FeedDraw.kg`
+are floats in kg. CLAUDE.md rule 2 says integer grams, and the database stores
+grams. The repository divides by 1000 at the boundary. `kgDiscrepancy` already
+rounds back to grams to compare. **Fix:** retype to `Grams` in the engine, with
+the golden fixtures' inputs migrated under an AD. Not U6: nothing is wrong
+today, and it touches every fixture.
 
 ### TD-1 · `npm audit` critical in the dev toolchain 🟡
 **Raised:** 2026-09-10. **Decision:** accepted, not remediated. **Revisit:** when vitest is next upgraded.
@@ -2294,12 +2525,16 @@ recommendation — divergences are the most valuable data available.
 
 | Work | Blocked by |
 |---|---|
+| ~~U6 · applying chunk 5's migrations to dev~~ | **DONE 2026-09-15.** Six migrations applied in one write window (`SESSION.md`) |
+| **U6 · a clean local reset through migration 6** | **TD-7.** Reset to `--version 20260915065625` until it closes |
+| **U6 · a CI database job** | No CI-only project or throwaway dev branch exists. The DB suite runs locally only (`npm run test:db:local`) and refuses dev |
 | Calibrated `MaxSafeBatchSize` | OQ-1 (mortality data) |
 | ~~M5b · Task 8, the enumeration ceiling~~ | **UNBLOCKED 2026-09-11.** ~~OQ-23~~ answered: the ceiling is an operator-entered `max_placement_birds`, no derived cap. Tasks 1-8 built; Task 9 now blocked on OQ-25 below |
 | M5b · the Build Reserve mode | **OQ-31** — pinned null by AD-59: without a candidate's forecast sales it recommended the smallest batch. Needs M6 |
 | M5b · the Cover Fast mode | **OQ-26** — structurally cannot answer: a candidate has no forecast sales, so receipts never clear core credit. Needs M6 |
 | M5b · Task 9, wiring `decision.allocation` | **OQ-25** — the engine holds no cash balance to pass as `openingCents`, and the plan passed `reserve_floor_cents`, a different quantity. Recommendation: leave the getter throwing until U6 |
-| **U9 · the mode-selector / recommendation screen** | **OQ-29 — HARD BLOCKER, not an optimisation.** `computeAllocation` takes **20.8 s** at Daniel's realistic 5,000-bird ceiling and ~2 min at the brief's 30,000. U9 is a click-and-see screen; two minutes is not usable and no spinner makes it so. **U9 planning must produce a real design answer** — see OQ-29 for the three candidates and what each costs. A plan that says "consider performance" does not clear this |
+| **U9 · the mode-selector / recommendation screen** | **OQ-29 — HARD BLOCKER, not an optimisation.** `computeAllocation` takes **20.8 s** at Daniel's realistic 5,000-bird ceiling and ~2 min at the brief's 30,000. U9 is a click-and-see screen; two minutes is not usable and no spinner makes it so. **U9 planning must produce a real design answer** — see OQ-29 for the three candidates and what each costs. A plan that says "consider performance" does not clear this. **v1 ruling (2026-09-23):** precomputed at build; still required before live data |
+| **U9 · any screen showing feed quantities** | **TD-5**: the engine types feed in kg, the database in grams. Closes before U9 starts, so no screen binds against two units. **v1 ruling (2026-09-23):** does not gate v1, which reads no database |
 | U3 · pricing a **part-bag** draw | OQ-21 — the client question half only. **The crash half landed 2026-09-11**: a part-bag draw now returns a typed `feed_draw_bags` refusal instead of a `RangeError` |
 | Default strategy selection | ~~OQ-3~~ answered; mode set decided (AD-35) |
 | ~~Gate harvest window past day 32~~ | **Moot.** Built in U4: under the settled flat gate price the window ends at day 31, so there is no "past day 32" to unblock. It reopens only if per-kg gate pricing becomes the default — see OQ-11 |
