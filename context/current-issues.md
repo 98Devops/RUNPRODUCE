@@ -228,7 +228,7 @@ and the first three executed on 2026-09-12.
 | 8 | Offal fields on `SalesOrder` | Queued. |
 | 9 | `mortality_history` dead key | Queued — wire or delete. |
 | **10** | OQ-28 feed delivery field | ✅ **DONE** — AD-54, paid on the collection date. |
-| 11 | OQ-25 cash balance | Blocked on U6. **Now the only thing between `computeAllocation` and the `decision.allocation` getter.** **Reframed 2026-09-23:** Daniel described two credit facilities, not a balance; the structure is open (see OQ-25's amendment). |
+| 11 | OQ-25 cash balance | Blocked on U6. **Now the only thing between `computeAllocation` and the `decision.allocation` getter.** **Reframed 2026-09-23:** Daniel described two credit facilities, not a balance; the structure is open (see OQ-25's amendment). **Widened 2026-09-27:** a third, interest-bearing facility and profit carried between batches; three structures now (OQ-43, OQ-44). |
 | 12 | OQ-26 Cover Fast | Blocked on M6. |
 | 13 | OQ-29 — a 1-bird grid takes 20.8 s | **New 2026-09-12.** Ours. Should land before M5b Task 9. |
 | 14 | OQ-30 — the band schedule extrapolates in planning, refuses in sales | **New 2026-09-12.** Half ours, half question 2 on the Daniel list. |
@@ -302,10 +302,14 @@ Daniel is logged here as an OQ with proposed question wording, and stops there.
 The user handles every question to Daniel, out of band and in a format they
 control. Nothing in this repository is a message to him.
 
-Every client question still open, checked against this file on 2026-09-14 (OQ-38 to OQ-41 added, OQ-35 to OQ-37 closed, 2026-09-15):
+Every client question still open, checked against this file on 2026-09-14 (OQ-38 to OQ-41 added, OQ-35 to OQ-37 closed, 2026-09-15; OQ-42 to OQ-45 added from Daniel's reply, 2026-09-27):
 
 | OQ | The gap | Shapes |
 |---|---|---|
+| OQ-45 | $2,700 or $4,948.19: which is the 3,000-bird batch's net profit? **Ours first**, then Daniel if we cannot reconcile | The historical baseline (AD-51); fixture 1 is not regenerated until settled |
+| OQ-44 | Does one batch's profit fund the next placement? | A flow between batches; no `EngineInput` field holds it |
+| OQ-43 | The $20K loan at 30%, "triggered at 6 weeks": which terms? | Whether borrowing can be costed at all; nothing modelled until answered |
+| OQ-42 | Does the system model his live 6,000-bird batch, or only hypothetical placements? | What `EngineInput.batch` is in production; onboarding mid-batch |
 | OQ-32 | Does one feed collection ever serve two batches? | U6 chunk 5 feed draws |
 | OQ-33 | Are bulk runs booked ahead with a fixed weight? | U6 chunk 5 sales orders |
 | OQ-34 | Is feed ever collected before the chicks arrive? | U6 chunk 5; `buildDays` throws on it |
@@ -596,6 +600,130 @@ same truck twice. An answered OQ-2 is **not** sufficient to proceed.
 ---
 
 ## Open questions — blocking
+
+**From Daniel's second reply on OQ-25, 2026-09-27.** OQ-42 to OQ-45 below, the
+widened OQ-25 amendment, and a note on OQ-23. **Nothing from this reply is wired
+into the engine, a fixture or the UI.** The user is sending the two questions that
+decide OQ-25 (OQ-43's terms, and whether there is separate cash) to Daniel as one
+message; nothing in the engine changes until that reply comes back.
+
+### OQ-45 · $2,700 or $4,948.19: what did the 3,000-bird batch actually make? 🟡 OPEN · OURS FIRST
+**Status:** open. **Raised:** 2026-09-27, from Daniel's reply.
+**Affects:** the historical baseline, not a failing test. See "What it is not".
+**The two figures:**
+
+| Source | Net profit | Basis |
+|---|---|---|
+| Daniel, 2026-09-27 | **$2,700** | His figure for the 3,000-bird batch. How he worked it out is not stated |
+| His workbook's Final Report | **$4,948.19** | On $12,301.81 of expenditure, including the since-retired $400 line (AD-51; `overheads.ts:92`) |
+
+The gap is **$2,248.19**, 45% of the workbook figure.
+
+**What it is not.** No golden fixture asserts a profit. Fixture 1 asserts feed
+cost ($7,698.06 since AD-52), feed kg, FCR, draw bags and dates (checked
+2026-09-12, item 5 above). The engine computes no profit at all (item 4 above).
+So nothing is red. The $4,948.19 is the baseline AD-51 measures its
+discontinuity against. It is also the figure any profit calculation would first
+be checked against, once one is built.
+
+**Known candidates, none chosen:**
+- **Costs the workbook never booked.** Feed delivery at $40/tonne is $528.96 on
+  that batch's 13,224 kg (OQ-28, AD-54). That covers under a quarter of the gap.
+- **One source, not two.** The Final Report re-displays the Record sheet's totals
+  (OQ-13), so $4,948.19 has no independent check behind it.
+- **Daniel's figure may count what the workbook leaves out.** Candidates are
+  interest on borrowing (OQ-43), owner's drawings, or losses after the Record
+  sheet ends. It may also be rounded, from memory, or from a different batch.
+
+**Proposed handling:** we first try to itemise the $2,248.19 from the workbook and
+the known unbooked costs. If it cannot be itemised, it becomes a question for
+Daniel (proposed wording, not sent): *"Your workbook's final report shows
+$4,948.19 net profit on the 3,000-bird batch, and you told us about $2,700. What
+makes up the difference: costs that are not in the workbook, or a different
+batch?"*
+**Meanwhile:** fixture 1 is **not regenerated**, and AD-51's baseline text stands
+with this question against it.
+
+### OQ-44 · Does one batch's profit fund the next placement? 🟡 OPEN
+**Status:** open. **Raised:** 2026-09-27, from Daniel's reply.
+**Affects:** OQ-25's third structure (C). It also affects what "operating
+capital" means.
+**What Daniel described:** the profit a batch retains funds the next placement.
+That is a **flow between batches**.
+**Why nothing holds it today.** `EngineInput` is one batch (`batch`, `records`,
+`draws`, `sales`, as of `asOf`) plus `parameters`. The allocation plans the next
+placement after that batch clears.
+- **Under structure A**, the nearest thing is implicit: the current batch's
+  receipts raise a running balance before the next placement's costs lower it.
+  Even there, nothing says how much is retained rather than drawn out.
+- **Under structures B and C**, a receipt goes to paying down a facility, in an
+  order nobody has given (OQ-25's follow-up 1). What is left, where it sits and
+  how it funds the next chick purchase are all unstated.
+
+**Proposed question (for the user; not sent by us):** *"When a batch finishes,
+how much of the profit stays in the business to pay for the next batch, and
+where does it sit until then: in the bank, or paid off the chick and feed
+accounts?"*
+**Not modelled.** No field, no flow.
+
+### OQ-43 · The $20,000 loan at 30%, "triggered at 6 weeks": which terms? 🟡 OPEN · 🔴 BLOCKS MODELLING ANY INTEREST
+**Status:** open. **Raised:** 2026-09-27, from Daniel's reply. **Part of the
+message the user is sending (with OQ-25's deciding question).**
+**Affects:** OQ-25's structure C, and whether borrowing can be costed at all.
+**What Daniel described:** a third facility, a **$20,000 loan at 30% interest,
+triggered at 6 weeks**.
+**The ambiguity.** "30%, triggered at 6 weeks" reads at least three ways, and they
+differ by a factor of more than 25:
+
+| Reading | What is owed | Illustration: $20,000 held 8 weeks (arithmetic, not a client figure) |
+|---|---|---|
+| **Grace period** | Nothing if repaid inside 6 weeks; held past it, 30% a year runs **from the day drawn** | 56 days: **$920.55** |
+| **Annualised from week 6** | 30% a year, running **only from week 6** | 14 days: **$230.14** |
+| **Flat if held past 6 weeks** | 30% of the amount, **once**, if held past 6 weeks | **$6,000.00** |
+
+**Unstated beside the rate:**
+- Does "6 weeks" count from the draw or from placement?
+- Is the loan drawn per batch or a standing line?
+- Is there a repayment date?
+- Which of the three facilities is drawn first?
+
+**Why it matters beyond one cost.** Under any reading, interest makes **time a
+cost**: a longer hold, a slower gate or a late bulk run carries it. That reaches
+M4's hold-versus-sell comparison and the allocation's ranking, and not just the
+cash calendar.
+**Proposed question (for the user's bundled message; not sent by us):** *"On the
+$20,000 loan at 30%: if you borrow it and repay it after, say, 8 weeks, what do
+you pay in interest? Is the 30% a yearly rate, and does it count from the day you
+borrow or only after the first 6 weeks?"*
+**Meanwhile:** **no interest is modelled, in any reading.** Picking one would
+invent a number.
+
+### OQ-42 · Does the system model Daniel's live 6,000-bird batch, or only hypothetical placements? 🟡 OPEN
+**Status:** open. **Raised:** 2026-09-27, from Daniel's reply. It mentioned a
+6,000-bird batch **running now**, operational data we did not know existed.
+**Affects:**
+- what `EngineInput.batch` is in production
+- onboarding
+- what "drawn on each account today" (OQ-25's follow-up 3) is mostly made of
+
+**The engine's shape already assumes a live batch.** `EngineInput` is one placed
+batch with its records, draws and sales as of `asOf`. The allocation places the
+*next* batch after it clears. So the question is not whether the engine can hold
+a live batch. It is whether RunProduce's first real input is **his** batch:
+- **If yes, it is onboarded mid-batch.** It needs his placement date, bird count,
+  feed drawn so far and daily records since placement. Or the curve stands in for
+  the missing days, marked assumed. Every figure on U9 would then be about his
+  real flock, not fixture 7's 5,000-bird stand-in.
+- **If only hypothetical,** the planner still needs *a* current batch to clear
+  before the next placement. That would be a hypothetical one, or a different
+  entry point that plans from an empty house.
+
+**Proposed question (for the user; not sent by us):** *"Should the planner start
+from the 6,000-bird batch you have running now, with its placement date, the feed
+drawn so far and your daily records, or only plan batches you have not placed
+yet?"*
+**Meanwhile:** nothing is entered anywhere. Daniel's production project stays
+untouched, and U9 stays on fixture 7.
 
 ### OQ-41 · Where does the $3.70 band end and the $3.50 price begin? 🟡 OPEN
 **Status:** open. **Raised:** 2026-09-15, from Daniel's answer to OQ-35 (AD-96).
@@ -1543,6 +1671,13 @@ scale; **30,000** is the aspirational target the brief plans against
 ceiling the engine may assume — absent the field, `requirePlacementCeiling`
 throws, exactly as the M5b plan specified.
 
+**Note (Daniel, 2026-09-27):** the aspirational **next** batch is **15,000
+birds**. 30,000 is longer-term. He is running 6,000 now (OQ-42). This changes no
+code: `max_placement_birds` stays an operator-entered, per-cycle figure with no
+default, as his original answer asked. What it changes is which scale matters
+first. OQ-15 (do labour and electricity scale?) now bites at 15,000 before
+30,000.
+
 **The same source independently confirms the conflation this question was
 raised to name.** From the same call: *"they can **7k birds on the gate** but
 for them to push aggressively to 15k they will be risk of pre harvest loss."*
@@ -1905,8 +2040,9 @@ compute — days to first receipt, or the running batch's receipts alone — wou
 produce a number that ranks, and a ranking built on the wrong quantity is worse
 than a blank. Same reasoning as AD-43's refusal to sentinel a null.
 
-### OQ-25 · The engine has no cash balance, and M5b needs one 🔴 BLOCKS M5b TASK 9 · 🔁 REFRAMED 2026-09-23
-**Status:** Open, **reframed by Daniel's answer (2026-09-23), see the amendment
+### OQ-25 · The engine has no cash balance, and M5b needs one 🔴 BLOCKS M5b TASK 9 · 🔁 REFRAMED 2026-09-23 · WIDENED 2026-09-27
+**Status:** Open, **reframed by Daniel's answer (2026-09-23), and widened by his
+second reply (2026-09-27) from two structures to three. See the amendment
 directly below.** **Raised:** 2026-09-11, from executing M5b Task 9.
 **Affects:** whether `decision.allocation` can be wired at all.
 **This is ours, not Daniel's** — it is a decision about what the engine is
@@ -1929,36 +2065,58 @@ goes into the UI once the shape is understood, not before.
 
 **Nothing is wired and no number is set.** `opening_cash_cents` is not $70,000
 or any other figure, and the engine does not model the facilities. The facilities
-are not the balance the engine asks for under another name. The two structures
+are not the balance the engine asks for under another name. The structures
 below are different models, and choosing between them is Daniel's follow-up
 answers, not ours.
 
-**The two structures, named, not chosen:**
+**Second amendment (2026-09-27): three structures, not two.** Daniel's second
+reply added:
+- **a third facility,** a $20,000 loan at 30% interest, "triggered at 6 weeks"
+  (OQ-43, terms ambiguous);
+- **retained profit** from one batch funding the next placement (OQ-44).
 
-| | **A · Cash + reserve floor** (what the engine models) | **B · Facility limits + facility usage** (what Daniel described) |
-|---|---|---|
-| The state | One cash balance | Per facility: its limit, and how much is drawn |
-| A cost | Lowers the balance | Uses headroom on its facility |
-| A receipt | Raises the balance | Pays a facility down: which one, in what order, is unknown |
-| The constraint | Balance ≥ `reserve_floor_cents`, every day | Usage ≤ limit, on each facility, every day |
-| Where it lives today | AD-67 (`opening_cash_cents`); `cash_accounts` + `cash_transactions` (built, U6 chunk 5, on dev); `engine_snapshot`'s `cash` section (chunk 7 red tests); `reserve_floor_cents`; `projectCashCalendar`'s `openingCents` | CONTEXT.md's **Facility** and **Headroom** (feed only); `credit_facilities` in architecture.md, deferred by AD-80; M3's "no `headroom`, the limit is not in `Parameters`" |
+Neither fits A or B, so the table gains column C. The same reply raised OQ-42
+(his live 6,000-bird batch) and OQ-45 (his $2,700 profit against the workbook's
+$4,948.19). Neither changes the structures, but both change the numbers any of
+them would start from.
 
-They are not exclusive. B may sit **on top of** A: the facilities fund chicks and
-feed, and a cash float pays everything else. That possibility is the question.
+**The three structures, named, not chosen:**
 
-**The question that decides (proposed wording, for the user's follow-up; not sent
-by us):** *"Apart from the chick and feed accounts, is there money of the farm's
+| | **A · Cash + reserve floor** (what the engine models) | **B · Facility headroom + limits** (Daniel, 2026-09-23) | **C · Facility headroom + interest-bearing borrowing + profit reinvestment** (Daniel, 2026-09-27) |
+|---|---|---|---|
+| The state | One cash balance | Per facility: its limit, and how much is drawn | B's two facilities; plus the loan (drawn or not, since when, interest owed); plus profit retained from the last batch |
+| A cost | Lowers the balance | Uses headroom on its facility | Uses headroom; what headroom cannot cover may draw the loan (unstated) |
+| A receipt | Raises the balance | Pays a facility down: which one, in what order, is unknown | Pays down a facility or the loan (order unknown); what remains is retained toward the next placement (OQ-44) |
+| The constraint | Balance ≥ `reserve_floor_cents`, every day | Usage ≤ limit, on each facility, every day | B's limits, plus a $20,000 loan limit; **and a cost of time**, since interest accrues on how long the loan is held (reading unknown, OQ-43) |
+| Where it lives today | AD-67 (`opening_cash_cents`); `cash_accounts` + `cash_transactions` (built, U6 chunk 5, on dev); `engine_snapshot`'s `cash` section (chunk 7 red tests); `reserve_floor_cents`; `projectCashCalendar`'s `openingCents` | CONTEXT.md's **Facility** and **Headroom** (feed only); `credit_facilities` in architecture.md, deferred by AD-80; M3's "no `headroom`, the limit is not in `Parameters`" | **Nowhere.** No field for a loan, an interest rate or a flow between batches. `EngineInput` is one batch |
+
+They are not exclusive. **C contains B.** B may sit **on top of** A: the
+facilities fund chicks and feed, and a cash float pays everything else. Retained
+profit (C) may *be* that float. That possibility is the question.
+
+**The question that decides now needs two answers from Daniel.** The user is
+sending both as one message (2026-09-27), and nothing in the engine changes until
+the reply comes back:
+1. **Is there separate cash?** Wording below, unchanged. It decides whether A
+   exists under the facilities.
+2. **The loan's interest terms (OQ-43).** They decide whether C's borrowing can be
+   costed at all. Until they arrive, C can be named but not modelled.
+
+**Answer 1, the separate-cash question (proposed wording, for the user's
+follow-up; not sent by us):** *"Apart from the chick and feed accounts, is there money of the farm's
 own, a bank balance, that pays for what the accounts do not cover (labour,
 electricity, vaccine, the feed delivery paid on collection) and where sale
 proceeds land?"*
-- **If no: B alone.** The constraint is headroom on each facility.
-  `reserve_floor_cents` becomes a headroom floor or goes, and
-  `opening_cash_cents` is the wrong field: the likely shape is a new
-  `EngineInput` field (facility limits and usage), not a reuse of it.
-- **If yes: A and B together.** A cash balance for costs outside the facilities,
-  and two facilities for chicks and feed. The floor applies to the cash; the
-  limits apply to the facilities. `opening_cash_cents` survives, scoped to the
-  cash alone.
+- **If no: B, or C, alone.** The constraint is headroom on each facility (and,
+  under C, the loan and its cost of time). `reserve_floor_cents` becomes a
+  headroom floor or goes. `opening_cash_cents` is the wrong field: the likely
+  shape is a new `EngineInput` field (facility limits and usage), not a reuse of
+  it.
+- **If yes: A under B or C.** A cash balance for costs outside the facilities,
+  and the facilities for chicks and feed (and the loan, under C). The floor
+  applies to the cash, and the limits apply to the facilities.
+  `opening_cash_cents` survives, scoped to the cash alone. Under C, retained
+  profit (OQ-44) is plausibly what that cash is.
 
 A hint, not an answer: feed delivery is paid "on the spot when the feed is
 collected" (client, 2026-09-12), so something pays outside the feed terms.

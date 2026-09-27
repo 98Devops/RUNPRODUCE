@@ -41,6 +41,15 @@ at its red phase on `u6-supabase-schema` (pushed).
   naming both structures and the question that decides. **Nothing wired:** no
   `opening_cash_cents` value, no facility model in the engine, no UI wording
   changed. His term "operating capital" waits for the shape.
+- **Finding, 2026-09-27: OQ-25 widened to three structures.** Daniel's second
+  reply added a $20,000 loan at 30% "triggered at 6 weeks" (OQ-43, three
+  readings) and profit carried from batch to batch (OQ-44). A third structure,
+  C, is named beside A and B. It also brought a live 6,000-bird batch we did not
+  know about (OQ-42), and a $2,700 profit for the 3,000-bird batch against the
+  workbook's $4,948.19 (OQ-45: ours first; fixture 1 not regenerated). Next
+  batch aspiration: 15,000, with 30,000 longer-term (noted on OQ-23; no code
+  change). The user is sending the two deciding questions as one message.
+  **Nothing wired, nothing modelled.**
 - **Explained popovers, 2026-09-23:** every figure on the three cards opens its
   formula, inputs with sources, and confidence. The engine emits no
   `Explained<T>` (TD-8), so the view model assembles them, and a reconciliation
