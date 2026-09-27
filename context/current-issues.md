@@ -2582,6 +2582,20 @@ and 5.0:1 on the page background; the flow colours are over 6:1.
   HARVEST_COMPLETE". Honest but not plain language. A copy follow-up, not
   accessibility.
 
+### TD-10 · The Netlify Next runtime cannot be built on Windows 🟠
+**Raised:** 2026-09-27, deploying U9 v1. `netlify deploy --build` from this
+machine produced a server handler that imports `\var\task\apps\web` with
+backslashes, so every request returned 502 (`ERR_MODULE_NOT_FOUND`). The build
+itself passes; the path is wrong only in the Lambda.
+**Interim, U9 v1 only:** it is `force-static`, so it ships as a static export.
+`RUNPRODUCE_STATIC_EXPORT=1 npm run build -w @runproduce/web`, then
+`netlify deploy --prod --no-build --dir apps/web/out`. Unset, `next.config.ts`
+builds the normal AD-9 way, and `apps/web/netlify.toml` is set up for that.
+Site: `runproduce-console` (https://runproduce-console.netlify.app).
+**Fix, before the first dynamic route ships (U7):** build on Linux: link the
+site to the GitHub repo so Netlify builds it, or deploy from WSL or CI. The
+static-export flag goes once that works.
+
 ### TD-9 · Planned feed runs to the curve's last day, not the harvest day 🟠
 **Raised:** 2026-09-23, found by U9's outgoing breakdown, by running the engine
 on fixture 7. `computeFeedLiability` plans draws until the breed curve's last

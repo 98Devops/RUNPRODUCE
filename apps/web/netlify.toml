@@ -1,0 +1,7 @@
+# AD-9: Netlify, Next.js via @netlify/plugin-nextjs (auto-applied to Next sites).
+# Monorepo: the site's base is the repo root and its package directory is
+# apps/web, so the workspace install puts @runproduce/engine where Next finds it.
+# Paths here resolve from the base (repo root), not from this file.
+[build]
+  command = "npm run build -w @runproduce/web"
+  publish = "apps/web/.next"

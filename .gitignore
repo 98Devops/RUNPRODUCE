@@ -16,3 +16,7 @@ build/
 .DS_Store
 coverage/
 *.tsbuildinfo
+
+# Netlify CLI state, and the U9 v1 static export (TD-10)
+.netlify/
+out/
