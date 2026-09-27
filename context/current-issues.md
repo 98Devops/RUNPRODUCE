@@ -2587,6 +2587,15 @@ and 5.0:1 on the page background; the flow colours are over 6:1.
   HARVEST_COMPLETE". Honest but not plain language. A copy follow-up, not
   accessibility.
 
+### TD-11 · `text-base` sets the text colour to the page background 🟡
+Found 2026-09-27 (U7 chunk 2). `globals.css` maps `--color-base` to
+`--bg-base`, so Tailwind's `text-base` sets the colour to #F7F7F5 as well as
+the size. Text styled `text-base` is near-invisible on white. The capture
+placeholder hit it; it now uses `text-lg`.
+- **Fix:** rename the colour token (for example `--color-page`, `bg-page`) so
+  `text-base` means size only. Four `bg-base` uses to move.
+- **Until then:** do not write `text-base`.
+
 ### TD-10 · The Netlify Next runtime cannot be built on Windows ✅ CLOSED 2026-09-27
 **Closed:** the site builds from GitHub `main` on Netlify's Linux image, through
 a read-only deploy key and a push webhook on the repo (no Netlify GitHub App was

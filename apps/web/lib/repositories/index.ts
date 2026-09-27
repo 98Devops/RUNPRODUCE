@@ -14,14 +14,36 @@ export {
 // `createAdminClient` is deliberately not exported here (D29): import it from
 // `./admin.js`, which lint allows only in seed, the DB tests and scheduled functions.
 export {
+  createSessionClient,
+  type CookieJar,
+  type SessionClientOptions,
+  type SessionCookie,
+  type SessionCookieWrite
+} from './session.js';
+export {
+  currentUser,
+  myMemberships,
+  ROLES,
+  signIn,
+  signOut,
+  type Credentials,
+  type Membership,
+  type Role,
+  type SignedInUser
+} from './auth.js';
+export {
   Conflict,
   Forbidden,
   IntegrityRejected,
+  mapAuthError,
   mapDatabaseError,
   NoParametersInForce,
   RepositoryError,
+  SignInRefused,
   StaleCorrection,
+  type AuthFailure,
   type DatabaseError,
+  type SignInRefusedCode,
   type TypedRepositoryError
 } from './errors.js';
 // The enum runtime arrays live beside their unions in the engine (AD-92); the

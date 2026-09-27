@@ -28,8 +28,14 @@ export async function newOrg(label: string): Promise<string> {
   return rows[0]!.id;
 }
 
-/** A real Auth user, signed in through Auth, with a membership (or none when `role` is null). */
-export async function newMember(orgId: string | null, role: Role | null): Promise<Member> {
+export interface Account {
+  readonly userId: string;
+  readonly email: string;
+  readonly password: string;
+}
+
+/** A real Auth user with a membership (or none when `role` is null), not yet signed in. */
+export async function newAccount(orgId: string | null, role: Role | null): Promise<Account> {
   const email = `${(role ?? 'nobody').toLowerCase()}-${randomUUID()}@runproduce.test`;
   const password = `pw-${randomUUID()}`;
   const created = await service.auth.admin.createUser({ email, password, email_confirm: true });
@@ -39,6 +45,12 @@ export async function newMember(orgId: string | null, role: Role | null): Promis
   if (orgId !== null && role !== null) {
     await pool.query('insert into private.memberships (org_id, user_id, role) values ($1, $2, $3)', [orgId, userId, role]);
   }
+  return { userId, email, password };
+}
+
+/** A real Auth user, signed in through Auth, with a membership (or none when `role` is null). */
+export async function newMember(orgId: string | null, role: Role | null): Promise<Member> {
+  const { userId, email, password } = await newAccount(orgId, role);
 
   const client = createClient(env.url, env.anonKey, {
     auth: { persistSession: false, autoRefreshToken: false }

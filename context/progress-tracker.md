@@ -22,8 +22,29 @@ not blocking, re-evaluate before U11. Then approved: the name
 derived from the day number against the curve, server-side, never chosen by
 the worker. One feed field; the other two phases store 0 by that rule; no DB
 check. Open: a day past the curve's end (recommended: last phase carries on,
-labelled). **Chunk 2 (session and sign-in, D10 to D16) drafted for sign-off.**
-Nothing built, `main` untouched.
+labelled). AD-99 records the feed-phase metadata (`feed_phase`,
+`feed_phase_source`), to land with `feed_entry_source` in chunk 3.
+
+**U7 chunk 2 built, 2026-09-27 (branch only, not on `main`).** Sign-in and
+session, test-first:
+- `lib/repositories/session.ts` (`createSessionClient`, behind the guard, the
+  only `@supabase/ssr` import) and `auth.ts` (`signIn`, `signOut` local scope,
+  `currentUser` from `getClaims`, `myMemberships`); `SignInRefused` and
+  `mapAuthError` in `errors.ts`.
+- `lib/auth/gate.ts` (`gate`, `safeNextPath`), `middleware.ts` (matches
+  `/capture` and `/sign-in` only), `/sign-in`, a `/capture` placeholder,
+  sign-out by POST.
+- T-S1 to T-S5 unit (web 163), T-S6 to T-S9 on the local stack (DB 78/78).
+  The DB half passed first time, because the functions came from the unit
+  cycle; a mutation (`signOut` scope `others`) turned T-S8 red. T-RP5's lint
+  extension was proven by three deliberate violations.
+- Node 20 pinned in `netlify.toml`. `packages/db-tests/tools/local-users.mjs`
+  makes a local OWNER and WORKER (local hosts only).
+- Checked by hand at 390px on the local stack: signed-out redirect with `next`,
+  the uniform error, sign-in, the signed-in redirect away from `/sign-in`, the
+  session surviving a server restart, sign-out. `/` stays static and public.
+- Found: TD-11 (`text-base` sets the colour to the page background).
+- **Not merged.** Waits on the Netlify branch deploy confirming the middleware.
 
 **U6 — chunk 7 green, 2026-09-27.** The red phase below, turned green, plus the
 client factory test-first. Local stack only. **Dev not touched:** nothing reads

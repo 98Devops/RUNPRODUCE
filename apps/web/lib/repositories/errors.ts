@@ -26,6 +26,49 @@ export class NoParametersInForce extends Error {
   override readonly name = 'NoParametersInForce';
 }
 
+/**
+ * Supabase Auth refused a sign-in (U7 D11). `code` is ours and stable;
+ * `message` is the sentence the form shows. Auth's own message is never shown.
+ */
+export type SignInRefusedCode = 'invalid_credentials' | 'rate_limited' | 'account_disabled' | 'unreachable' | 'unknown';
+export class SignInRefused extends Error {
+  override readonly name = 'SignInRefused';
+  constructor(
+    readonly code: SignInRefusedCode,
+    message: string,
+    options?: ErrorOptions
+  ) {
+    super(message, options);
+  }
+}
+
+/** What supabase-js returns in `error` for a failed auth call. */
+export interface AuthFailure {
+  readonly name?: string;
+  readonly code?: string | undefined;
+  readonly message: string;
+}
+
+/**
+ * D11's table. A wrong password and an unknown email are one code and one
+ * sentence, so the form never tells anyone which emails have accounts.
+ */
+export function mapAuthError(error: AuthFailure): SignInRefused {
+  if (error.name === 'AuthRetryableFetchError') {
+    return new SignInRefused('unreachable', "Can't reach the server. Check the connection and try again.", { cause: error });
+  }
+  switch (error.code) {
+    case 'invalid_credentials':
+      return new SignInRefused('invalid_credentials', 'Email or password is wrong.', { cause: error });
+    case 'over_request_rate_limit':
+      return new SignInRefused('rate_limited', 'Too many attempts. Wait a minute and try again.', { cause: error });
+    case 'user_banned':
+      return new SignInRefused('account_disabled', 'This account is switched off. Ask the owner.', { cause: error });
+    default:
+      return new SignInRefused('unknown', 'Sign-in failed. Try again.', { cause: error });
+  }
+}
+
 export type TypedRepositoryError = RepositoryError | Forbidden | IntegrityRejected | Conflict | StaleCorrection | NoParametersInForce;
 
 /** What PostgREST returns in `error` for a failed call. */
