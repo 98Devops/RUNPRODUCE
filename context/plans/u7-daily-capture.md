@@ -213,8 +213,27 @@ spreadsheet works.
    | Refuse the record past the curve's end | Blocks recording deaths too, because the row needs feed. Loses real data |
    | Ask the worker to pick, only past the curve | Brings back the choice this amendment removes |
 
-   *Recommended: the first, labelled.* **It needs a yes.** It does not block
-   chunks 2 or 3; it lands in chunk 4 with the rest of the phase function.
+   *Recommended: the first, labelled.* **Approved 2026-09-27:** finisher
+   carries forward, labelled clearly, and the record says so (below).
+
+**Refinement to D5 (the user, 2026-09-27): the record says how its phase was
+set.** Recorded as **AD-99**. A zero written under the phase rule, a zero the
+operator typed, and a feed amount never recorded are three different facts, and
+a later consumer must be able to tell them apart.
+- **Two fields join `feed_entry_source` on `DailyRecord`:** `feed_phase: Phase |
+  null` (the phase the amount was written under) and `feed_phase_source:
+  PhaseSource | null`, where `PhaseSource = 'FROM_CURVE' |
+  'EXTRAPOLATED_BEYOND_CURVE'`. A runtime array `PHASE_SOURCES` goes in
+  `enums.ts`.
+- **Both null** means the row predates the rule. **Both or neither** is a DB
+  check. A second named check requires the two other phase columns to be 0 when
+  `feed_phase` is set. Neither check reads a curve.
+- **`feed_phase` is stored, not inferred:** when the operator types 0, all three
+  columns are 0 and nothing else says whose zero is whose. AD-99 has the table.
+- **Past the curve, only the phase carries forward, never the amount:** no
+  standard-feed suggestion is offered after the curve's last day.
+- **Lands with `feed_entry_source` in chunk 3** (the same surfaces, one
+  commit). `feedPhaseForDay` returns `{ phase, source }` and lands in chunk 4.
 
 **Found while amending, for chunk 3:** a WORKER cannot learn *which* curve is in
 force for a batch. The parameter set names it, and a WORKER cannot read
@@ -323,8 +342,11 @@ changes.
 
 ## Chunk 2 — Session and sign-in (D2)
 
-**Status: drafted 2026-09-27, for sign-off.** Planning only: no code, no
-dependency installed, no database or Netlify change.
+**Status: approved 2026-09-27, all of it:** server-only sign-in (D10), the
+uniform error message (D11), `/` public through U7 (D13), a Netlify branch
+deploy of `u7-daily-capture` to verify middleware (D15), and the Node 20 pin.
+**Chunk 2 does not merge to `main` until the branch deploy confirms the
+middleware.**
 
 ### What chunk 2 lands
 

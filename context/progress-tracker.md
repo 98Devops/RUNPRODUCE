@@ -932,6 +932,51 @@ Tracked in `current-issues.md`.
 
 ## Architecture Decisions
 
+**AD-99 · A day's feed is recorded under the phase the curve gives that day, and the record says how the phase was set. A zero under that rule, a zero the operator typed and a feed amount never recorded are three different facts.**
+Decided by the user 2026-09-27 (U7 D5 and its refinement; plan
+`context/plans/u7-daily-capture.md`).
+- **The rule.** The worker enters one feed amount. The server derives its phase
+  from the day number against the breed curve and writes the amount under that
+  phase. The other two phase columns get 0 by the rule. The worker never picks a
+  phase.
+- **Past the curve's last day, the last phase carries on** (FINISHER on the seed
+  curve, which ends at day 41). Refusing the record would also refuse the day's
+  deaths and culls, and running past day 41 is normal: Daniel's own historical
+  batch reached it.
+- **Two new fields on `DailyRecord`,** in the same family as `feed_entry_source`
+  (U7 D3):
+  - `feed_phase: Phase | null`, the phase the amount was recorded under;
+  - `feed_phase_source: PhaseSource | null`, with
+    `PhaseSource = 'FROM_CURVE' | 'EXTRAPOLATED_BEYOND_CURVE'`.
+  Both null means the split was not set by this rule (rows that predate it, or an
+  import). Both or neither, enforced by a DB check.
+- **Why `feed_phase` is stored and not inferred from which column is non-zero.**
+  When the operator types 0, all three columns are 0, and nothing else says which
+  one was the operator's. Storing it is recording a fact about the capture (the
+  rule applied at the time), not a derived value (invariant 3): a later curve
+  revision must not rewrite what was recorded.
+- **How a consumer tells the three zeros apart:**
+  | The phase column holds 0 and | It means |
+  |---|---|
+  | `feed_phase` is null | Not known how this zero arose: the row predates the rule. Treat as recorded, unattributed |
+  | `feed_phase` is another phase | **Zero by the phase rule.** Nothing of this phase was issued, by definition |
+  | `feed_phase` is this phase, and `feed_entry_source` is `MEASURED` | **Recorded as zero by the operator** |
+  A blank is still never stored (AD-82): the one field refuses to submit empty.
+- **The database checks internal consistency, not the curve.** A named CHECK
+  requires the two columns other than `feed_phase` to be 0 when `feed_phase` is
+  set. It does not compare against a curve, so a curve revision never makes old
+  rows invalid.
+- **No standard feed past the curve.** The phase carries forward, but the
+  amount does not. Past the last day, the form offers no suggestion and says so,
+  rather than extrapolating a number.
+- **Nothing reads the new fields yet.** Calibration (AD-38) and U8's per-type
+  stock reconciliation may weight or exclude records by them later. That is a
+  separate decision, taken once real data exists.
+- **Lands with `feed_entry_source` in U7 chunk 3,** test-first, in one commit
+  across the engine type, the golden fixtures (explicit nulls), the column, the
+  write function's payload, the view, `engine_snapshot` and the snapshot
+  contract. The engine's `feedPhaseForDay` lands in chunk 4.
+
 **AD-98 · Bulk delivery is always to the abattoir, and the buyer collects there. `delivery_mode` stays, and no screen asks for it.**
 Answered by Daniel 2026-09-15; closes OQ-37.
 - **The answer.** Birds always go to the abattoir, and the bulk buyer collects
