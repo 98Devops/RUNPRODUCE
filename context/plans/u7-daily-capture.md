@@ -17,8 +17,12 @@ changes who gets a membership, not what the form is.
 - **D2 approved** as drafted. OQ-5 carries the note to revisit the method.
 - **D3 approved, plus `feed_entry_source`** (see D3's addition).
 - **D9 approved:** feed draws stay in U8.
-- **D4 to D8 were not ruled on one by one.** They proceed as drafted unless the
-  user says otherwise.
+- **`feed_entry_source` approved as the field name** (2026-09-27), with the
+  deferred landing: added during U7's build, test-first, all touched surfaces
+  in one commit, null meaning "not recorded" on historical rows.
+- **D4 to D8 approved as drafted** (2026-09-27), **with one amendment to D5:**
+  the feed phase is derived from the day number against the breed curve, never
+  chosen by the worker. See D5.
 - **Impeccable audit gate: deferred, not blocking.** `ui-context.md` §0 plus
   `web-design-guidelines` cover U7. Re-evaluate before the U11 deploy.
 - **TD-7 and TD-10 are both closed** (2026-09-27). A fresh local reset runs every
@@ -135,9 +139,8 @@ above, which called the column unnecessary.
   'STANDARD_CONFIRMED'` and a new field on `DailyRecord`. Proposed name:
   `feed_entry_source`, because only the feed has a suggestion. Deaths, culls and
   weights are always typed in, so a record-wide `entry_source` would claim more
-  than it knows. **The user named it `entry_source`; the narrower name is a
-  proposal and needs a yes.** A runtime array `ENTRY_SOURCES` goes in
-  `enums.ts` (AD-92).
+  than it knows. **Approved 2026-09-27.** A runtime array `ENTRY_SOURCES` goes
+  in `enums.ts` (AD-92).
 - **Set by the form, not inferred:** `STANDARD_CONFIRMED` when the day's feed
   is the standard figure, tapped and unedited; `MEASURED` when typed or edited
   after the tap.
@@ -167,14 +170,60 @@ defines, not an invented number.
 *Recommended.* The alternative, a fourth always-open field, costs every capture
 a field that is 3 on most days.
 
-**D5 · Feed by type: the day's phase first, the others explicit.**
-AD-82 makes all three amounts required with no default, and a day usually
-issues one type. The form shows all three, with today's phase (from the curve,
-once D3's read exists) first and full-size. The other two sit below with a
-"None issued" button each that fills 0. A blank still refuses to submit, so a 0
-is always a person's choice (AD-82's point: a blank must never become a zero).
+**D5 · Feed by type: ~~the day's phase first, the others explicit~~ one amount, in the phase the curve names for the day.**
+*Amended by the user, 2026-09-27.* The draft showed all three types and let the
+worker fill any of them. That leaves "worker put it under the wrong type" as a
+data-quality failure. The phase is a fact about the day, not a choice: day 12 is
+whatever the curve says day 12 is. The user reports this is how Daniel's own
+spreadsheet works.
+- **One field:** "Starter feed issued today, kg (day 12)". The label names the
+  derived phase. There is no phase picker, dropdown or second field.
+- **The phase is `phase` on the curve's point for the day.** Every curve point
+  already carries one, and `create_breed_curve` refuses a point whose label
+  disagrees with the phase ranges. The engine gets a small `feedPhaseForDay`
+  (chunk 4), test-first.
+- **The server derives it, not the browser.** The browser sends one number; the
+  server action reads the curve, derives the phase and builds the three
+  columns. The browser derives it too, but only for the label. A tampered
+  request cannot choose the phase.
+- **The row stores the amount under the derived phase and 0 under the other
+  two.** Those zeros are not defaults: they follow from the rule "the day's feed
+  is all of the day's phase", which is a stated rule, not a guess about a
+  blank. AD-82 still holds for the one field: a blank refuses to submit, so a 0
+  typed there is a person's choice.
+- **The database does not enforce it.** `record_daily_records` keeps its three
+  columns, so `DailyRecord`, the golden fixtures and AD-82 are unchanged, and a
+  later import of historical records with mixed days still fits. A DB check
+  against the curve was rejected: it would tie stored facts to one curve
+  version, so revising the curve would make old rows invalid.
+- **Backfill and corrections derive the same way:** a record for day 9, entered
+  on day 14, goes under day 9's phase.
 
-*Recommended.*
+**Two consequences, flagged:**
+1. **Changeover days.** A farm that starts grower a day early, or finishes a
+   starter bag on day 14, is recorded under the curve's phase anyway. The cost
+   effect is small ($1 a bag between phases), but a per-type stock
+   reconciliation in U8 can show small mismatches around the changeovers. It
+   is noted there, not solved here.
+2. **A day past the curve's end has no phase.** The seed curve ends at day 41
+   (finisher, days 28 to 41), and a late harvest can run past it. Options:
+   | Option | Against |
+   |---|---|
+   | **The last phase carries on, and the label says so ("Finisher, past the curve's day 41")** | It extends the curve by an assumption, although birds past the curve do eat finisher |
+   | Refuse the record past the curve's end | Blocks recording deaths too, because the row needs feed. Loses real data |
+   | Ask the worker to pick, only past the curve | Brings back the choice this amendment removes |
+
+   *Recommended: the first, labelled.* **It needs a yes.** It does not block
+   chunks 2 or 3; it lands in chunk 4 with the rest of the phase function.
+
+**Found while amending, for chunk 3:** a WORKER cannot learn *which* curve is in
+force for a batch. The parameter set names it, and a WORKER cannot read
+parameter sets (money). So D3's "curve read for WORKER" also needs the curve id
+for the batch and date. Chunk 3 decides how: the likely shape is
+`capture_batches()` returning the curve id in force, without touching the money
+tables' grants.
+
+*Approved as amended.*
 
 **D6 · Offline: a draft on the phone, never a queue.**
 - The form saves to localStorage on every change, keyed by batch and date. The
@@ -246,15 +295,15 @@ changes.
 
 ### Chunks still to come
 
-2. **Session and sign-in (D2).** The SSR client factory behind the guard, the
-   sign-in and sign-out routes, the redirect, and T-RP5's lint extended.
+2. **Session and sign-in (D2).** Drafted below, for sign-off.
 3. **Reads and the write repository (D9).** `captureBatches`,
-   `dailyRecords`, `recordDailyRecords`, the WORKER curve-read migration, and
+   `dailyRecords`, `recordDailyRecords`, the WORKER curve-read migration
+   (including how a WORKER learns the curve in force, D5), and
    `feed_entry_source` end to end (D3's addition: engine type, column, contract),
    each with its fake-client unit half and its DB half on the local stack.
-4. **The engine's standard feed for a day (D3).** Test-first in
-   `packages/engine`, including the day before placement and a day past the
-   curve's end.
+4. **The engine's standard feed and phase for a day (D3, D5).** Test-first in
+   `packages/engine`: `feedPhaseForDay` and the standard feed, including the day
+   before placement and a day past the curve's end.
 5. **The capture screen (D3 to D8).** The form, the suggestion, the draft,
    backfill, corrections and errors, in an order where each step is usable.
 6. **Gates and acceptance.** `web-design-guidelines`, the 390px Playwright run,
@@ -267,5 +316,207 @@ changes.
    WORKER may read the breed curve. Approved, plus `feed_entry_source`.
 3. **D2: email and password.** Approved; revisit per OQ-5.
 4. **D9: `FeedDraw` stays in U8.** Approved.
-5. **Open, small:** the field name, `feed_entry_source` (proposed) or the
-   user's `entry_source`.
+5. **The field name:** `feed_entry_source`. Approved.
+6. **D4 to D8:** approved as drafted; D5 amended to a derived phase.
+
+---
+
+## Chunk 2 — Session and sign-in (D2)
+
+**Status: drafted 2026-09-27, for sign-off.** Planning only: no code, no
+dependency installed, no database or Netlify change.
+
+### What chunk 2 lands
+
+A person signs in with email and password, gets a session in cookies, reaches
+`/capture` and signs out. `/capture` is a placeholder in this chunk: it proves
+the session by showing who is signed in, for which farm, in which role. Chunk 5
+replaces its body with the form. Nothing about capture itself lands here.
+
+### Findings that shape it
+
+1. **Invariant 4: only `lib/repositories` imports the Supabase client.** That
+   covers auth calls too, so sign-in, sign-out and "who am I" are repository
+   functions, not code in a route.
+2. **`@supabase/ssr` 0.12.7 is current** (checked on npm, 2026-09-27). Its peer is
+   `@supabase/supabase-js ^2.114.0`; the repo resolves 2.116.0. It has one
+   dependency of its own (`cookie`). Its documented contract:
+   - cookies through `getAll` and `setAll` only (the older `get`, `set` and
+     `remove` are deprecated);
+   - a new client per request, never shared;
+   - **middleware must refresh the session**, or users see random logouts. This
+     matters here because refresh-token rotation is on
+     (`enable_refresh_token_rotation`, reuse interval 10 s, in `config.toml`).
+3. **Identity comes from `getClaims()`, which verifies the JWT.** `getSession()`
+   reads the cookie unverified, and supabase-js warns it must not be trusted
+   on the server.
+4. **Local Auth already refuses sign-ups** (`[auth] enable_signup = false`),
+   which matches D2: memberships are made by the service role (AD-85). Dev's
+   setting has not been checked.
+5. **`public.my_memberships()` exists** (migration 1) and is granted to
+   `authenticated`, so "which farm, which role" needs no migration.
+6. **`/` is U9 v1 on fixtures, public, and its link is going to Daniel.**
+7. **`netlify.toml` does not pin Node**, which `architecture.md` requires. CI
+   runs Node 20; this machine runs 24.
+
+### Decisions
+
+**D10 · One server-side session client, behind the guard; no browser client.**
+- `lib/repositories/session.ts` exports `createSessionClient(jar, env)`. It
+  runs `resolveProjectTarget` first, then `createServerClient` with the jar's
+  `getAll` and `setAll`. `jar` is a two-method interface of our own, so the
+  same factory serves server actions, server components (Next's `cookies()`)
+  and middleware (the request and response). The adapters hold no Supabase
+  import.
+- **No `createBrowserClient`.** Sign-in and capture both submit through server
+  actions (code-standards: "Server actions for mutations"), so the browser
+  never holds a Supabase client, a key or a token. The env vars are server-only:
+  `SUPABASE_URL` and `SUPABASE_ANON_KEY`, with no `NEXT_PUBLIC_` prefix.
+- **T-RP5's lint grows:** `@supabase/ssr` may be imported only in
+  `session.ts`, and `createBrowserClient` nowhere in `apps/web`.
+- Repositories keep taking a `SupabaseClient`, and a session client is one, so
+  `loadEngineInput` and chunk 3's functions need no change.
+  `createRepositoryClient` (JWT in a header) stays for server-to-server paths.
+
+| Option | Against |
+|---|---|
+| **Server-only session client; server actions for sign-in** | Sign-in is a full form post, not an in-page call. Fine for one form |
+| A browser client for sign-in | A second client path that has to carry the guard; keys and tokens in the browser; `NEXT_PUBLIC_` env |
+
+*Recommended: the first.*
+
+**D11 · Auth is four repository functions and one error class.**
+In `lib/repositories/auth.ts`:
+- `signIn(client, { email, password })`: resolves, or throws `SignInRefused`.
+- `signOut(client)`: this device only (`scope: 'local'`), so signing out a shared
+  phone does not sign the owner out of their laptop.
+- `currentUser(client)`: `{ userId, email }` or null, from `getClaims()`.
+- `myMemberships(client)`: over `public.my_memberships()`, Zod-parsed like
+  AD-92, returning `{ orgId, orgName, role }[]`. An unknown role is a
+  `RepositoryError`, never passed through. A `ROLES` array lives beside it
+  (roles are the app's, not the engine's).
+
+`SignInRefused` carries a machine `code` and a human `message`
+(code-standards):
+
+| Auth error code | Message |
+|---|---|
+| `invalid_credentials` | "Email or password is wrong." One sentence for both, so the form never tells anyone which emails have accounts |
+| `over_request_rate_limit` | "Too many attempts. Wait a minute and try again." |
+| `user_banned` | "This account is switched off. Ask the owner." |
+| network failure (retryable fetch error) | "Can't reach the server. Check the connection and try again." |
+| anything else | "Sign-in failed. Try again." The code is logged server-side, not shown |
+
+*Recommended.*
+
+**D12 · Routes, and the gate that checks twice.**
+- **`/sign-in`:** email, password and one button (§0: 44 px targets, errors
+  above the button). On success it goes to `next` when that is safe, else
+  `/capture`. A signed-in visitor is sent to `/capture`.
+- **Sign-out:** a server action posted by a form button. POST only, because a
+  GET link can be prefetched and sign people out.
+- **`/capture`:** the placeholder described above. With no membership it says
+  "No farm access yet. Ask the owner to add you." A user with no membership
+  therefore sees why, rather than an empty batch list in chunk 5.
+- **The gate:** a pure function `gate({ pathname, signedIn })` returns "pass"
+  or "redirect to X". Middleware is a thin shell around it that also refreshes
+  the session (finding 2). `safeNextPath(raw)` accepts only a path starting
+  with a single `/`, rejecting `//host`, `/\host`, full URLs and `javascript:`,
+  and falls back to `/capture`.
+- **Middleware matches `/capture` and `/sign-in` only.** `/` and static assets
+  are untouched.
+- **Middleware is not the authority.** The `/capture` page and every server
+  action check `currentUser` themselves and redirect or refuse. A skipped
+  middleware then costs a stale session, not access (middleware bypasses are a
+  known class of Next.js bug). RLS remains the last word on data regardless.
+
+*Recommended.*
+
+**D13 · The console stays public through U7.**
+`/` shows fixtures, and the user is sending its link to Daniel. Gating it
+would break that link and protect nothing real. It goes behind the session,
+OWNER and MANAGER only, in the unit where it first reads real data. That unit
+records the change.
+
+*Recommended.*
+
+**D14 · Users and environments.**
+- **Local:** users come from the service role, as the DB harness already does
+  (`newMember`). For checking the screens by hand, a local-only script creates
+  one OWNER and one WORKER on the local stack, behind the DB tests' env guard,
+  which refuses dev and production.
+- **Dev: nothing in chunk 2.** The deployed sign-in needs a dev user with a
+  membership. That is a dev write, taken in a narrow window when U7 first
+  deploys (chunk 6), not now.
+- **Before chunk 6, a read-only check** that dev's Auth refuses sign-ups. If it
+  does not, the change is the user's to make or approve. Without it, anyone
+  with the public anon key could create an account. RLS would still show them
+  nothing, but the account would exist.
+
+**D15 · `main` and the live URL are not touched.**
+- Chunk 2 lands on `u7-daily-capture` only. Nothing merges to `main` while the
+  user is showing Daniel the URL.
+- **When U7 merges:** `SUPABASE_URL` and `SUPABASE_ANON_KEY` go into Netlify's
+  env first. Middleware does not match `/`, so a missing variable breaks
+  `/sign-in` and never the console.
+- **Middleware on Netlify is unverified.** The plugin runs it as an edge
+  function, and `@supabase/ssr` is documented to work there, but it has not
+  been run on this site. It is verified on a branch deploy of
+  `u7-daily-capture` before the merge. Branch deploys are a Netlify site
+  setting, so switching one on is **a config change I would ask for first**.
+- **Pin Node 20 in `netlify.toml`** (finding 7), matching CI, which is the
+  build that gates. This is one line, landed with chunk 2 on the branch.
+  Local's 24 is noted in `current-issues.md` as a mismatch, not changed.
+
+**D16 · Tests, in TDD order, each watched red first.**
+
+*Unit, `apps/web` (fake or mocked client, no database):*
+- **T-S1 session client guard:** a non-dev URL with no target means
+  `createServerClient` is never called. After a pass, it is called once, with
+  the jar's `getAll` and `setAll`. Same `vi.mock` pattern as T-RP4.
+- **T-S2 `safeNextPath`:** a table of accepted and refused inputs, as in D12.
+- **T-S3 `gate`:** signed out at `/capture` redirects to
+  `/sign-in?next=/capture`; signed in at `/capture` passes; signed in at
+  `/sign-in` redirects to `/capture`; signed out at `/sign-in` passes.
+- **T-S4 the auth error table:** each code to its message, an unknown code to
+  the generic one, and a retryable fetch error to the connection message.
+- **T-S5 `myMemberships` parsing:** rows mapped, an unknown role refused.
+
+*Database half, `packages/db-tests`, on the local stack:*
+- **T-S6 sign-in round trip:** `signIn` through a real session client and an
+  in-memory jar leaves an auth cookie in the jar. A fresh client built from that
+  jar reports the member from `currentUser`, and its RPCs run as the member
+  (`capture_batches()` shows only their organisation).
+- **T-S7:** a wrong password and an unknown email both throw `SignInRefused`
+  with `invalid_credentials` and the same message.
+- **T-S8:** `signOut` clears the jar's auth cookies; `currentUser` is then null.
+- **T-S9:** `myMemberships` for a WORKER returns one organisation, role
+  WORKER; for a user with none, an empty list.
+
+*Lint:* T-RP5's extension, proven by a deliberate violation that fails
+`npm run lint`, then removed.
+
+*Not automated in chunk 2:* the middleware shell and the two pages. They are
+thin by design (D12), and checked by hand at 390 px against the local stack.
+The automated end-to-end run is chunk 6's Playwright, which covers sign-in
+too, so `@playwright/test` is not added here.
+
+### Out of chunk 2
+
+Sign-up; password reset; phone or OTP sign-in (OQ-5 revisits the method);
+organisation switching; per-role routing beyond "signed in" (a WORKER and an
+OWNER both reach `/capture`); anything on `/`; any dev or Netlify change.
+
+### New dependency
+
+`@supabase/ssr@^0.12.7` in `apps/web`, verified above (ui-context §0). Nothing
+else.
+
+### For sign-off
+
+1. **D10:** server-only session client, no browser client.
+2. **D13:** `/` stays public through U7.
+3. **D15:** a Netlify branch deploy of `u7-daily-capture` to verify middleware
+   before the merge. That is a site setting I would change only with a yes.
+4. **D5's open point:** past the curve's last day, the last phase carries on,
+   labelled. Not needed until chunk 4.

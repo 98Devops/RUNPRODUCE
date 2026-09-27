@@ -17,7 +17,13 @@ branch `u7-daily-capture`, rebased onto `main`). D1 done (u6 then u9 merged);
 D2 email and password (OQ-5 note); D3 the tapped suggestion plus a WORKER curve
 read, **plus `feed_entry_source`** on `DailyRecord` (the user's addition, not yet
 built, lands test-first in U7); D9 draws stay in U8. Impeccable audit deferred,
-not blocking, re-evaluate before U11. Chunk 2 planning waits for the user.
+not blocking, re-evaluate before U11. Then approved: the name
+`feed_entry_source`, and D4 to D8, with **D5 amended**: the feed phase is
+derived from the day number against the curve, server-side, never chosen by
+the worker. One feed field; the other two phases store 0 by that rule; no DB
+check. Open: a day past the curve's end (recommended: last phase carries on,
+labelled). **Chunk 2 (session and sign-in, D10 to D16) drafted for sign-off.**
+Nothing built, `main` untouched.
 
 **U6 — chunk 7 green, 2026-09-27.** The red phase below, turned green, plus the
 client factory test-first. Local stack only. **Dev not touched:** nothing reads
