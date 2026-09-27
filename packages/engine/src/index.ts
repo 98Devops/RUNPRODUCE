@@ -7,6 +7,17 @@ import { planHarvest } from './harvest.js';
 import { missingInputsFor } from './refusals.js';
 
 export * from './types.js';
+export {
+  CHANNELS,
+  CONFIDENCES,
+  DELIVERY_MODES,
+  OVERHEAD_BASES,
+  OVERHEAD_KEYS,
+  OVERHEAD_TIMINGS,
+  PHASES,
+  PRICING_BASES,
+  SALE_PRICING_BASES
+} from './enums.js';
 export { NotImplementedError, isNotImplemented } from './errors.js';
 export { Money } from './money.js';
 export { SEED_BREED_CURVE, pointForDay, cumulativeFeedG, feedGByPhase } from './breed-curve.js';

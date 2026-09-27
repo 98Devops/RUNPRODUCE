@@ -1,51 +1,26 @@
 /**
  * AD-63's drift test. Every named CHECK that mirrors an engine union must list
  * exactly the union's values. A value added, removed or renamed on one side
- * only fails here (or in the typecheck, for the runtime arrays below).
+ * only fails here (or in the engine's typecheck, for the arrays themselves).
  *
- * The runtime arrays are declared `as const satisfies readonly Union[]`, and
- * `Same<>` fails compilation if a union member is missing from its array, so a
- * union, its array and its constraint cannot disagree silently (AD-92).
+ * The arrays are the engine's own (`packages/engine/src/enums.ts`), the same
+ * ones the repository layer builds its Zod enums from, so a union, its array
+ * and its constraint cannot disagree silently (AD-92).
  */
-import type {
-  Channel,
-  Confidence,
-  DeliveryMode,
-  OverheadBasis,
-  OverheadKey,
-  OverheadTiming,
-  Phase,
-  PricingBasis,
-  SalePricingBasis
+import {
+  CHANNELS,
+  CONFIDENCES,
+  DELIVERY_MODES,
+  OVERHEAD_BASES,
+  OVERHEAD_KEYS,
+  OVERHEAD_TIMINGS,
+  PHASES,
+  PRICING_BASES,
+  SALE_PRICING_BASES
 } from '@runproduce/engine';
 import { newFarm } from '../src/payloads.js';
 import { parameterSetPayload, BASE_PARAMETERS } from '../src/payloads.js';
 import { pool, refused, rpc } from '../src/harness.js';
-
-export type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
-export type Assert<T extends true> = T;
-
-export const PHASES = ['STARTER', 'GROWER', 'FINISHER'] as const satisfies readonly Phase[];
-export const CHANNELS = ['GATE', 'BULK'] as const satisfies readonly Channel[];
-export const PRICING_BASES = ['PER_BIRD', 'PER_KG'] as const satisfies readonly PricingBasis[];
-export const SALE_PRICING_BASES = ['PER_BIRD', 'PER_KG', 'BANDED'] as const satisfies readonly SalePricingBasis[];
-export const CONFIDENCES = ['measured', 'calibrated', 'assumed'] as const satisfies readonly Confidence[];
-export const DELIVERY_MODES = ['ABATTOIR', 'DIRECT'] as const satisfies readonly DeliveryMode[];
-export const OVERHEAD_KEYS = ['vaccine', 'electricity_heating', 'labour', 'transport_other'] as const satisfies readonly OverheadKey[];
-export const OVERHEAD_BASES = ['PER_BIRD', 'PER_BATCH'] as const satisfies readonly OverheadBasis[];
-export const OVERHEAD_TIMINGS = ['PLACEMENT', 'MONTHLY', 'HARVEST_COMPLETE'] as const satisfies readonly OverheadTiming[];
-
-export type Complete = [
-  Assert<Same<(typeof PHASES)[number], Phase>>,
-  Assert<Same<(typeof CHANNELS)[number], Channel>>,
-  Assert<Same<(typeof PRICING_BASES)[number], PricingBasis>>,
-  Assert<Same<(typeof SALE_PRICING_BASES)[number], SalePricingBasis>>,
-  Assert<Same<(typeof CONFIDENCES)[number], Confidence>>,
-  Assert<Same<(typeof DELIVERY_MODES)[number], DeliveryMode>>,
-  Assert<Same<(typeof OVERHEAD_KEYS)[number], OverheadKey>>,
-  Assert<Same<(typeof OVERHEAD_BASES)[number], OverheadBasis>>,
-  Assert<Same<(typeof OVERHEAD_TIMINGS)[number], OverheadTiming>>
-];
 
 /**
  * `direction` has no engine union yet: AD-67's opening-cash function introduces

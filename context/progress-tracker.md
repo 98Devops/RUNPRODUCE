@@ -4,8 +4,46 @@ Update this file after every meaningful implementation change.
 
 ## Current Phase
 
-**U6 status: chunk 5 complete; chunk 7 red phase committed (engine_snapshot +
-loadEngineInput), implementation not started; chunk 8 planned.**
+**U6 status: chunk 5 complete; chunk 7's read path green (engine_snapshot,
+loadEngineInput, enum arrays, typed errors, client factory); write
+repositories still to build; chunk 8 planned.**
+
+**U6 — chunk 7 green, 2026-09-27.** The red phase below, turned green, plus the
+client factory test-first. Local stack only. **Dev not touched:** nothing reads
+`engine_snapshot` from dev until U7, so the migration waits for that.
+- **`public.engine_snapshot`** (`20260927210000_engine_snapshot.sql`, AD-90):
+  invoker, stable, empty search_path; role check first; one 42501 for "not
+  permitted" and "not found"; the set in force chosen once (RP002 when none);
+  money and bags as text; the AD-67 cash section. EXECUTE to authenticated, not
+  anon. **Applied to the local stack by hand** over migrations 1 to 5, because
+  TD-7 still blocks `db reset` past migration 5. Its local version is a
+  placeholder: rename it to the version dev stamps when it is applied there.
+- **`loadEngineInput`** (AD-91, AD-92): Zod v4 over the pinned contract, then
+  D27's mapping. Its only arithmetic is `dayNumberFor` and grams/1000. A money field as a
+  JSON number, a non-integer string, or bags past two decimals are refused;
+  a curve phase with no feed price in the set is refused, never invented.
+- **Typed errors** (AD-93): `mapDatabaseError`, D28's table plus the
+  amendment (a snapshot failing Zod is a `RepositoryError`).
+- **Enum arrays: in the engine** (`packages/engine/src/enums.ts`), re-exported
+  by the repository layer. **Amends D27**, which put them in the repository
+  layer: the DB drift test cannot import `apps/web`, and the arrays belong
+  beside their unions. The drift test now reads the engine's arrays, not its
+  own copies.
+- **Client factory** (AD-94, T-RP4): `createRepositoryClient` (anon key + the
+  caller's JWT) and `createAdminClient` in `admin.ts`, both behind
+  `resolveProjectTarget`. **Amends D29** with a fourth target,
+  `RUNPRODUCE_SUPABASE_TARGET=local`, localhost only: D29 predates running the
+  app against a local stack, and without it U7 could only develop against dev.
+  **T-RP5 as lint:** `createClient` only in the factory and `admin.ts`;
+  `admin.ts` imported by nothing in `apps/web` but its own test; no `facts.` or
+  `_versions` in repository source. Lint now ignores `.next`, `.netlify` and `out`.
+- **Suites:** engine 359 (10 new), web 69 (20 new), golden 11 + 1 held, local
+  DB 72 of 72 (T-RP1's canary green on all 11 fixtures). Typecheck and lint clean.
+- **Still chunk 7, not built:** the write repositories (D30, AD-95),
+  `myMemberships`, T-AC1's AD-86 extension. U7's daily-entry form needs
+  `recordDailyRecords` from D30, so that one is U7's chunk 1 dependency.
+- **Branch hygiene:** `apps/web/package.json` here gained `zod`. When this
+  branch meets `u9-first-screen`, the resolution is u9's file plus `zod`.
 
 **U6 — chunk 7 red phase, 2026-09-23.** Failing tests for `public.engine_snapshot`
 and `loadEngineInput` (AD-90 to AD-93), local stack only. **Dev was not touched,
