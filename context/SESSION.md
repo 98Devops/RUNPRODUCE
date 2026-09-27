@@ -40,7 +40,7 @@ npm monorepo: a pure TypeScript engine (`packages/engine`) behind a Next.js app 
 - **U6 Task 0** shared refusal list (TD-4 #8, AD-60).
 - **U6 chunk 5 shipped, 2026-09-15:** 6 migrations applied to dev, DB suite 50/50 locally.
 - **Daniel's answers 2026-09-15:** AD-96 (over 1.3 kg dressed pays less, ~$3.50; not built, OQ-41), AD-97 (bulk buyer no cap), AD-98 (delivery always abattoir).
-- **U9 v1, 2026-09-23:** three cards from fixture 7, hardcoded, no DB, no auth. Deployed 2026-09-27 as a static export (TD-10). Tracker entry has the detail.
+- **U9 v1, 2026-09-23:** three cards from fixture 7, hardcoded, no DB, no auth. Deployed 2026-09-27: https://runproduce-console.netlify.app, built by Netlify from GitHub `main` (TD-10 closed; push to `main` deploys). Tracker entry has the detail.
 - **Status (`main`, 2026-09-27):** engine 359 unit tests; golden 11 written / 11 passing / 1 held; lint clean; `apps/web` unit suite 117 green; DB suite 72/72 locally from a fresh `db reset`.
 
 ## In progress

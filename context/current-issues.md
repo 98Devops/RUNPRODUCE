@@ -2582,7 +2582,15 @@ and 5.0:1 on the page background; the flow colours are over 6:1.
   HARVEST_COMPLETE". Honest but not plain language. A copy follow-up, not
   accessibility.
 
-### TD-10 · The Netlify Next runtime cannot be built on Windows 🟠
+### TD-10 · The Netlify Next runtime cannot be built on Windows ✅ CLOSED 2026-09-27
+**Closed:** the site builds from GitHub `main` on Netlify's Linux image, through
+a read-only deploy key and a push webhook on the repo (no Netlify GitHub App was
+installed). The first Git build detected no framework and shipped `.next` as
+plain files (404), so `@netlify/plugin-nextjs` is now declared in
+`apps/web/netlify.toml` and pinned as a devDependency. The live page is served
+by the Next runtime (`c7f4096`). The static-export flag is removed. **Deploy
+from now on = push to `main`;** never `netlify deploy` from this Windows machine.
+
 **Raised:** 2026-09-27, deploying U9 v1. `netlify deploy --build` from this
 machine produced a server handler that imports `\var\task\apps\web` with
 backslashes, so every request returned 502 (`ERR_MODULE_NOT_FOUND`). The build

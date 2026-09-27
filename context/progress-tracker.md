@@ -111,8 +111,9 @@ at its red phase on `u6-supabase-schema` (pushed).
   as exceptions with reasons in `current-issues.md` ("U9 v1 ·
   web-design-guidelines audit").
 - **Deployed, 2026-09-27:** https://runproduce-console.netlify.app, still
-  fixture 7, as a static export (TD-10: the Next runtime's handler breaks when
-  built on Windows). U9 v1 is frozen: no polish, no new cards.
+  fixture 7. First as a static export from this machine (TD-10: the Next
+  runtime's handler breaks when built on Windows); since `c7f4096` built by
+  Netlify from GitHub `main` on the Next runtime. U9 v1 is frozen: no polish, no new cards.
 - **Not yet done:** whether impeccable adds anything on top of `ui-context.md`
   and this audit. The user decides; it stays uninstalled until then.
 

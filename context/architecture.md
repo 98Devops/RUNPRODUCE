@@ -61,10 +61,15 @@
 
 ## Netlify specifics
 
-- `netlify.toml` at repo root declares the build command, publish
-  directory, and `@netlify/plugin-nextjs`.
-- The monorepo means the base directory is `apps/web`; the engine
-  package is built as a workspace dependency.
+- `apps/web/netlify.toml` declares the build command, publish
+  directory, and `@netlify/plugin-nextjs` (declared explicitly: detection
+  alone found no framework, TD-10).
+- The monorepo means the site's base directory is the repo root and its
+  package directory is `apps/web`, so the workspace install builds the
+  engine as a dependency. Paths in the toml resolve from the root.
+- **Netlify builds from GitHub `main`** (deploy key + push webhook, TD-10).
+  Site `runproduce-console`. Never deploy from a Windows machine: the
+  runtime's server handler is built with backslash paths and 502s.
 - **Scheduled work runs as Netlify Scheduled Functions**, declared in
   `netlify.toml` with a cron expression. Two jobs at MVP:
   - `nightly-snapshot` — recompute projections, persist a recommendation
