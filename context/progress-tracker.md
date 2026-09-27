@@ -4,6 +4,10 @@ Update this file after every meaningful implementation change.
 
 ## Current Phase
 
+**`main`, 2026-09-27: U6 (chunks 1 to 7, TD-7 closed) merged, then U9 v1.** The
+web package resolution was u9's file plus `zod`, as planned below. The two
+entries that follow are each branch's own record, kept as written.
+
 **U6 status: chunk 5 complete; chunk 7's read path green (engine_snapshot,
 loadEngineInput, enum arrays, typed errors, client factory); write
 repositories still to build; chunk 8 planned.**
@@ -46,10 +50,78 @@ client factory test-first. Local stack only. **Dev not touched:** nothing reads
 - **Branch hygiene:** `apps/web/package.json` here gained `zod`. When this
   branch meets `u9-first-screen`, the resolution is u9's file plus `zod`.
 
+**U9 v1 standing on `u9-first-screen` (2026-09-23). U6 set down at chunk 7's
+red phase (pushed), implementation not started; chunk 8 planned.**
+
+**U9 v1 — decision console, three cards, 2026-09-23 (branch `u9-first-screen`,
+from main).** Fixture 7 hardcoded, no database, no auth. U6 chunk 7 is set down
+at its red phase on `u6-supabase-schema` (pushed).
+- **Scaffold:** Next.js 15, Tailwind 4, Geist, shadcn Card and Badge, Recharts.
+  `apps/web/package.json`, `tsconfig.json` and `vitest.config.ts` are chunk 7's
+  content verbatim with Next's added beside it. **When chunk 7 resumes, take all
+  three from this branch unchanged** (and the lockfile), so the branches merge
+  without a conflict. Then rerun its typecheck: expected red on the 9 enum
+  exports only. Not yet verified against chunk 7's own files.
+- **Rulings for v1 (user, 2026-09-23):** TD-5 does not gate v1, since values
+  only flow engine to display. OQ-29 is handled by precomputing at build
+  (`force-static`); memoised or incremental scoring is still required before
+  live data. DESIGN.md and PRODUCT.md are extracted after v1 settles.
+- **What the engine could and could not answer on fixture 7:**
+  - **Maximum Growth answers with the floor unchecked:** 5,000 birds on 22 Mar.
+    There is no opening balance (OQ-25), so candidates go through `pickWinner`
+    unprojected, with the same shape `computeAllocation` uses when it cannot
+    project. So v1 never reaches the 20.8 s path.
+  - **The calendar plots net cash since placement, not a balance,** and names
+    the reserve floor rather than drawing it. No fixture has a sales order and
+    the engine forecasts none (M6), so the line only falls: −$19,562 at
+    12 Apr.
+  - **Cover Fast and Build Reserve name what they need** (a sales forecast;
+    plus the opening balance for Build Reserve), per ui-context.md's
+    absent-value rule.
+- **Tests:** formatters and the view model, test-first (23). The view model's
+  test pins the hardcoded input to golden fixture 7.
+- **Finding, 2026-09-23: OQ-25 reframed.** Asked for an opening balance, Daniel
+  described two revolving facilities: a chick account ($30,000) and a feed
+  account ($40,000, on the 30-day terms). That is "facility usage against
+  limits", not "a balance against a floor". Logged as an amendment to OQ-25,
+  naming both structures and the question that decides. **Nothing wired:** no
+  `opening_cash_cents` value, no facility model in the engine, no UI wording
+  changed. His term "operating capital" waits for the shape.
+- **Finding, 2026-09-27: OQ-25 widened to three structures.** Daniel's second
+  reply added a $20,000 loan at 30% "triggered at 6 weeks" (OQ-43, three
+  readings) and profit carried from batch to batch (OQ-44). A third structure,
+  C, is named beside A and B. It also brought a live 6,000-bird batch we did not
+  know about (OQ-42), and a $2,700 profit for the 3,000-bird batch against the
+  workbook's $4,948.19 (OQ-45: ours first; fixture 1 not regenerated). Next
+  batch aspiration: 15,000, with 30,000 longer-term (noted on OQ-23; no code
+  change). The user is sending the two deciding questions as one message.
+  **Nothing wired, nothing modelled.**
+- **Explained popovers, 2026-09-23:** every figure on the three cards opens its
+  formula, inputs with sources, and confidence. The engine emits no
+  `Explained<T>` (TD-8), so the view model assembles them, and a reconciliation
+  test recomputes each value from its own inputs (44 web tests).
+- **Outgoing breakdown, 2026-09-23:** Card 2 lists the $13,704 bill by bill:
+  one row per engine flow, with its kind, the engine's own description, and a
+  planned tag. The rows sum to the card's figure (tested). **Finding, TD-9:**
+  planned feed runs to day 41 while the harvest plan clears the flock on day
+  31, so two draws ($6,869.72) cover days after harvest. Marked on screen, not
+  fixed.
+- **Accessibility audit (web-design-guidelines), 2026-09-23:** run by code and
+  in the browser. Eight trivial findings fixed in the same pass; five recorded
+  as exceptions with reasons in `current-issues.md` ("U9 v1 ·
+  web-design-guidelines audit").
+- **Deployed, 2026-09-27:** https://runproduce-console.netlify.app, still
+  fixture 7, as a static export (TD-10: the Next runtime's handler breaks when
+  built on Windows). U9 v1 is frozen: no polish, no new cards.
+- **Not yet done:** whether impeccable adds anything on top of `ui-context.md`
+  and this audit. The user decides; it stays uninstalled until then.
+
 **U6 — chunk 7 red phase, 2026-09-23.** Failing tests for `public.engine_snapshot`
 and `loadEngineInput` (AD-90 to AD-93), local stack only. **Dev was not touched,
 read or write,** by the user's instruction, until they verify read-only mode on
 both sides.
+- **Pushed and set down, 2026-09-23** (`48f893b`), for the UI sprint (U9 v1
+  above). Its suite is red by design wherever it runs, until the green phase.
 - **Unit (`apps/web`, fake client): 49 red.** 40 hit the stub, 9 are the missing
   enum arrays (and a compile-time red in `tsc`).
 - **DB (`packages/db-tests`): 35 red, 37 green of 72.** 22 new `engine-snapshot`
@@ -1352,6 +1424,9 @@ for the service role too.
 *Why:* `supabase-js` has no multi-table transaction, and a half-written set
 would be in force the moment its parent row landed.
 **AD-67 · Opening cash is a ledger fact, summed by the engine, carried in `EngineInput` (U6 D8, OQ-25).**
+*Under question 2026-09-23 (OQ-25's amendment): Daniel described two revolving
+credit facilities, not a cash balance. Not amended until his follow-up answers
+decide the structure.*
 Approved 2026-09-14. `EngineInput.opening_cash_cents: Cents | null` is the cash
 held at the start of the running batch's placement day, not today's balance and
 not `reserve_floor_cents`. Stored as `cash_accounts` + `cash_transactions`

@@ -10,7 +10,7 @@ export default tseslint.config(
       '**/.next/**',
       '**/.netlify/**',
       'apps/web/out/**',
-      'apps/web/next-env.d.ts',
+      '**/next-env.d.ts',
       'Lib/**',
       'Scripts/**'
     ]

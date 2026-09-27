@@ -1,5 +1,7 @@
 # Current Issues
 
+> **Note (2026-09-27, OQ-45):** where this file says the engine "reproduces the workbook", it means the Record sheet's cost computations, not which income basis Daniel actually achieved. The workbook itself holds two income calculations: $17,250 at $2.00/kg (`T93`, used by the Final Report) and $15,000 at $5.00 a bird (`U93`).
+
 Open questions, known bugs, and blocked work. Update whenever a
 question is answered, a blocker appears, or an assumption is calibrated
 against real data.
@@ -228,7 +230,7 @@ and the first three executed on 2026-09-12.
 | 8 | Offal fields on `SalesOrder` | Queued. |
 | 9 | `mortality_history` dead key | Queued — wire or delete. |
 | **10** | OQ-28 feed delivery field | ✅ **DONE** — AD-54, paid on the collection date. |
-| 11 | OQ-25 cash balance | Blocked on U6. **Now the only thing between `computeAllocation` and the `decision.allocation` getter.** |
+| 11 | OQ-25 cash balance | Blocked on U6. **Now the only thing between `computeAllocation` and the `decision.allocation` getter.** **Reframed 2026-09-23:** Daniel described two credit facilities, not a balance; the structure is open (see OQ-25's amendment). **Widened 2026-09-27:** a third, interest-bearing facility and profit carried between batches; three structures now (OQ-43, OQ-44). |
 | 12 | OQ-26 Cover Fast | Blocked on M6. |
 | 13 | OQ-29 — a 1-bird grid takes 20.8 s | **New 2026-09-12.** Ours. Should land before M5b Task 9. |
 | 14 | OQ-30 — the band schedule extrapolates in planning, refuses in sales | **New 2026-09-12.** Half ours, half question 2 on the Daniel list. |
@@ -302,10 +304,14 @@ Daniel is logged here as an OQ with proposed question wording, and stops there.
 The user handles every question to Daniel, out of band and in a format they
 control. Nothing in this repository is a message to him.
 
-Every client question still open, checked against this file on 2026-09-14 (OQ-38 to OQ-41 added, OQ-35 to OQ-37 closed, 2026-09-15):
+Every client question still open, checked against this file on 2026-09-14 (OQ-38 to OQ-41 added, OQ-35 to OQ-37 closed, 2026-09-15; OQ-42 to OQ-45 added from Daniel's reply, 2026-09-27):
 
 | OQ | The gap | Shapes |
 |---|---|---|
+| OQ-45 | $2,700 or $4,948.19: which is the 3,000-bird batch's net profit? **Investigated 2026-09-27:** the workbook's own `U93` ($5.00/bird) gives $2,698.19, a $1.81 match on the income side, unconfirmed. Same-batch question queued with OQ-25's follow-ups | The historical baseline (AD-51); fixture 1 is not regenerated until settled |
+| OQ-44 | Does one batch's profit fund the next placement? | A flow between batches; no `EngineInput` field holds it |
+| OQ-43 | The $20K loan at 30%, "triggered at 6 weeks": which terms? | Whether borrowing can be costed at all; nothing modelled until answered |
+| OQ-42 | Does the system model his live 6,000-bird batch, or only hypothetical placements? | What `EngineInput.batch` is in production; onboarding mid-batch |
 | OQ-32 | Does one feed collection ever serve two batches? | U6 chunk 5 feed draws |
 | OQ-33 | Are bulk runs booked ahead with a fixed weight? | U6 chunk 5 sales orders |
 | OQ-34 | Is feed ever collected before the chicks arrive? | U6 chunk 5; `buildDays` throws on it |
@@ -596,6 +602,196 @@ same truck twice. An answered OQ-2 is **not** sufficient to proceed.
 ---
 
 ## Open questions — blocking
+
+**From Daniel's second reply on OQ-25, 2026-09-27.** OQ-42 to OQ-45 below, the
+widened OQ-25 amendment, and a note on OQ-23. **Nothing from this reply is wired
+into the engine, a fixture or the UI.** The user is sending the two questions that
+decide OQ-25 (OQ-43's terms, and whether there is separate cash) to Daniel as one
+message; nothing in the engine changes until that reply comes back.
+
+### OQ-45 · $2,700 or $4,948.19: what did the 3,000-bird batch actually make? 🟡 OPEN · OURS FIRST
+**Status:** open. **Raised:** 2026-09-27, from Daniel's reply.
+**Affects:** the historical baseline, not a failing test. See "What it is not".
+**The two figures:**
+
+| Source | Net profit | Basis |
+|---|---|---|
+| Daniel, 2026-09-27 | **$2,700** | His figure for the 3,000-bird batch. How he worked it out is not stated |
+| His workbook's Final Report | **$4,948.19** | On $12,301.81 of expenditure, including the since-retired $400 line (AD-51; `overheads.ts:92`) |
+
+The gap is **$2,248.19**, 45% of the workbook figure.
+
+**What it is not.** No golden fixture asserts a profit. Fixture 1 asserts feed
+cost ($7,698.06 since AD-52), feed kg, FCR, draw bags and dates (checked
+2026-09-12, item 5 above). The engine computes no profit at all (item 4 above).
+So nothing is red. The $4,948.19 is the baseline AD-51 measures its
+discontinuity against. It is also the figure any profit calculation would first
+be checked against, once one is built.
+
+**Candidates as first logged (2026-09-27, before the investigation below):**
+- **Costs the workbook never booked.** Feed delivery at $40/tonne is $528.96 on
+  that batch's 13,224 kg (OQ-28, AD-54). That covers under a quarter of the gap.
+- **One source, not two.** The Final Report re-displays the Record sheet's totals
+  (OQ-13), so $4,948.19 has no independent check behind it.
+- **Daniel's figure may count what the workbook leaves out.** Candidates are
+  interest on borrowing (OQ-43), owner's drawings, or losses after the Record
+  sheet ends. It may also be rounded, from memory, or from a different batch.
+
+**Investigation, 2026-09-27. The workbook's own figures account for all but $1.81
+of the gap, on the income side, not the cost side.** Read-only from the workbook
+("RUNproduce Broiler Management .xlsx") and this file. No cost was modelled or
+added.
+
+*How the workbook reaches $4,948.19:*
+
+| Cell | Formula | Value |
+|---|---|---|
+| `Final Report!C18` | `C13 + C14 − C9` | $4,948.19 |
+| `C9`, expenditure | `SUM(C3:C8)`: chicks $3,000, feed $8,079.81, vaccine $42, electricity $140, labour $640, other $400 | $12,301.81 |
+| `C13`, income | `SUM(Record!T93)`, which is `T43 = S43 × R43` | $17,250.00 |
+| `Record!R43`, kg sold | `J43 × G43 / 1000`: 3,000 closing birds × 2,875 g, **a formula, not an entered sale** | 8,625 kg |
+| `Record!S43`, price | **typed**: $2.00/kg | $2.00 |
+| `C14`, remaining birds | `J92 × G92 / 1000 × G14` = 0 birds | $0 |
+
+**So the $17,250 is not a recorded sale.** It is the whole flock valued at one
+average weight and one typed price. Three things in the workbook show it:
+- **No bird count sold is entered anywhere** (`Q93`, "No of Birds Sold", sums to 0).
+- **`J44` is hand-typed 0** to empty the flock.
+- **No mortality is entered on any of the 90 rows** (`I93` = 0, so `Final
+  Report!G1` livability = 100%).
+
+This corrects a framing used on the Daniel list ("your record shows one sale at
+$2.00/kg"): only the price was entered.
+
+**The workbook's own per-bird alternative closes the gap to $1.81.** `Record!U93
+= J43*5` = **$15,000** (3,000 birds at $5.00), already noted under OQ-4 (gate
+pricing basis) as "a per-bird alternative" but never set against profit:
+
+| | Income | − Expenditure `C9` | = Net profit | Against Daniel's $2,700 |
+|---|---|---|---|---|
+| As the Final Report does (`T93`, $2.00/kg) | $17,250.00 | $12,301.81 | $4,948.19 | +$2,248.19 |
+| With the workbook's `U93` ($5.00/bird) | $15,000.00 | $12,301.81 | **$2,698.19** | **−$1.81** |
+
+The income difference is $2,250.00 against a gap of $2,248.19. Daniel's "about
+$2,700" is plausibly `U93` less the same expenditure, rounded.
+
+**What this does and does not establish:**
+- **It is a numerical match, not a confirmation.** $5.00 is a round number, and
+  a coincidence within $1.81 is unlikely but possible. Nothing in the workbook
+  says `U93` is what was received. It sits in the total row of "Total Income
+  till Date", where a sum would be expected.
+- **If it is the explanation, the gap is revenue, not cost.** Daniel's $2,700
+  would then use the workbook's costs as they stand: the since-retired $400
+  included, and the $40/tonne feed delivery **not** included. Adding the
+  delivery as well gives $2,169.23, $530.77 below his figure. **The two
+  explanations do not stack.** The feed-delivery candidate is kept, but it no
+  longer helps close this gap.
+- **The other candidates, by size, from the workbook alone:**
+  - **Mortality.** At the workbook's own $5.75 a bird, the gap equals 391 unsold
+    birds (13.0% of 3,000). No mortality figure exists to test that against, and
+    none is assumed here.
+  - **Current feed prices (AD-52)** would lower cost by $381.75 and **widen** the
+    gap to $2,629.94. That is the wrong direction.
+- **"A different batch" is not hypothetical.** The workbook's Feed Account sheet
+  plans a Batch 2 (collection 10 Mar 2026) and a Batch 3 (15 Apr 2026) beside
+  Batch 1 (placed 6 Feb 2026). Daniel's figure could be from one of those, and
+  the match with `U93` could still be chance.
+
+**Gap status: largely explained, not confirmed.** One workbook figure accounts
+for the whole gap to $1.81, but only Daniel can say whether $5.00 a bird is what
+he received.
+
+**Queued for Daniel (the user sends; not sent by us), with OQ-25's follow-ups:**
+> *"Was the $2,700 profit from the same 3,000-bird batch in the spreadsheet (placed 6 February), or from a different batch?"*
+
+*Optional second line, the user's call:* *"And did those birds sell at $5.00
+each rather than $2.00 a kg?"* It would confirm or rule out the `U93` match
+directly.
+
+**Meanwhile:** fixture 1 is **not regenerated** (it asserts no profit anyway), and
+AD-51's baseline text stands with this question against it. Nothing in the
+engine, the UI or any fixture was touched by this investigation.
+
+### OQ-44 · Does one batch's profit fund the next placement? 🟡 OPEN
+**Status:** open. **Raised:** 2026-09-27, from Daniel's reply.
+**Affects:** OQ-25's third structure (C). It also affects what "operating
+capital" means.
+**What Daniel described:** the profit a batch retains funds the next placement.
+That is a **flow between batches**.
+**Why nothing holds it today.** `EngineInput` is one batch (`batch`, `records`,
+`draws`, `sales`, as of `asOf`) plus `parameters`. The allocation plans the next
+placement after that batch clears.
+- **Under structure A**, the nearest thing is implicit: the current batch's
+  receipts raise a running balance before the next placement's costs lower it.
+  Even there, nothing says how much is retained rather than drawn out.
+- **Under structures B and C**, a receipt goes to paying down a facility, in an
+  order nobody has given (OQ-25's follow-up 1). What is left, where it sits and
+  how it funds the next chick purchase are all unstated.
+
+**Proposed question (for the user; not sent by us):** *"When a batch finishes,
+how much of the profit stays in the business to pay for the next batch, and
+where does it sit until then: in the bank, or paid off the chick and feed
+accounts?"*
+**Not modelled.** No field, no flow.
+
+### OQ-43 · The $20,000 loan at 30%, "triggered at 6 weeks": which terms? 🟡 OPEN · 🔴 BLOCKS MODELLING ANY INTEREST
+**Status:** open. **Raised:** 2026-09-27, from Daniel's reply. **Part of the
+message the user is sending (with OQ-25's deciding question).**
+**Affects:** OQ-25's structure C, and whether borrowing can be costed at all.
+**What Daniel described:** a third facility, a **$20,000 loan at 30% interest,
+triggered at 6 weeks**.
+**The ambiguity.** "30%, triggered at 6 weeks" reads at least three ways, and they
+differ by a factor of more than 25:
+
+| Reading | What is owed | Illustration: $20,000 held 8 weeks (arithmetic, not a client figure) |
+|---|---|---|
+| **Grace period** | Nothing if repaid inside 6 weeks; held past it, 30% a year runs **from the day drawn** | 56 days: **$920.55** |
+| **Annualised from week 6** | 30% a year, running **only from week 6** | 14 days: **$230.14** |
+| **Flat if held past 6 weeks** | 30% of the amount, **once**, if held past 6 weeks | **$6,000.00** |
+
+**Unstated beside the rate:**
+- Does "6 weeks" count from the draw or from placement?
+- Is the loan drawn per batch or a standing line?
+- Is there a repayment date?
+- Which of the three facilities is drawn first?
+
+**Why it matters beyond one cost.** Under any reading, interest makes **time a
+cost**: a longer hold, a slower gate or a late bulk run carries it. That reaches
+M4's hold-versus-sell comparison and the allocation's ranking, and not just the
+cash calendar.
+**Proposed question (for the user's bundled message; not sent by us):** *"On the
+$20,000 loan at 30%: if you borrow it and repay it after, say, 8 weeks, what do
+you pay in interest? Is the 30% a yearly rate, and does it count from the day you
+borrow or only after the first 6 weeks?"*
+**Meanwhile:** **no interest is modelled, in any reading.** Picking one would
+invent a number.
+
+### OQ-42 · Does the system model Daniel's live 6,000-bird batch, or only hypothetical placements? 🟡 OPEN
+**Status:** open. **Raised:** 2026-09-27, from Daniel's reply. It mentioned a
+6,000-bird batch **running now**, operational data we did not know existed.
+**Affects:**
+- what `EngineInput.batch` is in production
+- onboarding
+- what "drawn on each account today" (OQ-25's follow-up 3) is mostly made of
+
+**The engine's shape already assumes a live batch.** `EngineInput` is one placed
+batch with its records, draws and sales as of `asOf`. The allocation places the
+*next* batch after it clears. So the question is not whether the engine can hold
+a live batch. It is whether RunProduce's first real input is **his** batch:
+- **If yes, it is onboarded mid-batch.** It needs his placement date, bird count,
+  feed drawn so far and daily records since placement. Or the curve stands in for
+  the missing days, marked assumed. Every figure on U9 would then be about his
+  real flock, not fixture 7's 5,000-bird stand-in.
+- **If only hypothetical,** the planner still needs *a* current batch to clear
+  before the next placement. That would be a hypothetical one, or a different
+  entry point that plans from an empty house.
+
+**Proposed question (for the user; not sent by us):** *"Should the planner start
+from the 6,000-bird batch you have running now, with its placement date, the feed
+drawn so far and your daily records, or only plan batches you have not placed
+yet?"*
+**Meanwhile:** nothing is entered anywhere. Daniel's production project stays
+untouched, and U9 stays on fixture 7.
 
 ### OQ-41 · Where does the $3.70 band end and the $3.50 price begin? 🟡 OPEN
 **Status:** open. **Raised:** 2026-09-15, from Daniel's answer to OQ-35 (AD-96).
@@ -1543,6 +1739,13 @@ scale; **30,000** is the aspirational target the brief plans against
 ceiling the engine may assume — absent the field, `requirePlacementCeiling`
 throws, exactly as the M5b plan specified.
 
+**Note (Daniel, 2026-09-27):** the aspirational **next** batch is **15,000
+birds**. 30,000 is longer-term. He is running 6,000 now (OQ-42). This changes no
+code: `max_placement_birds` stays an operator-entered, per-cycle figure with no
+default, as his original answer asked. What it changes is which scale matters
+first. OQ-15 (do labour and electricity scale?) now bites at 15,000 before
+30,000.
+
 **The same source independently confirms the conflation this question was
 raised to name.** From the same call: *"they can **7k birds on the gate** but
 for them to push aggressively to 15k they will be risk of pre harvest loss."*
@@ -1715,6 +1918,14 @@ Task 9 (blocked on OQ-25), so nothing ships at 20 s right now — but **U9 is th
 screen where Daniel types a batch and presses a button**, and 20.8 s at his real
 scale, ~2 min at 30,000, is not a slow screen. It is a screen he will assume has
 crashed.
+
+**Ruling for U9 v1 (the user, 2026-09-23): precompute at build time.** v1 renders
+fixture 7 with the decision computed once at build (`force-static`) and baked
+into the page, with the reason in a comment in `apps/web/app/page.tsx`. **A v1
+shortcut, not a resolution:** a chosen answer below (memoised or incremental
+scoring) is still required before U9 binds to live data. v1 does not reach the
+20.8 s path at all: with no opening balance (OQ-25), no candidate is projected
+against the floor.
 
 ### This must be designed, not noted
 
@@ -1897,11 +2108,110 @@ compute — days to first receipt, or the running batch's receipts alone — wou
 produce a number that ranks, and a ranking built on the wrong quantity is worse
 than a blank. Same reasoning as AD-43's refusal to sentinel a null.
 
-### OQ-25 · The engine has no cash balance, and M5b needs one 🔴 BLOCKS M5b TASK 9
-**Status:** Open. **Raised:** 2026-09-11, from executing M5b Task 9.
+### OQ-25 · The engine has no cash balance, and M5b needs one 🔴 BLOCKS M5b TASK 9 · 🔁 REFRAMED 2026-09-23 · WIDENED 2026-09-27
+**Status:** Open, **reframed by Daniel's answer (2026-09-23), and widened by his
+second reply (2026-09-27) from two structures to three. See the amendment
+directly below.** **Raised:** 2026-09-11, from executing M5b Task 9.
 **Affects:** whether `decision.allocation` can be wired at all.
 **This is ours, not Daniel's** — it is a decision about what the engine is
-entitled to assume, not a question he can answer.
+entitled to assume, not a question he can answer. *(Superseded in part: the
+amendment below needs his follow-up answers.)*
+
+**Amendment (2026-09-23, logged as an amendment, not folded in silently). OQ-25
+assumed a shape Daniel does not describe.** Everything after this amendment, and
+AD-67, asks for *a cash balance drawn down against a reserve floor*. Asked for
+that balance, Daniel described no bank balance. He described **two revolving
+credit facilities**:
+
+| Facility, in his words | Limit | Scope |
+|---|---|---|
+| Chick account | $30,000, revolving | Chick purchases |
+| Feed account | $40,000, revolving | Feed, tied to the 30-day feed terms |
+
+His own word for the money the business runs on is **"operating capital"**. It
+goes into the UI once the shape is understood, not before.
+
+**Nothing is wired and no number is set.** `opening_cash_cents` is not $70,000
+or any other figure, and the engine does not model the facilities. The facilities
+are not the balance the engine asks for under another name. The structures
+below are different models, and choosing between them is Daniel's follow-up
+answers, not ours.
+
+**Second amendment (2026-09-27): three structures, not two.** Daniel's second
+reply added:
+- **a third facility,** a $20,000 loan at 30% interest, "triggered at 6 weeks"
+  (OQ-43, terms ambiguous);
+- **retained profit** from one batch funding the next placement (OQ-44).
+
+Neither fits A or B, so the table gains column C. The same reply raised OQ-42
+(his live 6,000-bird batch) and OQ-45 (his $2,700 profit against the workbook's
+$4,948.19). Neither changes the structures, but both change the numbers any of
+them would start from.
+
+**The three structures, named, not chosen:**
+
+| | **A · Cash + reserve floor** (what the engine models) | **B · Facility headroom + limits** (Daniel, 2026-09-23) | **C · Facility headroom + interest-bearing borrowing + profit reinvestment** (Daniel, 2026-09-27) |
+|---|---|---|---|
+| The state | One cash balance | Per facility: its limit, and how much is drawn | B's two facilities; plus the loan (drawn or not, since when, interest owed); plus profit retained from the last batch |
+| A cost | Lowers the balance | Uses headroom on its facility | Uses headroom; what headroom cannot cover may draw the loan (unstated) |
+| A receipt | Raises the balance | Pays a facility down: which one, in what order, is unknown | Pays down a facility or the loan (order unknown); what remains is retained toward the next placement (OQ-44) |
+| The constraint | Balance ≥ `reserve_floor_cents`, every day | Usage ≤ limit, on each facility, every day | B's limits, plus a $20,000 loan limit; **and a cost of time**, since interest accrues on how long the loan is held (reading unknown, OQ-43) |
+| Where it lives today | AD-67 (`opening_cash_cents`); `cash_accounts` + `cash_transactions` (built, U6 chunk 5, on dev); `engine_snapshot`'s `cash` section (chunk 7 red tests); `reserve_floor_cents`; `projectCashCalendar`'s `openingCents` | CONTEXT.md's **Facility** and **Headroom** (feed only); `credit_facilities` in architecture.md, deferred by AD-80; M3's "no `headroom`, the limit is not in `Parameters`" | **Nowhere.** No field for a loan, an interest rate or a flow between batches. `EngineInput` is one batch |
+
+They are not exclusive. **C contains B.** B may sit **on top of** A: the
+facilities fund chicks and feed, and a cash float pays everything else. Retained
+profit (C) may *be* that float. That possibility is the question.
+
+**The question that decides now needs two answers from Daniel.** The user is
+sending both as one message (2026-09-27), and nothing in the engine changes until
+the reply comes back:
+1. **Is there separate cash?** Wording below, unchanged. It decides whether A
+   exists under the facilities.
+2. **The loan's interest terms (OQ-43).** They decide whether C's borrowing can be
+   costed at all. Until they arrive, C can be named but not modelled.
+
+**Answer 1, the separate-cash question (proposed wording, for the user's
+follow-up; not sent by us):** *"Apart from the chick and feed accounts, is there money of the farm's
+own, a bank balance, that pays for what the accounts do not cover (labour,
+electricity, vaccine, the feed delivery paid on collection) and where sale
+proceeds land?"*
+- **If no: B, or C, alone.** The constraint is headroom on each facility (and,
+  under C, the loan and its cost of time). `reserve_floor_cents` becomes a
+  headroom floor or goes. `opening_cash_cents` is the wrong field: the likely
+  shape is a new `EngineInput` field (facility limits and usage), not a reuse of
+  it.
+- **If yes: A under B or C.** A cash balance for costs outside the facilities,
+  and the facilities for chicks and feed (and the loan, under C). The floor
+  applies to the cash, and the limits apply to the facilities.
+  `opening_cash_cents` survives, scoped to the cash alone. Under C, retained
+  profit (OQ-44) is plausibly what that cash is.
+
+A hint, not an answer: feed delivery is paid "on the spot when the feed is
+collected" (client, 2026-09-12), so something pays outside the feed terms.
+
+**Follow-ups that shape either answer**, for the same message:
+1. When a sale comes in, what does it pay down first: the chick account, the
+   feed account, or neither until a due date?
+2. Does the chick account have terms (a due date per purchase), or is it repaid
+   whenever?
+3. What is drawn on each account today?
+4. *(Queued 2026-09-27, OQ-45, not an OQ-25 follow-up but for the same
+   message.)* "Was the $2,700 profit from the same 3,000-bird batch in the
+   spreadsheet (placed 6 February), or from a different batch?" There is an
+   optional second line in OQ-45 on the $5.00-a-bird match.
+
+**What this touches, when the answer lands, and not before:**
+- **AD-67 stands but is under question.** Its tables are built and harmless.
+  Under B alone they hold nothing the engine needs.
+- **U9 v1's wording.** Card 1 and Build Reserve say "needs your opening cash
+  balance". That may be the wrong ask. It changes with the answer, not before.
+- **CONTEXT.md.** **Facility** is defined as the feed supplier's line only, and
+  **account** is a banned synonym for it, yet it is Daniel's word for both. The
+  glossary changes once the shape is settled: a second facility, and whether
+  "operating capital" names the sum of headroom, the cash, or both.
+- **Cover Fast** already measures days to clear **core credit** (chick + feed,
+  invariant 15): the same scope as the two facilities. B may fit it more naturally than
+  A does.
 
 **The defect in the plan.** Task 9's getter passes
 `input.parameters.reserve_floor_cents` as `computeAllocation`'s `openingCents`.
@@ -2246,6 +2556,75 @@ sales, the null-fee guard, gate-order refusal), as are 6, 7 and 11. These remain
 | R2-a | Invariant 16 now counts from the latest `order_date`, which has no upper bound: a mistyped far-future date silently pushes the placement floor out | Input validation, for U6/U8's sales ledger, not the engine |
 | R2-b | `batchCashFlows` is exported and allowlisted as internal; it can be called without `cashFlowsMissingInputs` first | Acceptable while the allowlist entry stands; do not re-export it from index.ts |
 
+### U9 v1 · web-design-guidelines audit, exceptions recorded 🟡
+**Run:** 2026-09-23, against `apps/web/app` and `components/console`, by code
+and in the browser (focus order, target sizes, accessible names, contrast).
+**Fixed in the same pass:** the chart was a focusable, unnamed
+`role="application"` inside a `role="img"` (now not a tab stop, with a
+figcaption as its text alternative); Explain targets were 17-20px tall (now
+24px minimum); no `theme-color` or `color-scheme` (now light, matching the
+page); invalid `dl` nesting in the popover; a straight apostrophe in a
+heading; headings not balanced; no empty state for the bill table; no
+`touch-action: manipulation`. Contrast checked: muted text is 5.4:1 on white
+and 5.0:1 on the page background; the flow colours are over 6:1.
+**Exceptions, each with its reason:**
+- **Fixed formats, not `Intl.*`.** `ui-context.md` specifies them exactly
+  ("$11,504", "Day 30 · 8 Mar"), for one locale, and money stays bigint to the
+  glass. `Intl.NumberFormat` would localise separators the spec fixes.
+- **Sentence case, not Title Case, for headings.** Chosen for the sober ledger
+  voice. Settled when DESIGN.md is extracted.
+- **No skip link.** Nothing interactive precedes `<main>`. Needed once
+  navigation exists.
+- **The chart's per-day tooltip is pointer-only.** The figcaption states the
+  range, start, lowest point and harvest, and the bill table carries every
+  payment, so no figure is reachable only by hover.
+- **The bill table shows the engine's raw descriptions**, such as "PER_BATCH,
+  HARVEST_COMPLETE". Honest but not plain language. A copy follow-up, not
+  accessibility.
+
+### TD-10 · The Netlify Next runtime cannot be built on Windows 🟠
+**Raised:** 2026-09-27, deploying U9 v1. `netlify deploy --build` from this
+machine produced a server handler that imports `\var\task\apps\web` with
+backslashes, so every request returned 502 (`ERR_MODULE_NOT_FOUND`). The build
+itself passes; the path is wrong only in the Lambda.
+**Interim, U9 v1 only:** it is `force-static`, so it ships as a static export.
+`RUNPRODUCE_STATIC_EXPORT=1 npm run build -w @runproduce/web`, then
+`netlify deploy --prod --no-build --dir apps/web/out`. Unset, `next.config.ts`
+builds the normal AD-9 way, and `apps/web/netlify.toml` is set up for that.
+Site: `runproduce-console` (https://runproduce-console.netlify.app).
+**Fix, before the first dynamic route ships (U7):** build on Linux: link the
+site to the GitHub repo so Netlify builds it, or deploy from WSL or CI. The
+static-export flag goes once that works.
+
+### TD-9 · Planned feed runs to the curve's last day, not the harvest day 🟠
+**Raised:** 2026-09-23, found by U9's outgoing breakdown, by running the engine
+on fixture 7. `computeFeedLiability` plans draws until the breed curve's last
+day (41) whatever the harvest plan says. Fixture 7's harvest plan clears the
+flock on day 31, yet the calendar books planned draws for days 29-35 ($3,517.80,
+due 5 Apr) and 36-41 ($3,351.92, due 12 Apr). Part of the $13,704 going out,
+and the -$19,562 trough itself, is feed for birds already sold.
+**Not the documented upper bound.** The flat flock (AD-24, "planned quantities
+are an upper bound") is about *how many* birds eat; this is about *how long*
+they eat. Nothing records it.
+**Shown, not fixed:** U9 marks those draws "after harvest" and says the total
+and the lowest point may be overstated. **Fix, ours:** end the planned schedule
+at the harvest plan's completion, test-first against fixture 7. It moves the
+trough, so it is an engine change under its own review, not a UI patch.
+
+### TD-8 · The engine defines `Explained<T>` and emits none 🟠
+**Raised:** 2026-09-23, building U9 v1's explainability popovers.
+`code-standards.md` says every module returns `Explained<T>` for values the UI
+displays, and `architecture.md` lists an `explain.ts`. Neither exists: the type
+is in `types.ts` and no engine function returns one.
+**Interim, U9 v1:** `apps/web/lib/u9/console.ts` assembles each figure's
+`Explained<T>` from engine output, using the engine's type. Honesty rests on
+`tests/u9/explained.test.ts`: it recomputes every value from its own inputs
+(sizes × dates = options, flows by kind sum to the trough, and so on), so an
+explanation cannot sound right without adding up.
+**Fix:** the engine returns `Explained<T>` for its display values, and the view
+model reads them. Until then the formula wording lives in the UI, one step from
+the arithmetic it describes. **Due:** before U9 binds to live data.
+
 ### TD-7 · Migration 6 does not apply to a fresh local database ✅ CLOSED 2026-09-27
 **Closed:** the user chose (a). The revoke is wrapped in `if to_regprocedure('public.rls_auto_enable()') is not null`, edited in place with no new migration number. Dev already ran the unguarded text and behaves identically. `npx supabase db reset --local` now applies all seven migrations, and the DB suite passes 72 of 72 on the fresh database.
 
@@ -2279,6 +2658,11 @@ is open, the database holds feed in grams and the engine in kg. A screen reading
 one side in kg and the other in grams would show a figure 1,000 times wrong
 with no error: the silent wrong answer this project is built to prevent. U9
 planning checks this entry first.
+
+**Ruling for U9 v1 (the user, 2026-09-23): does not gate v1.** v1 reads the
+engine only and formats kg at the display boundary; no screen reads the
+database, so no figure crosses the two units. It still closes before U9 binds to
+repository data.
 
 **Raised:** 2026-09-14, U6 D16 (AD-77). `DailyRecord.feed_*_kg` and `FeedDraw.kg`
 are floats in kg. CLAUDE.md rule 2 says integer grams, and the database stores
@@ -2522,8 +2906,8 @@ recommendation — divergences are the most valuable data available.
 | M5b · the Build Reserve mode | **OQ-31** — pinned null by AD-59: without a candidate's forecast sales it recommended the smallest batch. Needs M6 |
 | M5b · the Cover Fast mode | **OQ-26** — structurally cannot answer: a candidate has no forecast sales, so receipts never clear core credit. Needs M6 |
 | M5b · Task 9, wiring `decision.allocation` | **OQ-25** — the engine holds no cash balance to pass as `openingCents`, and the plan passed `reserve_floor_cents`, a different quantity. Recommendation: leave the getter throwing until U6 |
-| **U9 · the mode-selector / recommendation screen** | **OQ-29 — HARD BLOCKER, not an optimisation.** `computeAllocation` takes **20.8 s** at Daniel's realistic 5,000-bird ceiling and ~2 min at the brief's 30,000. U9 is a click-and-see screen; two minutes is not usable and no spinner makes it so. **U9 planning must produce a real design answer** — see OQ-29 for the three candidates and what each costs. A plan that says "consider performance" does not clear this |
-| **U9 · any screen showing feed quantities** | **TD-5**: the engine types feed in kg, the database in grams. Closes before U9 starts, so no screen binds against two units |
+| **U9 · the mode-selector / recommendation screen** | **OQ-29 — HARD BLOCKER, not an optimisation.** `computeAllocation` takes **20.8 s** at Daniel's realistic 5,000-bird ceiling and ~2 min at the brief's 30,000. U9 is a click-and-see screen; two minutes is not usable and no spinner makes it so. **U9 planning must produce a real design answer** — see OQ-29 for the three candidates and what each costs. A plan that says "consider performance" does not clear this. **v1 ruling (2026-09-23):** precomputed at build; still required before live data |
+| **U9 · any screen showing feed quantities** | **TD-5**: the engine types feed in kg, the database in grams. Closes before U9 starts, so no screen binds against two units. **v1 ruling (2026-09-23):** does not gate v1, which reads no database |
 | U3 · pricing a **part-bag** draw | OQ-21 — the client question half only. **The crash half landed 2026-09-11**: a part-bag draw now returns a typed `feed_draw_bags` refusal instead of a `RangeError` |
 | Default strategy selection | ~~OQ-3~~ answered; mode set decided (AD-35) |
 | ~~Gate harvest window past day 32~~ | **Moot.** Built in U4: under the settled flat gate price the window ends at day 31, so there is no "past day 32" to unblock. It reopens only if per-kg gate pricing becomes the default — see OQ-11 |

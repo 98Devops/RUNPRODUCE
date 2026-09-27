@@ -1,5 +1,5 @@
 # RunProduce - Session State
-Last updated: 2026-09-23 (chunk 7 red phase committed; implementation not started) · Branch: `u6-supabase-schema`
+Last updated: 2026-09-27 (U6 chunks 1-7 and U9 v1 merged to `main`; TD-7 closed) · Branch: `main`
 
 ## HARD RULE: Daniel's production Supabase project is off-limits
 - **No U6 work touches Daniel's production Supabase project.** Every connection string, MCP target and deploy script defaults to the **dev** project.
@@ -40,7 +40,8 @@ npm monorepo: a pure TypeScript engine (`packages/engine`) behind a Next.js app 
 - **U6 Task 0** shared refusal list (TD-4 #8, AD-60).
 - **U6 chunk 5 shipped, 2026-09-15:** 6 migrations applied to dev, DB suite 50/50 locally.
 - **Daniel's answers 2026-09-15:** AD-96 (over 1.3 kg dressed pays less, ~$3.50; not built, OQ-41), AD-97 (bulk buyer no cap), AD-98 (delivery always abattoir).
-- **Status:** engine 348 unit tests; golden 11 written / 11 passing / 1 held; lint clean. `apps/web` unit suite 49 red and `tsc` red on 9 enum exports, by design (chunk 7 red phase). DB suite 35 red / 37 green of 72, by design.
+- **U9 v1, 2026-09-23:** three cards from fixture 7, hardcoded, no DB, no auth. Deployed 2026-09-27 as a static export (TD-10). Tracker entry has the detail.
+- **Status (`main`, 2026-09-27):** engine 359 unit tests; golden 11 written / 11 passing / 1 held; lint clean; `apps/web` unit suite 117 green; DB suite 72/72 locally from a fresh `db reset`.
 
 ## In progress
 **U6 status: chunk 5 complete; chunk 7 red phase committed (`engine_snapshot` + `loadEngineInput`), implementation next; chunk 8 planned.** Spec: `context/plans/u6-supabase-schema.md`.
@@ -78,7 +79,7 @@ npm monorepo: a pure TypeScript engine (`packages/engine`) behind a Next.js app 
   - AD-82: feed grams `not null`, no default. A blank fails to save.
   - AD-83: a draw's price is required for now; the refusal is added only if "price not known yet" proves real.
   - AD-84: a daily record on the wrong date is voided and re-entered, never moved along a chain.
-- **TD-5** (engine feed in kg, database in grams): deferred out of U6, **must close before U9 starts**.
+- **TD-5** (engine feed in kg, database in grams): deferred out of U6, **must close before U9 binds to the database** (does not gate U9 v1, the user's ruling 2026-09-23).
 - **Chunk 6** (access, D20-D24): **approved 2026-09-14**, AD-85 to AD-89.
   - D20 / AD-85: roles in `private.memberships`, checked by `private.has_role`; `my_memberships()` is for navigation, never authorisation; membership changes service-role only in U6.
   - D21 / AD-86: role matrix. **Amended:** WORKER creates daily records and corrects or voids only their own (current version's `created_by`); MANAGER and OWNER correct any. MANAGER reads settings, MANAGER places batches, WORKER reads no curve: **defaults for U6; per-org overrides may follow once OQ-5 lands.**
@@ -109,14 +110,15 @@ npm monorepo: a pure TypeScript engine (`packages/engine`) behind a Next.js app 
 | Blocker | Blocks | Who resolves |
 |---|---|---|
 | ~~TD-7: migration 6 fails on a fresh local DB~~ | **Closed 2026-09-27:** revoke guarded in place; `db reset --local` runs all seven | none |
-| OQ-25: engine holds no opening cash balance | M5b Task 9, wiring `decision.allocation` (getter throws) | Us, U6. Design approved (D8, AD-67); not built |
+| OQ-25: engine holds no opening cash balance. **Reframed 2026-09-23:** Daniel described two revolving facilities (chick $30k, feed $40k), not a balance. **Widened 2026-09-27** to three structures (A cash+floor, B facilities, C facilities + $20k 30% loan + profit reinvestment). See the amendment | M5b Task 9; U9's "floor checked"; AD-67's shape | Daniel: separate cash? + loan terms (OQ-43), one message from the user. Nothing wired meanwhile |
+| OQ-42 to OQ-45 (2026-09-27): live 6,000-bird batch; $20k loan terms; profit between batches; $2,700 vs $4,948.19 | What production input is; costing borrowing; fixture 1's baseline (not regenerated) | OQ-45 ours first; the rest Daniel via the user |
 | OQ-26: Cover Fast can't answer structurally (candidates have no forecast sales) | 1 of 3 modes | Us, via M6 |
 | OQ-31: Build Reserve pinned null for the same reason (AD-59) | 1 of 3 modes. Only Maximum Growth answers | Us, via M6 |
-| OQ-29: `computeAllocation` takes 20.8 s at 5k birds, ~2 min at 30k | **U9, hard.** Needs a design answer, not "consider performance" | Us: profile first |
+| OQ-29: `computeAllocation` takes 20.8 s at 5k birds, ~2 min at 30k | **U9 live data, hard.** v1 precomputes at build (ruling 2026-09-23); a design answer is still required | Us: profile first |
 | OQ-41: where $3.70 ends and $3.50 begins | Building AD-96's band | Daniel (logged) |
 | OQ-32 / OQ-33 / OQ-34: feed shared across batches; booked bulk weight; feed before placement | Shape of U6 chunk 5 (assumed simple answers) | Daniel (logged as OQs; the user handles) |
 | No CI database target | CI DB job (suite runs locally only) | Us + user: a CI project or dev branch |
-| TD-5: engine feed kg vs database grams | **U9 start** | Us, before U9 |
+| TD-5: engine feed kg vs database grams | **U9 binding to the DB** (not v1) | Us |
 | OQ-8: fixture 6 chick price ($0.85 vs $1.00) | Golden completeness hold | Daniel |
 | OQ-10: fixture 8 was blocked on OQ-2, now answered | Golden completeness hold | Us: attempt it |
 | OQ-17: dressing yield ~62% is unmeasured | Accuracy of the bulk harvest day (0.8 pt from flipping) | Daniel (~20 paired weights) |
@@ -157,7 +159,7 @@ Full log: `progress-tracker.md` § Architecture Decisions.
 8. `context/ui-context.md`, `ui-build-playbook.md`, `card-system-and-decision-ux.md`: only for UI units (U7-U11). For U9, read the OQ-29 section first.
 
 ## Recommended next action
-**Check in with the user before implementing** (their instruction, 2026-09-23). Then take chunk 7's red phase to green: migration 7 `public.engine_snapshot` and the Zod-backed `loadEngineInput`, on the local stack only. T-RP1 green again is the proof: any red there is a canary and gets its stop-and-diagnose treatment. Dev stays untouched until the user has verified read-only mode on both sides, and TD-7 wants their decision before the next dev apply.
+**U7:** chunk 1 signed off 2026-09-27 (`context/plans/u7-daily-capture.md`, branch `u7-daily-capture`, cut from `main`). Chunk 2 planning waits until the merges and TD-10 (Netlify built from GitHub) are done. **Check in with the user before implementing.** Dev stays untouched until a migration genuinely needs applying, then a narrow write window.
 
 Session notes, not part of the recommendation: **do not batch a gate check with anything that depends on it** (discipline note, `progress-tracker.md`, 2026-09-23). Local suite: Docker Desktop running, then `npx supabase start -x studio,imgproxy,storage-api,edge-runtime,logflare,vector,supavisor,realtime,postgres-meta,mailpit`, then **`npx supabase db reset --local --version 20260915065625`** (TD-7; add migration 7's version once it exists, still skipping 6), then `npm run test:db:local`. Local ports are now 5442x (Windows reserved 55404 to 55503). Unit: `npm test -w @runproduce/web`. On a surprising Daniel answer, reshape chunk 5 per that OQ's entry.
 
