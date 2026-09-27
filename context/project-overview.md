@@ -1,5 +1,7 @@
 # RunProduce — Broiler Cashflow & Harvest Decision System
 
+> **Note (2026-09-27, OQ-45):** "reproduce the workbook" means reproducing the Record sheet's cost computations (feed cost, FCR, bag counts), not asserting which income basis Daniel actually achieved. The workbook itself holds two income calculations: $17,250 at $2.00/kg (`T93`, used by the Final Report) and $15,000 at $5.00 a bird (`U93`).
+
 ## Overview
 
 RunProduce (trading as Danrun Poultry) is a Zimbabwean broiler

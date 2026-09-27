@@ -1,5 +1,7 @@
 # Current Issues
 
+> **Note (2026-09-27, OQ-45):** where this file says the engine "reproduces the workbook", it means the Record sheet's cost computations, not which income basis Daniel actually achieved. The workbook itself holds two income calculations: $17,250 at $2.00/kg (`T93`, used by the Final Report) and $15,000 at $5.00 a bird (`U93`).
+
 Open questions, known bugs, and blocked work. Update whenever a
 question is answered, a blocker appears, or an assumption is calibrated
 against real data.
