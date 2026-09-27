@@ -2509,6 +2509,11 @@ across the two columns — see invariant 13.
 ### OQ-5 · Who performs daily capture 🟡
 **Status:** Named as "someone on the farm," no individual identified.
 
+**Also affects U7 sign-in (2026-09-27, the user):** U7 D2 builds email and
+password sign-in, as `architecture.md` names it. Revisit the auth method if the
+answer to OQ-5 indicates workers lack email addresses (phone OTP is a Supabase
+Auth setting, not a new page).
+
 **Also affects U6 chunk 6 (2026-09-14):** which memberships the production seed
 creates. The schema builds `OWNER`, `MANAGER` and `WORKER` as `architecture.md`
 specifies either way; a WORKER sees no money (D22).

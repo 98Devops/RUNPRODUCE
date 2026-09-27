@@ -10,6 +10,20 @@ changes who gets a membership, not what the form is.
 
 ## Chunk 1 — Framing: what U7 builds, from what, and where it stops
 
+**Status: approved 2026-09-27**, with one addition to D3 and the rulings below.
+- **D1 done.** u6 merged into `main` (`29b6f83`), then u9 (`4132e80`). This
+  branch was rebased onto `main`. `main` is green, not red: chunk 7's
+  implementation (`b84d0d3`) was already on u6 when it merged.
+- **D2 approved** as drafted. OQ-5 carries the note to revisit the method.
+- **D3 approved, plus `feed_entry_source`** (see D3's addition).
+- **D9 approved:** feed draws stay in U8.
+- **D4 to D8 were not ruled on one by one.** They proceed as drafted unless the
+  user says otherwise.
+- **Impeccable audit gate: deferred, not blocking.** `ui-context.md` §0 plus
+  `web-design-guidelines` cover U7. Re-evaluate before the U11 deploy.
+- **TD-7 and TD-10 are both closed** (2026-09-27). A fresh local reset runs every
+  migration, and Netlify builds from GitHub `main`.
+
 ### What U7 is
 
 Flow 2 in `project-overview.md`: a farm worker records one day for one batch in
@@ -111,6 +125,36 @@ So:
 *Recommended: the suggestion button, and the curve read for WORKER.* **This
 departs from the brief's wording**, so it needs the user's sign-off.
 
+**Addition to D3 (the user, 2026-09-27): the stored feed says where it came from.**
+The tap makes every stored value a person's choice, but a value confirmed from
+the standard and a value weighed out of the store are different evidence.
+Both are legitimate entries. Calibration (AD-38) must be able to tell them
+apart later, so the row records which it is. This reverses the table's last row
+above, which called the column unnecessary.
+- **Engine, `types.ts`:** a new union `EntrySource = 'MEASURED' |
+  'STANDARD_CONFIRMED'` and a new field on `DailyRecord`. Proposed name:
+  `feed_entry_source`, because only the feed has a suggestion. Deaths, culls and
+  weights are always typed in, so a record-wide `entry_source` would claim more
+  than it knows. **The user named it `entry_source`; the narrower name is a
+  proposal and needs a yes.** A runtime array `ENTRY_SOURCES` goes in
+  `enums.ts` (AD-92).
+- **Set by the form, not inferred:** `STANDARD_CONFIRMED` when the day's feed
+  is the standard figure, tapped and unedited; `MEASURED` when typed or edited
+  after the tap.
+- **Rows that predate the field** (dev's seed, any import) have no honest
+  value. The field is `EntrySource | null`, where null means "not recorded",
+  never a default to `MEASURED` (invariant 5). Every constructor must state it,
+  so golden fixtures carrying records gain an explicit `null`.
+- **Database:** a nullable `feed_entry_source` column on
+  `facts.daily_record_versions`, with a named CHECK. It goes into AD-63's drift
+  test, `record_daily_records`' payload (a required key, per chunk 3's "present
+  even when null" rule), the no-op comparison, `public.daily_records`,
+  `engine_snapshot` and the pinned snapshot contract.
+- **Calibration does not read it yet.** Weighting the two sources differently
+  is a separate decision, taken after real data exists.
+- **Lands test-first in U7's build**, not ahead of it: it touches the engine
+  type, the golden fixtures, a migration and the snapshot contract together.
+
 **D4 · Culls: shown, carried from the last record, and changed only on purpose.**
 `cull_cumulative` is required on every record (not null), but the brief lists
 three fields and culls are rare. A cumulative that has not changed is the last
@@ -188,17 +232,14 @@ changes.
 
 ### What this unit depends on, outside itself
 
-- **TD-10 · A Linux build for Netlify.** U7 is the first route that cannot be
-  static: it reads a session. Netlify's Next.js build breaks when built on
-  Windows, so U7's deploy needs the site linked to GitHub, where Netlify builds
-  it, or a WSL or CI build. U7 can be built and tested locally without it; only
-  the deploy waits.
-- **TD-7 · Migration 6 on a fresh local database.** Still the user's call. U7's
-  one migration (D3) is applied locally by hand until it is settled, as chunk 7's
-  was.
-- **The UI gate.** `/impeccable audit` is one of U7's two audit gates, and
-  impeccable is not installed, by the user's instruction. U7 can be built without
-  it. The gate cannot be passed without it. `web-design-guidelines` is available.
+- ~~**TD-10 · A Linux build for Netlify.**~~ **Closed 2026-09-27.** Netlify
+  builds from GitHub `main` on the Next runtime, so U7's session-reading route
+  deploys by merging to `main`.
+- ~~**TD-7 · Migration 6 on a fresh local database.**~~ **Closed 2026-09-27.**
+  U7's migrations go through `db reset --local` like any other.
+- **The UI gate: `/impeccable audit` is deferred, not blocking** (the user,
+  2026-09-27). U7's gate is `ui-context.md` §0 plus `web-design-guidelines`.
+  Re-evaluate before the U11 deploy.
 - **Acceptance** is timed on a real phone, under 60 seconds (`ai-workflow-rules.md`).
   That timing is the user's to run; the plan provides a Playwright run at 390px
   as a proxy, not a substitute.
@@ -208,22 +249,23 @@ changes.
 2. **Session and sign-in (D2).** The SSR client factory behind the guard, the
    sign-in and sign-out routes, the redirect, and T-RP5's lint extended.
 3. **Reads and the write repository (D9).** `captureBatches`,
-   `dailyRecords`, `recordDailyRecords`, and the WORKER curve-read migration,
+   `dailyRecords`, `recordDailyRecords`, the WORKER curve-read migration, and
+   `feed_entry_source` end to end (D3's addition: engine type, column, contract),
    each with its fake-client unit half and its DB half on the local stack.
 4. **The engine's standard feed for a day (D3).** Test-first in
    `packages/engine`, including the day before placement and a day past the
    curve's end.
 5. **The capture screen (D3 to D8).** The form, the suggestion, the draft,
    backfill, corrections and errors, in an order where each step is usable.
-6. **Gates and acceptance.** `web-design-guidelines`, `/impeccable audit`
-   (once installed), the 390px Playwright run, and the user's phone timing.
+6. **Gates and acceptance.** `web-design-guidelines`, the 390px Playwright run,
+   and the user's phone timing. (`/impeccable audit` deferred, see above.)
 
-### The discussion points, in short
+### The discussion points, in short (all ruled 2026-09-27; see Status above)
 
-1. **D1: merge u6 and u9 into `main`, then branch U7.** Your call.
+1. **D1: merge u6 and u9 into `main`, then branch U7.** Done.
 2. **D3: the pre-fill is a tapped suggestion, not a filled field,** and a
-   WORKER may read the breed curve. This departs from the brief and amends
-   AD-86.
-3. **D2: email and password** as the architecture names it. Is that right for
-   whoever captures (OQ-5)?
-4. **D9: `FeedDraw` stays in U8.** Say if it belongs in U7.
+   WORKER may read the breed curve. Approved, plus `feed_entry_source`.
+3. **D2: email and password.** Approved; revisit per OQ-5.
+4. **D9: `FeedDraw` stays in U8.** Approved.
+5. **Open, small:** the field name, `feed_entry_source` (proposed) or the
+   user's `entry_source`.

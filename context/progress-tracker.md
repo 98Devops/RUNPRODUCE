@@ -12,12 +12,12 @@ entries that follow are each branch's own record, kept as written.
 loadEngineInput, enum arrays, typed errors, client factory); write
 repositories still to build; chunk 8 planned.**
 
-**U7 — chunk 1 drafted, 2026-09-27, awaiting sign-off**
-(`context/plans/u7-daily-capture.md`, branch `u7-daily-capture`, cut from u6
-only to hold the plan). Planning only. Four points for the user: merge u6 and u9
-into `main` first (D1); the feed pre-fill as a tapped suggestion, with a curve
-read for WORKER (D3, departs from the brief, amends AD-86); email and password
-sign-in (D2); `FeedDraw` stays in U8 (D9).
+**U7 — chunk 1 approved, 2026-09-27** (`context/plans/u7-daily-capture.md`,
+branch `u7-daily-capture`, rebased onto `main`). D1 done (u6 then u9 merged);
+D2 email and password (OQ-5 note); D3 the tapped suggestion plus a WORKER curve
+read, **plus `feed_entry_source`** on `DailyRecord` (the user's addition, not yet
+built, lands test-first in U7); D9 draws stay in U8. Impeccable audit deferred,
+not blocking, re-evaluate before U11. Chunk 2 planning waits for the user.
 
 **U6 — chunk 7 green, 2026-09-27.** The red phase below, turned green, plus the
 client factory test-first. Local stack only. **Dev not touched:** nothing reads
