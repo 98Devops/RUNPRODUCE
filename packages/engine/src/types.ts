@@ -26,7 +26,7 @@ export type PricingBasis = 'PER_BIRD' | 'PER_KG';
  *
  * `BANDED` is meaningful only on a BULK order. The type does NOT enforce that:
  * `pricing_basis` is typed per order, not per channel, so
- * `cashFlowsMissingInputs` refuses a BANDED gate order instead.
+ * `missingInputsFor` refuses a BANDED gate order instead.
  */
 export type SalePricingBasis = PricingBasis | 'BANDED';
 export type Confidence = 'measured' | 'calibrated' | 'assumed';
@@ -350,7 +350,7 @@ export interface ScoredCandidate {
   readonly candidate: Candidate;
   /**
    * null when the candidate could not be projected at all — a bulk sale
-   * `projectCashCalendar` refuses because `cashFlowsMissingInputs` names a gap
+   * `projectCashCalendar` refuses because `missingInputsFor` names a gap
    * (AD-55, AD-57). Every other field that needs a calendar is null with it.
    */
   readonly calendar: CashCalendar | null;

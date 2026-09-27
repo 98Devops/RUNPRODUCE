@@ -1,6 +1,7 @@
 import { SEED_BREED_CURVE } from './breed-curve.js';
-import { batchCashFlows, cashFlowsMissingInputs, projectCashCalendar } from './cash.js';
+import { batchCashFlows, projectCashCalendar } from './cash.js';
 import { addDays, daysBetween } from './day-number.js';
+import { missingInputsFor } from './refusals.js';
 import { computeCosting } from './costing.js';
 import { computeFeedLiability } from './feed.js';
 import { SEED_OVERHEADS, overheadBreakdown } from './overheads.js';
@@ -333,10 +334,10 @@ export function pickWinner(
 export function placeNothing(
   input: EngineInput,
   /**
-   * null when the running batch could not be projected — a bulk sale the
-   * calendar refuses because `cashFlowsMissingInputs` names a gap (a null
-   * abattoir fee or transport rate, or that order's own contract incomplete:
-   * AD-55, AD-57). The overhead arithmetic below needs no projection and stays
+   * null when the running batch could not be projected because
+   * `missingInputsFor` names a gap in it (a null abattoir fee or transport
+   * rate, an order's own contract incomplete, an oversold batch: AD-55,
+   * AD-57, TD-4 #8). The overhead arithmetic below needs no projection and stays
    * real either way.
    */
   handoff: RunningBatchHandoff | null
@@ -403,7 +404,7 @@ function requirePlacementCeiling(parameters: Parameters): number {
  * A candidate the engine can name but cannot price.
  *
  * Every field needing a cash calendar is null, because the calendar refuses a
- * bulk sale that `cashFlowsMissingInputs` names a gap in (AD-55, AD-57). Only
+ * running batch that `missingInputsFor` names a gap in (AD-55, AD-57). Only
  * `maximum_growth_birds` survives, which is exactly why Maximum Growth still
  * answers while the other two modes refuse.
  */
@@ -451,7 +452,7 @@ export function computeAllocation(
 
   const maxChickCount = requirePlacementCeiling(input.parameters);
   const candidates = enumerateCandidates(input, harvestCompletionDate, maxChickCount);
-  const blocked = cashFlowsMissingInputs(input);
+  const blocked = missingInputsFor(input);
 
   /**
    * One handoff per DATE, not per candidate. The handoff depends only on the

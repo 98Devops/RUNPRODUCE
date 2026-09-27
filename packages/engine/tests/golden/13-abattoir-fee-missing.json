@@ -45,11 +45,8 @@
     "value": {
       "kind": "missing_input",
       "missing": [
-        { "key": "abattoir_fee", "why": "Client has not provided the abattoir fee per bird (OQ-2)" },
-        {
-          "key": "transport_cents_per_bird",
-          "why": "Client has not provided transport cost per bird (OQ-2)"
-        }
+        { "key": "abattoir_fee", "why": "This input carries no abattoir fee per bird, which nets a bulk sale delivered via the abattoir. The client answered it on 2026-09-10 (10 cents, SEED_ABATTOIR_FEE_CENTS), but a known value is not a supplied one." },
+        { "key": "transport_cents_per_bird", "why": "This input carries no transport cost per bird, which nets a bulk sale. The client answered it on 2026-09-12 (10 cents, SEED_TRANSPORT_CENTS_PER_BIRD, separate from the abattoir fee), but a known value is not a supplied one." }
       ]
     }
   }

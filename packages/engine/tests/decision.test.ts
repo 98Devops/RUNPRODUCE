@@ -63,11 +63,10 @@ describe('computeDecision', () => {
     expect(result).toEqual({
       kind: 'missing_input',
       missing: [
-        { key: 'abattoir_fee', why: 'Client has not provided the abattoir fee per bird (OQ-2)' },
-        {
-          key: 'transport_cents_per_bird',
-          why: 'Client has not provided transport cost per bird (OQ-2)'
-        }
+        // AD-60: the wording is the shared refusal's. It said "Client has not
+        // provided ... (OQ-2)" — true when written, false since 2026-09-12.
+        { key: 'abattoir_fee', why: 'This input carries no abattoir fee per bird, which nets a bulk sale delivered via the abattoir. The client answered it on 2026-09-10 (10 cents, SEED_ABATTOIR_FEE_CENTS), but a known value is not a supplied one.' },
+        { key: 'transport_cents_per_bird', why: 'This input carries no transport cost per bird, which nets a bulk sale. The client answered it on 2026-09-12 (10 cents, SEED_TRANSPORT_CENTS_PER_BIRD, separate from the abattoir fee), but a known value is not a supplied one.' }
       ]
     });
   });
@@ -89,6 +88,37 @@ describe('computeDecision', () => {
       })
     );
     expect(result.kind).toBe('ok');
+  });
+
+  /**
+   * TD-4 finding 8. computeDecision, the cash calendar and computeAllocation
+   * each carried their own refusal list, and they drifted: these two inputs
+   * returned ok here while the calendar refused them. One shared list now
+   * answers for all three.
+   */
+  it('refuses a BANDED bulk order that carries no band schedule', () => {
+    const naked: SalesOrder = { ...bulkSale, pricing_basis: 'BANDED', price_cents_per_bird: null };
+    const result = computeDecision(
+      input({
+        sales: [naked],
+        parameters: {
+          ...input().parameters,
+          abattoir_fee_cents: Money.fromCents(10n),
+          transport_cents_per_bird: Money.fromCents(10n)
+        }
+      })
+    );
+    expect(result.kind).toBe('missing_input');
+    if (result.kind !== 'missing_input') return;
+    expect(result.missing.map((m) => m.key)).toEqual(['bulk_price']);
+  });
+
+  it('refuses a gate order that carries no price for its own basis', () => {
+    const unpriced: SalesOrder = { ...bulkSale, channel: 'GATE', price_cents_per_bird: null };
+    const result = computeDecision(input({ sales: [unpriced] }));
+    expect(result.kind).toBe('missing_input');
+    if (result.kind !== 'missing_input') return;
+    expect(result.missing.map((m) => m.key)).toEqual(['gate_price']);
   });
 
   it('returns feed liability now that U3 has built it', () => {

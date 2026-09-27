@@ -2,11 +2,12 @@ node_modules/
 dist/
 build/
 
-# Stray Python venv artifacts (headroom-ai install)
-Lib/
-Scripts/
-share/
-pyvenv.cfg
+# Stray Python venv artifacts (headroom-ai install). Anchored to the root:
+# with core.ignorecase, an unanchored Lib/ also swallows apps/web/lib/.
+/Lib/
+/Scripts/
+/share/
+/pyvenv.cfg
 
 .next/
 .env
@@ -15,3 +16,7 @@ pyvenv.cfg
 .DS_Store
 coverage/
 *.tsbuildinfo
+
+# Netlify CLI state, and the U9 v1 static export (TD-10)
+.netlify/
+out/

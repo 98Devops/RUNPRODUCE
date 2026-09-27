@@ -2,7 +2,19 @@ import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
-  { ignores: ['**/node_modules/**', '**/dist/**', '**/coverage/**', 'Lib/**', 'Scripts/**'] },
+  {
+    ignores: [
+      '**/node_modules/**',
+      '**/dist/**',
+      '**/coverage/**',
+      '**/.next/**',
+      '**/.netlify/**',
+      'apps/web/out/**',
+      'apps/web/next-env.d.ts',
+      'Lib/**',
+      'Scripts/**'
+    ]
+  },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
@@ -12,6 +24,55 @@ export default tseslint.config(
       '@typescript-eslint/no-unused-vars': [
         'error',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' }
+      ]
+    }
+  },
+  {
+    // T-RP5 (D29, AD-94): one client factory, and the service role out of the
+    // request path.
+    files: ['apps/web/**/*.{ts,tsx}'],
+    ignores: ['apps/web/lib/repositories/client.ts', 'apps/web/lib/repositories/admin.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: '@supabase/supabase-js',
+              importNames: ['createClient'],
+              message: 'Create clients through lib/repositories (createRepositoryClient), which runs the project-ref guard (AD-94).'
+            }
+          ],
+          patterns: [
+            {
+              group: ['admin', 'admin.js', '**/repositories/admin', '**/repositories/admin.js'],
+              message: 'The service-role client is for seed, the DB tests and netlify/functions only (AD-94).'
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    // The factory's own test exercises admin.ts directly; nothing else in apps/web may.
+    files: ['apps/web/tests/repositories/client.test.ts'],
+    rules: { 'no-restricted-imports': 'off' }
+  },
+  {
+    // T-DB1 / T-RP5: repositories read the public views and functions, never the
+    // facts schema or a version table directly.
+    files: ['apps/web/lib/repositories/**/*.ts'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'Literal[value=/facts\\.|_versions/]',
+          message: 'Repositories never name facts.* or a *_versions table (T-DB1).'
+        },
+        {
+          selector: 'TemplateElement[value.raw=/facts\\.|_versions/]',
+          message: 'Repositories never name facts.* or a *_versions table (T-DB1).'
+        }
       ]
     }
   },

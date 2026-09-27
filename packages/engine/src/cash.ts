@@ -4,6 +4,7 @@ import { addDays, daysBetween } from './day-number.js';
 import { bandForDressedG, firstDayAtWeight } from './harvest.js';
 import { Money } from './money.js';
 import { SEED_OVERHEADS, overheadBreakdown } from './overheads.js';
+import { bulkContractProblems, missingInputsFor } from './refusals.js';
 import type {
   BreedCurve,
   CashCalendar,
@@ -13,7 +14,6 @@ import type {
   EngineInput,
   FeedLiability,
   IsoDate,
-  MissingInput,
   Parameters,
   Phase,
   SalesOrder
@@ -53,171 +53,6 @@ export const SEED_TRANSPORT_CENTS_PER_BIRD = 10n as Cents;
  */
 export const SEED_ABATTOIR_COST_CENTS_PER_BIRD = (SEED_ABATTOIR_FEE_CENTS +
   SEED_TRANSPORT_CENTS_PER_BIRD) as Cents;
-
-/**
- * What the calendar cannot compute, and why — checked BEFORE projecting.
- *
- * M5b calls this first: a candidate that cannot be scored must return
- * `missing_input` rather than a number, and discovering that mid-projection
- * would mean throwing away work for every candidate.
- */
-export function cashFlowsMissingInputs(input: EngineInput): MissingInput[] {
-  const missing: MissingInput[] = [];
-  for (const sale of input.sales) {
-    if (sale.channel === 'BULK') continue;
-    missing.push(...gateOrderProblems(sale));
-  }
-  if (!input.sales.some((sale) => sale.channel === 'BULK')) return missing;
-
-  const { abattoir_fee_cents, transport_cents_per_bird, delivery_mode } = input.parameters;
-
-  if (delivery_mode === 'ABATTOIR' && abattoir_fee_cents === null) {
-    missing.push({
-      key: 'abattoir_fee',
-      why:
-        'Bulk net needs the abattoir fee per bird, and this input does not carry it. The ' +
-        'client answered it on 2026-09-10 — 10 cents a bird, SEED_ABATTOIR_FEE_CENTS — but ' +
-        'a known value is not a supplied one. While it is missing, Cover Fast and Build ' +
-        'Reserve return missing_input for any bulk-inclusive candidate and Maximum Growth ' +
-        'still returns a real number, since its scalar is placement size and needs no bulk ' +
-        'net. That split is expected, not a bug (AD-43).'
-    });
-  }
-  if (transport_cents_per_bird === null) {
-    missing.push({
-      key: 'transport_cents_per_bird',
-      why:
-        'Bulk net needs the cost of the run to the abattoir. The client answered it on ' +
-        '2026-09-12 — 10 cents a bird, SEED_TRANSPORT_CENTS_PER_BIRD, separate from the ' +
-        '10c abattoir fee answered 2026-09-10, so 20c a bird in total — but this input ' +
-        'does not carry it. A value being known is not the same as it being supplied, and ' +
-        'nothing reads the seed behind the back of a caller: the seed is what an app-level ' +
-        'default should be built from, not a silent fallback here.'
-    });
-  }
-  /**
-   * The blanket "bulk net is not implemented" refusal that used to stand here
-   * is GONE, because it is implemented (AD-57). What replaces it is a per-ORDER
-   * check, which is the right shape now that the contract lives on the order:
-   * one buyer's deal being unpriceable says nothing about another's.
-   */
-  for (const sale of input.sales) {
-    if (sale.channel !== 'BULK') continue;
-    missing.push(...bulkContractProblems(sale));
-  }
-
-  return missing;
-}
-
-/**
- * What stops THIS gate order being priced, if anything.
- *
- * `SalesOrder.pricing_basis` is typed per order, not per channel, so nothing in
- * the type stops a gate order carrying BANDED. Checked here so the calendar
- * refuses it rather than booking the per-bird price with the bands ignored, and
- * so an unpriced gate order is a typed refusal rather than a throw mid-projection.
- */
-function gateOrderProblems(sale: SalesOrder): MissingInput[] {
-  if (sale.pricing_basis === 'BANDED') {
-    return [
-      {
-        key: 'gate_price',
-        why:
-          `This ${sale.channel} order is priced BANDED. Bands are a bulk contract priced ` +
-          'on dressed weight, and a gate bird is sold live, so there is no gate reading ' +
-          'of them to fall back on.'
-      }
-    ];
-  }
-  const rate =
-    sale.pricing_basis === 'PER_KG' ? sale.price_cents_per_kg : sale.price_cents_per_bird;
-  if (rate === null) {
-    return [
-      {
-        key: 'gate_price',
-        why: `This ${sale.channel} order is priced ${sale.pricing_basis} and carries no such price.`
-      }
-    ];
-  }
-  return [];
-}
-
-/**
- * What stops THIS bulk order being priced, if anything.
- *
- * Separate from the parameter-level checks above because it is per-order: two
- * orders on one batch can be priced by different contracts, and only one of
- * them may be unpriceable.
- */
-function bulkContractProblems(sale: SalesOrder): MissingInput[] {
-  if (sale.pricing_basis === 'BANDED') {
-    if (sale.bands === null || sale.bands.length === 0) {
-      return [
-        {
-          key: 'bulk_price',
-          why:
-            'This BULK order is priced BANDED but carries no band schedule. The contract ' +
-            'belongs to the buyer and Daniel sells to more than one (2026-09-12: bulk ' +
-            'pricing "depends on the buyer"), so nothing can stand in for it — not ' +
-            'parameters.bulk_bands, which is the planning default for a sale that has no ' +
-            'buyer yet.'
-        }
-      ];
-    }
-    if (sale.avg_dressed_weight_g === null) {
-      return [
-        {
-          key: 'dressed_weight',
-          why:
-            'This BULK order is priced on DRESSED weight and none was recorded. Deriving it ' +
-            'from live weight would price a real invoice off the assumed ~62% yield that ' +
-            'OQ-17 exists to replace. A forecast may use that estimate; an invoice may not.'
-        }
-      ];
-    }
-    const floors = sale.bands.map((band) => band.dressed_floor_g);
-    const lowest = Math.min(...floors);
-    const highest = Math.max(...floors);
-    if (sale.avg_dressed_weight_g < lowest) {
-      return [
-        {
-          key: 'bulk_price',
-          why:
-            `A ${sale.avg_dressed_weight_g} g dressed bird falls BELOW this contract's ` +
-            `lowest band (${lowest} g). The schedule does not say what it pays for one, and ` +
-            'reading the bottom band down to cover it would invent a price the contract ' +
-            'does not contain.'
-        }
-      ];
-    }
-    if (sale.avg_dressed_weight_g > highest) {
-      return [
-        {
-          key: 'bulk_price',
-          why:
-            `A ${sale.avg_dressed_weight_g} g dressed bird is ABOVE this contract's top band ` +
-            `(${highest} g), and the schedule stops there. Reusing the top band would ` +
-            'extrapolate past the stated range — and this schedule pays LESS as the bird ' +
-            'gets heavier, so the extrapolation is not even conservative. What a heavier ' +
-            'bird pays is question 2 on the Daniel list, unanswered. See OQ-30.'
-        }
-      ];
-    }
-    return [];
-  }
-
-  const rate =
-    sale.pricing_basis === 'PER_KG' ? sale.price_cents_per_kg : sale.price_cents_per_bird;
-  if (rate === null) {
-    return [
-      {
-        key: 'bulk_price',
-        why: `This BULK order is priced ${sale.pricing_basis} and carries no such price.`
-      }
-    ];
-  }
-  return [];
-}
 
 /**
  * GROSS receipt for an order — contract price x quantity, nothing subtracted.
@@ -305,21 +140,21 @@ export function bulkNetCentsPerBird(sale: SalesOrder, parameters: Parameters): C
   const { abattoir_fee_cents, transport_cents_per_bird, delivery_mode } = parameters;
 
   // The programming-error guard, matching this module's precedent: callers
-  // check cashFlowsMissingInputs() and report a typed refusal; this catches one
+  // check missingInputsFor() and report a typed refusal; this catches one
   // that skipped it. Transport is NOT zero by default — nobody has said the
   // truck is free, and the retired $400 overhead did not price it (OQ-16 was
   // retired, not answered).
   if (transport_cents_per_bird === null) {
     throw new Error(
-      'Cannot net a BULK sale: transport per bird is unavailable (OQ-2). ' +
-        'Call cashFlowsMissingInputs() first and return missing_input.'
+      'Cannot net a BULK sale: transport per bird is unavailable. ' +
+        'Call missingInputsFor() first and return missing_input.'
     );
   }
 
   if (delivery_mode === 'ABATTOIR' && abattoir_fee_cents === null) {
     throw new Error(
       'Cannot net a BULK sale: the abattoir fee per bird is unavailable. ' +
-        'Call cashFlowsMissingInputs() first and return missing_input.'
+        'Call missingInputsFor() first and return missing_input.'
     );
   }
 
@@ -327,7 +162,7 @@ export function bulkNetCentsPerBird(sale: SalesOrder, parameters: Parameters): C
   if (problems.length > 0) {
     throw new Error(
       `Cannot net a BULK sale: ${problems.map((p) => p.why).join(' ')} ` +
-        'Call cashFlowsMissingInputs() first and return missing_input.'
+        'Call missingInputsFor() first and return missing_input.'
     );
   }
 
@@ -644,13 +479,13 @@ export function batchCashFlows(input: EngineInput, feed: FeedLiability): CashFlo
 
   // A calendar missing a bulk receipt is not a calendar with a caveat, it is
   // a wrong balance — so this is a programming-error guard, not the
-  // invariant-5 path. Callers must check cashFlowsMissingInputs() first and
+  // invariant-5 path. Callers must check missingInputsFor() first and
   // return missing_input; this only catches one that skipped it.
-  const missing = cashFlowsMissingInputs(input);
+  const missing = missingInputsFor(input);
   if (missing.length > 0) {
     throw new Error(
       `Cannot project cash: inputs are missing — ${missing.map((m) => m.key).join(', ')}. ` +
-        'Call cashFlowsMissingInputs() first and return missing_input.'
+        'Call missingInputsFor() first and return missing_input.'
     );
   }
 
