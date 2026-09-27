@@ -23,6 +23,7 @@ import {
   type IsoDate,
   type ScoredCandidate
 } from '@runproduce/engine';
+import { plainFlowDescription } from '../display-labels';
 import { formatBirds, formatShortDate } from '../format.js';
 
 /** The calendar card's horizon, counted from `asOf` inclusive. */
@@ -364,7 +365,7 @@ export function buildConsole(input: EngineInput): ConsoleView {
         day: d.day_number,
         kind: f.kind,
         label: FLOW_LABEL[f.kind],
-        description: f.description,
+        description: plainFlowDescription(f.kind, f.description),
         amount_cents: -f.amount_cents,
         planned: f.kind.startsWith('PLANNED_'),
         after_harvest: f.kind === 'PLANNED_FEED_DRAW_PAYMENT' && pastHarvestDue.has(f.date)

@@ -26,7 +26,7 @@ export function Explain({
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="inline-block min-h-6 cursor-pointer rounded-sm py-0.5 underline decoration-line-strong decoration-dotted decoration-1 underline-offset-4 hover:decoration-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          className="inline-block min-h-6 cursor-pointer rounded-sm py-0.5 underline decoration-line-strong/70 decoration-dotted decoration-1 underline-offset-[0.2em] hover:decoration-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         >
           {children}
           <span className="sr-only">, how this is worked out</span>

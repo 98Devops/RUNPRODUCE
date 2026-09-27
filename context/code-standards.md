@@ -124,7 +124,8 @@
 - Use the CSS custom property tokens defined in `ui-context.md`. No
   hardcoded hex values.
 - Follow the border radius scale in `ui-context.md`.
-- Numbers use the mono font. Always. A column of figures must align.
+- Numbers use Geist Sans with tabular figures (`.figures`). A column of
+  figures must align. Mono is for developer or debug views only (AD-100).
 - shadcn components are never used in their default state — customise
   radii, colours and shadows to the tokens.
 - **Run `web-design-guidelines` against every UI unit before marking it

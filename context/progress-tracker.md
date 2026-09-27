@@ -919,6 +919,44 @@ Tracked in `current-issues.md`.
 
 ## Architecture Decisions
 
+**AD-100 · U9 v1 visual pass: the console reads as a product for a farmer, not a developer document. Six deliberate amendments to `ui-context.md` §0.**
+Decided by the user 2026-09-27 ("the visual language reads as a developer
+document"). Recorded here because §0 says a change to its intent is an AD, not a
+silent drift. Branch `u9-visual-pass`.
+- **Numbers are Geist Sans with tabular figures, not mono.** Mono plus a dotted
+  underline read as "placeholder" or "editable". Columns still align
+  (`tabular-nums`). Mono stays for developer or debug views only. Amends §0's
+  "Mono font for all numbers", the Typography table, §12 and code-standards.
+- **A new accent: warm leaf green `#4D7C0F`** (5.0:1 on white), for the
+  wordmark, focus rings and buttons. It is distinct from the forest green
+  `#0F6B3F`, which still means cash in (`--flow-in`) and success. Still one
+  accent.
+- **The recommendation card is the hero:** a faint accent tint
+  (`--accent-soft`, `#F4F7EC`) and the answer at `text-6xl`. §12's "white
+  surface, no fill colour" gains one exception: this card, and only a tint
+  under 5% saturation. The three modes stay in fixed order and identical format
+  (no anchoring, §13).
+- **The cash chart carries colour and a fill.** The line is the accent above
+  zero and `--flow-out` red below, with a soft fill from the line to zero. It
+  is not decorative, which §0 and "What to avoid" ban: the colour is the sign.
+  Below zero means more has gone out than come in since placement, which is
+  what "cash out is red" already means. **On today's fixture the whole line is
+  red,** because nothing has been sold. The card still says it is net movement,
+  not a balance.
+- **Engine enums never reach the screen.** `apps/web/lib/display-labels.ts`
+  is the one plain-language mapping ("PER_BATCH, HARVEST_COMPLETE" becomes
+  "One-time charge, on harvest day"). Engine enums are unchanged. A test fails
+  if an enum token appears in any bill description.
+- **An app bar and a greeting:** the wordmark, the client's trading name
+  (Danrun Poultry, `project-overview.md`) and "Sample batch", said plainly
+  because this is golden fixture 7, not a real batch. The greeting uses the
+  reader's own clock (the page is static), and the status line names the real
+  gap (the opening cash balance), not "everything on track".
+- **Unanswered modes look informational, not broken:** a muted panel with an
+  "i" mark. The text is unchanged: not enough information, and what is needed.
+- **Nothing honest was polished away.** Every "assumed" badge, "not checked"
+  note and caveat is still on the page.
+
 **AD-98 · Bulk delivery is always to the abattoir, and the buyer collects there. `delivery_mode` stays, and no screen asks for it.**
 Answered by Daniel 2026-09-15; closes OQ-37.
 - **The answer.** Birds always go to the abattoir, and the bulk buyer collects

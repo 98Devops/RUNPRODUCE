@@ -11,8 +11,13 @@
   --bg-raised: #fafaf8;
   --text-primary: #1a1a17;
   --text-muted: #6b6b63;
-  --accent-primary: #0f6b3f;
-  --accent-hover: #0b5230;
+  /* AD-100: a warm leaf green for the product identity, distinct from the
+     forest green that means cash in (--flow-in). 5.0:1 on white. */
+  --accent-primary: #4d7c0f;
+  --accent-hover: #3f6212;
+  /* The recommendation card's tint: barely there, never a saturated fill. */
+  --accent-soft: #f4f7ec;
+  --accent-soft-border: #d9e3c4;
   --border-default: #dfdfd8;
   --border-strong: #b8b8ae;
   --state-error: #b42318;
@@ -34,6 +39,8 @@
   --color-muted: var(--text-muted);
   --color-accent: var(--accent-primary);
   --color-accent-hover: var(--accent-hover);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-soft-border: var(--accent-soft-border);
   --color-line: var(--border-default);
   --color-line-strong: var(--border-strong);
   --color-flow-in: var(--flow-in);
@@ -68,7 +75,11 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
+/*
+ * Figures a farmer reads: the UI sans with tabular numerals, so columns still
+ * align (AD-100 replaced mono here). Mono stays for developer views only.
+ */
 .figures {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-variant-numeric: tabular-nums;
 }
