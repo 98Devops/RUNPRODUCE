@@ -1,7 +1,14 @@
-# AD-9: Netlify, Next.js via @netlify/plugin-nextjs (auto-applied to Next sites).
+# AD-9: Netlify, Next.js via @netlify/plugin-nextjs.
 # Monorepo: the site's base is the repo root and its package directory is
 # apps/web, so the workspace install puts @runproduce/engine where Next finds it.
 # Paths here resolve from the base (repo root), not from this file.
+# Built by Netlify from GitHub `main` (TD-10): a Windows build breaks the
+# plugin's server handler.
 [build]
   command = "npm run build -w @runproduce/web"
   publish = "apps/web/.next"
+
+# Declared, not left to framework detection: detection found no Next.js at the
+# repo root, so the first Git build shipped `.next` as plain files (404).
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
