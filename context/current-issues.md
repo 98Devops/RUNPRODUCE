@@ -2246,7 +2246,9 @@ sales, the null-fee guard, gate-order refusal), as are 6, 7 and 11. These remain
 | R2-a | Invariant 16 now counts from the latest `order_date`, which has no upper bound: a mistyped far-future date silently pushes the placement floor out | Input validation, for U6/U8's sales ledger, not the engine |
 | R2-b | `batchCashFlows` is exported and allowlisted as internal; it can be called without `cashFlowsMissingInputs` first | Acceptable while the allowlist entry stands; do not re-export it from index.ts |
 
-### TD-7 · Migration 6 does not apply to a fresh local database 🟠
+### TD-7 · Migration 6 does not apply to a fresh local database ✅ CLOSED 2026-09-27
+**Closed:** the user chose (a). The revoke is wrapped in `if to_regprocedure('public.rls_auto_enable()') is not null`, edited in place with no new migration number. Dev already ran the unguarded text and behaves identically. `npx supabase db reset --local` now applies all seven migrations, and the DB suite passes 72 of 72 on the fresh database.
+
 **Raised:** 2026-09-23, during chunk 7's red run. `20260915071004_security_definer_comments`
 revokes EXECUTE on `public.rls_auto_enable()`, a hosted-platform default that the
 local Supabase image does not ship. On a fresh local database the revoke fails
@@ -2513,7 +2515,7 @@ recommendation — divergences are the most valuable data available.
 | Work | Blocked by |
 |---|---|
 | ~~U6 · applying chunk 5's migrations to dev~~ | **DONE 2026-09-15.** Six migrations applied in one write window (`SESSION.md`) |
-| **U6 · a clean local reset through migration 6** | **TD-7.** Reset to `--version 20260915065625` until it closes |
+| ~~U6 · a clean local reset through migration 6~~ | **DONE 2026-09-27.** TD-7 closed: the revoke is guarded |
 | **U6 · a CI database job** | No CI-only project or throwaway dev branch exists. The DB suite runs locally only (`npm run test:db:local`) and refuses dev |
 | Calibrated `MaxSafeBatchSize` | OQ-1 (mortality data) |
 | ~~M5b · Task 8, the enumeration ceiling~~ | **UNBLOCKED 2026-09-11.** ~~OQ-23~~ answered: the ceiling is an operator-entered `max_placement_birds`, no derived cap. Tasks 1-8 built; Task 9 now blocked on OQ-25 below |

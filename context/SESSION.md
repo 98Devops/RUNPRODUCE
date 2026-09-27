@@ -108,7 +108,7 @@ npm monorepo: a pure TypeScript engine (`packages/engine`) behind a Next.js app 
 ## Blockers
 | Blocker | Blocks | Who resolves |
 |---|---|---|
-| TD-7: migration 6 fails on a fresh local DB (`rls_auto_enable` is hosted-only) | `db reset --local` through migration 6; any future CI DB job | The user: guard the revoke, or a local shim. Workaround: `--version 20260915065625` |
+| ~~TD-7: migration 6 fails on a fresh local DB~~ | **Closed 2026-09-27:** revoke guarded in place; `db reset --local` runs all seven | none |
 | OQ-25: engine holds no opening cash balance | M5b Task 9, wiring `decision.allocation` (getter throws) | Us, U6. Design approved (D8, AD-67); not built |
 | OQ-26: Cover Fast can't answer structurally (candidates have no forecast sales) | 1 of 3 modes | Us, via M6 |
 | OQ-31: Build Reserve pinned null for the same reason (AD-59) | 1 of 3 modes. Only Maximum Growth answers | Us, via M6 |

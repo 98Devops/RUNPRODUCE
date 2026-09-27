@@ -5,7 +5,16 @@
 -- ensure_rls event trigger), not our code. No client calls it directly.
 -- Migration 5's sweep already leaves authenticated without EXECUTE; this makes
 -- that explicit so a platform default grant on a fresh database cannot restore it.
-revoke execute on function public.rls_auto_enable() from authenticated;
+-- TD-7 (edited in place 2026-09-27): the local Supabase image does not ship the
+-- function, so the revoke is guarded. On hosted projects, dev included, it runs
+-- exactly as before.
+do $$
+begin
+  if to_regprocedure('public.rls_auto_enable()') is not null then
+    revoke execute on function public.rls_auto_enable() from authenticated;
+  end if;
+end;
+$$;
 
 -- The Supabase advisor flags each of these as
 -- authenticated_security_definer_function_executable. That is intended.

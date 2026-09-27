@@ -15,8 +15,9 @@ client factory test-first. Local stack only. **Dev not touched:** nothing reads
   invoker, stable, empty search_path; role check first; one 42501 for "not
   permitted" and "not found"; the set in force chosen once (RP002 when none);
   money and bags as text; the AD-67 cash section. EXECUTE to authenticated, not
-  anon. **Applied to the local stack by hand** over migrations 1 to 5, because
-  TD-7 still blocks `db reset` past migration 5. Its local version is a
+  anon. First applied locally by hand over migrations 1 to 5. **TD-7 closed later the
+  same day** (the revoke guarded in place, the user's choice), so `db reset --local`
+  now runs all seven. Its local version is a
   placeholder: rename it to the version dev stamps when it is applied there.
 - **`loadEngineInput`** (AD-91, AD-92): Zod v4 over the pinned contract, then
   D27's mapping. Its only arithmetic is `dayNumberFor` and grams/1000. A money field as a
