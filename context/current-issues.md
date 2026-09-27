@@ -306,7 +306,7 @@ Every client question still open, checked against this file on 2026-09-14 (OQ-38
 
 | OQ | The gap | Shapes |
 |---|---|---|
-| OQ-45 | $2,700 or $4,948.19: which is the 3,000-bird batch's net profit? **Ours first**, then Daniel if we cannot reconcile | The historical baseline (AD-51); fixture 1 is not regenerated until settled |
+| OQ-45 | $2,700 or $4,948.19: which is the 3,000-bird batch's net profit? **Investigated 2026-09-27:** the workbook's own `U93` ($5.00/bird) gives $2,698.19, a $1.81 match on the income side, unconfirmed. Same-batch question queued with OQ-25's follow-ups | The historical baseline (AD-51); fixture 1 is not regenerated until settled |
 | OQ-44 | Does one batch's profit fund the next placement? | A flow between batches; no `EngineInput` field holds it |
 | OQ-43 | The $20K loan at 30%, "triggered at 6 weeks": which terms? | Whether borrowing can be costed at all; nothing modelled until answered |
 | OQ-42 | Does the system model his live 6,000-bird batch, or only hypothetical placements? | What `EngineInput.batch` is in production; onboarding mid-batch |
@@ -626,7 +626,7 @@ So nothing is red. The $4,948.19 is the baseline AD-51 measures its
 discontinuity against. It is also the figure any profit calculation would first
 be checked against, once one is built.
 
-**Known candidates, none chosen:**
+**Candidates as first logged (2026-09-27, before the investigation below):**
 - **Costs the workbook never booked.** Feed delivery at $40/tonne is $528.96 on
   that batch's 13,224 kg (OQ-28, AD-54). That covers under a quarter of the gap.
 - **One source, not two.** The Final Report re-displays the Record sheet's totals
@@ -635,14 +635,80 @@ be checked against, once one is built.
   interest on borrowing (OQ-43), owner's drawings, or losses after the Record
   sheet ends. It may also be rounded, from memory, or from a different batch.
 
-**Proposed handling:** we first try to itemise the $2,248.19 from the workbook and
-the known unbooked costs. If it cannot be itemised, it becomes a question for
-Daniel (proposed wording, not sent): *"Your workbook's final report shows
-$4,948.19 net profit on the 3,000-bird batch, and you told us about $2,700. What
-makes up the difference: costs that are not in the workbook, or a different
-batch?"*
-**Meanwhile:** fixture 1 is **not regenerated**, and AD-51's baseline text stands
-with this question against it.
+**Investigation, 2026-09-27. The workbook's own figures account for all but $1.81
+of the gap, on the income side, not the cost side.** Read-only from the workbook
+("RUNproduce Broiler Management .xlsx") and this file. No cost was modelled or
+added.
+
+*How the workbook reaches $4,948.19:*
+
+| Cell | Formula | Value |
+|---|---|---|
+| `Final Report!C18` | `C13 + C14 − C9` | $4,948.19 |
+| `C9`, expenditure | `SUM(C3:C8)`: chicks $3,000, feed $8,079.81, vaccine $42, electricity $140, labour $640, other $400 | $12,301.81 |
+| `C13`, income | `SUM(Record!T93)`, which is `T43 = S43 × R43` | $17,250.00 |
+| `Record!R43`, kg sold | `J43 × G43 / 1000`: 3,000 closing birds × 2,875 g, **a formula, not an entered sale** | 8,625 kg |
+| `Record!S43`, price | **typed**: $2.00/kg | $2.00 |
+| `C14`, remaining birds | `J92 × G92 / 1000 × G14` = 0 birds | $0 |
+
+**So the $17,250 is not a recorded sale.** It is the whole flock valued at one
+average weight and one typed price. Three things in the workbook show it:
+- **No bird count sold is entered anywhere** (`Q93`, "No of Birds Sold", sums to 0).
+- **`J44` is hand-typed 0** to empty the flock.
+- **No mortality is entered on any of the 90 rows** (`I93` = 0, so `Final
+  Report!G1` livability = 100%).
+
+This corrects a framing used on the Daniel list ("your record shows one sale at
+$2.00/kg"): only the price was entered.
+
+**The workbook's own per-bird alternative closes the gap to $1.81.** `Record!U93
+= J43*5` = **$15,000** (3,000 birds at $5.00), already noted under OQ-4 (gate
+pricing basis) as "a per-bird alternative" but never set against profit:
+
+| | Income | − Expenditure `C9` | = Net profit | Against Daniel's $2,700 |
+|---|---|---|---|---|
+| As the Final Report does (`T93`, $2.00/kg) | $17,250.00 | $12,301.81 | $4,948.19 | +$2,248.19 |
+| With the workbook's `U93` ($5.00/bird) | $15,000.00 | $12,301.81 | **$2,698.19** | **−$1.81** |
+
+The income difference is $2,250.00 against a gap of $2,248.19. Daniel's "about
+$2,700" is plausibly `U93` less the same expenditure, rounded.
+
+**What this does and does not establish:**
+- **It is a numerical match, not a confirmation.** $5.00 is a round number, and
+  a coincidence within $1.81 is unlikely but possible. Nothing in the workbook
+  says `U93` is what was received. It sits in the total row of "Total Income
+  till Date", where a sum would be expected.
+- **If it is the explanation, the gap is revenue, not cost.** Daniel's $2,700
+  would then use the workbook's costs as they stand: the since-retired $400
+  included, and the $40/tonne feed delivery **not** included. Adding the
+  delivery as well gives $2,169.23, $530.77 below his figure. **The two
+  explanations do not stack.** The feed-delivery candidate is kept, but it no
+  longer helps close this gap.
+- **The other candidates, by size, from the workbook alone:**
+  - **Mortality.** At the workbook's own $5.75 a bird, the gap equals 391 unsold
+    birds (13.0% of 3,000). No mortality figure exists to test that against, and
+    none is assumed here.
+  - **Current feed prices (AD-52)** would lower cost by $381.75 and **widen** the
+    gap to $2,629.94. That is the wrong direction.
+- **"A different batch" is not hypothetical.** The workbook's Feed Account sheet
+  plans a Batch 2 (collection 10 Mar 2026) and a Batch 3 (15 Apr 2026) beside
+  Batch 1 (placed 6 Feb 2026). Daniel's figure could be from one of those, and
+  the match with `U93` could still be chance.
+
+**Gap status: largely explained, not confirmed.** One workbook figure accounts
+for the whole gap to $1.81, but only Daniel can say whether $5.00 a bird is what
+he received.
+
+**Queued for Daniel (the user sends; not sent by us), with OQ-25's follow-ups:**
+> *"Was the $2,700 profit from the same 3,000-bird batch in the spreadsheet (placed 6 February), or from a different batch?"*
+
+*Optional second line, the user's call:* *"And did those birds sell at $5.00
+each rather than $2.00 a kg?"* It would confirm or rule out the `U93` match
+directly.
+
+**Meanwhile:** fixture 1 is **not regenerated** (it asserts no profit anyway), and
+AD-51's baseline text stands with this question against it. Nothing in the
+engine, the UI or any fixture was touched by this investigation.
 
 ### OQ-44 · Does one batch's profit fund the next placement? 🟡 OPEN
 **Status:** open. **Raised:** 2026-09-27, from Daniel's reply.
@@ -2127,6 +2193,10 @@ collected" (client, 2026-09-12), so something pays outside the feed terms.
 2. Does the chick account have terms (a due date per purchase), or is it repaid
    whenever?
 3. What is drawn on each account today?
+4. *(Queued 2026-09-27, OQ-45, not an OQ-25 follow-up but for the same
+   message.)* "Was the $2,700 profit from the same 3,000-bird batch in the
+   spreadsheet (placed 6 February), or from a different batch?" There is an
+   optional second line in OQ-45 on the $5.00-a-bird match.
 
 **What this touches, when the answer lands, and not before:**
 - **AD-67 stands but is under question.** Its tables are built and harmless.
