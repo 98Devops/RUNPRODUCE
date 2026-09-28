@@ -542,3 +542,392 @@ else.
    before the merge. That is a site setting I would change only with a yes.
 4. **D5's open point:** past the curve's last day, the last phase carries on,
    labelled. Not needed until chunk 4.
+
+---
+
+## Chunk 3 — Reads and the write repository (D9), feed provenance end to end
+
+**Status: drafted 2026-09-28, for sign-off.** Planning only: no code, no
+migration, no dev write. Decisions needing a yes are marked **▶ SIGN-OFF**.
+
+*Numbering:* D17 onward continues this plan's own series. U6's decisions are
+cited as "U6 Dn" (so the reminders are **U6 D22** and **U6 D23**).
+
+### What chunk 3 lands
+
+Everything the capture form stands on, below the screen, proven against the
+local stack. When it is done:
+- a WORKER's server session can list the batches it may capture for, learn
+  each batch's curve, read that curve's daily points, and read the batch's
+  current records;
+- `recordDailyRecords` writes one or more days through `record_daily_records`,
+  with `feed_entry_source`, `feed_phase` and `feed_phase_source` stored and
+  read back through every surface (the D3 addition and AD-99);
+- the round trip "WORKER writes → WORKER reads back → OWNER's
+  `loadEngineInput` → engine" is a passing DB test;
+- the session cookie is `HttpOnly` and, on HTTPS, `Secure` (TD-13).
+
+The browser leg of the round trip is chunk 5 (see finding 1).
+
+### Findings that shape it
+
+1. **▶ SIGN-OFF · The form is chunk 5, not chunk 3.** The message opening this
+   chunk describes chunk 3 as "the form itself ... the round-trip from browser
+   to database to engine and back". The approved list (chunk 1, "Chunks still
+   to come") has chunk 3 as the data layer, chunk 4 as the engine functions and
+   chunk 5 as the form. **I have kept the approved order.** The form's label
+   and its server-side phase derivation both need `feedPhaseForDay` (chunk 4),
+   and the form needs this chunk's reads and write. Built first, the form would
+   stand on stubs. Chunk 3 still proves the database-to-engine half of the round
+   trip (T-C6).
+2. **The "write repositories from chunk 7" were planned but never built.** U6
+   chunk 7 approved ten of them (D30, AD-95). Only `loadEngineInput`,
+   `myMemberships` and the auth functions exist (`lib/repositories/`). The
+   tracker records this ("Still chunk 7, not built"). D9 already scopes U7 to
+   the one it needs, `recordDailyRecords`, and that is what chunk 3 builds. U6's
+   unbuilt T-AC1 extension for AD-86 (own-record corrections) comes with it,
+   because it is this function's rule (T-C9).
+3. **The curve is pinned by the batch, not named by the parameter set.** D5's
+   closing note says "the parameter set names it". It does not:
+   `facts.batches.breed_curve_id not null` (U6 D11), and `engine_snapshot`
+   reads it from there. So "which curve is in force" is one fixed id per batch,
+   independent of the date, and a placement correction cannot change it. The
+   note's conclusion still holds: a WORKER cannot read `facts.batches` (U6 D22,
+   because `public.batches` joins the placement's chick price). **This corrects
+   D5's note.** It makes D18 simpler than the note expected.
+4. **A WORKER cannot build the engine's `BreedCurve`, and does not need to.**
+   `BreedCurve.phases` carries feed price and `bag_kg` from the parameter set
+   (U6 D27), which is money. What capture needs is only in the points: each
+   point carries `feed_g` (the standard) and `phase` (D5: "the phase is `phase`
+   on the curve's point for the day"). So chunk 4's `feedPhaseForDay` and
+   standard feed take `readonly BreedCurvePoint[]`, not a `BreedCurve`, and a
+   WORKER reads points only (D18).
+5. **No golden fixture carries a daily record.** All eleven have `records:
+   []`. Two consequences:
+   - The D3 addition's "golden fixtures carrying records gain an explicit
+     `null`" touches no JSON. The fields land instead in the 26 `DailyRecord`
+     literals in engine and web unit tests, which the typecheck will find.
+   - **T-RP1, the architectural canary, has never round-tripped a daily
+     record.** Its `record_daily_records` branch has run zero times. That is not
+     fixed by adding records to golden fixtures, whose expected outputs are
+     checked values, not ours to regenerate. T-C6 covers the record path
+     instead, as its own test.
+6. **Postgres mechanics that decide the migration's shape:**
+   - `public.daily_records_history` is `select v.*`, expanded when it was
+     created, so new columns never appear in it until it is recreated. `create
+     or replace view` can only append columns, so it is dropped and recreated,
+     with its grant.
+   - `public.daily_records` lists its columns, so the three are appended with
+     `create or replace`.
+   - `capture_batches()` changing its return columns needs `drop function`
+     then `create`, so its `EXECUTE` grant and its AD-89 comment are re-applied
+     in the same migration. T-AC5's catalog lint then checks the result.
+   - `record_daily_records` and `engine_snapshot` keep their signatures, so
+     `create or replace` keeps their grants and comments.
+   - `private.payload_text` refuses a missing key (22023). That is chunk 3's
+     "present even when null" rule already, so the three new keys are required
+     on every row, with null allowed.
+7. **No new integrity trigger.** Every check chunk 3 adds is a row-local
+   `CHECK`, which runs regardless of who commits. The chunk 5 trigger amendment
+   (`SECURITY DEFINER` integrity triggers, AD-87) is untouched. The existing
+   removals trigger is still exercised through the new repository as a WORKER
+   (T-C7).
+8. **The main-into-u7 merge is done:** `u7-daily-capture` was an ancestor of
+   `main`, so it was fast-forwarded to `a875946` (no merge commit, no content
+   decision). The branch now carries the not-ready page, the working capital
+   copy, the lint fix and TD-13's entry.
+
+### Decisions
+
+**D17 · Chunk 3 is local only; dev takes its migrations in chunk 5's window.**
+- Two migrations, applied with `db reset --local` and tested only there.
+- Nothing deployed in chunk 3 calls the new reads: `/capture` is still chunk
+  2's placeholder, which calls `myMemberships` only. So dev can wait.
+- **Dev gets both migrations in one narrow write window at the start of chunk
+  5**, when the form first needs them, with your yes at that point (D14's
+  pattern). Until then dev's schema is behind the branch, and nothing on
+  the branch deploy reaches the difference.
+- **Chunk 3 stays on `u7-daily-capture`.** Merging it to `main` is your call.
+  My recommendation is to merge with chunk 5, so `main`'s migrations are never
+  ahead of dev for a whole chunk.
+
+*Recommended.*
+
+**D18 · ▶ SIGN-OFF · How a WORKER learns the curve: `capture_batches()` returns
+`breed_curve_id`, and a WORKER reads `breed_curve_points` only.**
+- **`capture_batches()` gains one column, `breed_curve_id`.** It has the same
+  rows, the same role check and still no `_cents` column (T-AC2's assertion
+  stands). This is the shape D5's note predicted, now without a date argument
+  (finding 3).
+- **`breed_curve_points` read policy widens to OWNER, MANAGER and WORKER.** The
+  policy `breed_curve_points_owner_manager_read` is replaced by
+  `breed_curve_points_member_read`. The table holds day, weight, feed grams and
+  phase, with no money, so U6 D22's whole-table rule allows it. A WORKER reads
+  every curve in their organisation, never another organisation's.
+- **This is narrower than D3 as approved.** D3 named points *and*
+  `breed_curve_phases`. Finding 4 shows the phases table is not needed, so it
+  stays OWNER and MANAGER, as do `breed_curves` and every parameter table.
+  If chunk 4 finds a need, it is one more policy then.
+- **U6 D21's matrix row changes** ("Breed curves, points, phases ✓ · ✓ · —"
+  splits so points read ✓ · ✓ · ✓). T-AC2's table changes with it: the test
+  table is the D21 table, so one cannot change without the other. Logged as
+  **AD-101**, amending AD-86's third default and AD-87.
+
+| Option | Against |
+|---|---|
+| **`capture_batches()` returns the curve id; policy on points** | A policy change on a settings table |
+| A new `SECURITY DEFINER` function returning the batch's points | No policy change, but a second definer path to a table RLS could serve directly (U6 D22 preferred explicit, testable checks; this is one) |
+| Points inlined into `capture_batches()` | Every batch listing carries ~41 points per batch, and the function's return type gets a nested shape |
+| Widen points and phases, as D3 said | Exposes a table nothing reads |
+
+*Recommended: the first.*
+
+**D19 · Three readers and one writer, in `lib/repositories/capture.ts`.**
+All are thin, Zod-parsed and mapped through `mapDatabaseError` (D28, AD-93),
+and exported from `index.ts` only. None names `facts.` or `_versions` (T-RP5).
+- **`captureBatches(client)`** over `public.capture_batches()` returns
+  `CaptureBatch[]`: `{ batchId, code, placementDate, chickCount,
+  extraChickCount, breedCurveId }`. **The row schema is `.strict()`:** a column
+  the reader did not ask for makes it a `RepositoryError`. A widened function
+  therefore fails loudly here instead of carrying data the screen never
+  declared, which matters on the one function a WORKER reads money-bearing
+  tables through.
+- **`dailyRecords(client, batchId)`** over `public.daily_records`, ordered by
+  `record_date`. It returns the current version per date: `id`, `recordDate`,
+  both cumulatives, the three feed columns **in grams**, weight and sample,
+  `notes`, `createdBy`, and the three provenance fields. It serves the
+  previous totals (D4), the backfill list, and corrections: the id becomes
+  `supersedesId`, and `createdBy` decides whether "correct" is offered (AD-86).
+  Grams stay grams, because kg is the form's boundary (TD-5).
+- **`curvePoints(client, curveId)`** over `public.breed_curve_points`, ordered
+  by `day_number`, returns the engine's own `BreedCurvePoint[]`. It feeds
+  chunk 4's functions directly, the way `loadEngineInput` returns engine types.
+  An empty result is a `RepositoryError` ("curve has no points"), never an
+  empty curve passed on as "no standard" (invariant 5).
+- **`recordDailyRecords(client, { batchId, rows })`** over
+  `record_daily_records`:
+  - **Zod checks shapes only** (U6 D30). Integers where the database has
+    integers, so a kg decimal is refused before any call. Enums come from
+    `PHASES`, `ENTRY_SOURCES` and `PHASE_SOURCES`, and the uuids are checked.
+    Business rules stay in the database: the both-or-neither and zero rules
+    are its CHECKs, not duplicated here.
+  - **Every row sends every key**, nulls included (finding 6). The payload
+    type has **no `org_id` and no `created_by`**, so it cannot send them (U6
+    D23). T-C4 asserts the wire payload's exact key set.
+  - **`clientRequestId` comes from the caller** (the draft, D6), never
+    generated here (U6 D30).
+  - **It returns the row ids in input order.** A no-op returns the existing id
+    (AD-75), so a retry cannot be told from a first write.
+
+*Recommended.* **The naming rule it follows:** a reader that feeds the engine
+returns engine types (`curvePoints`, `loadEngineInput`); a reader for the
+screen returns camelCase (`captureBatches`, `dailyRecords`, as
+`myMemberships` does).
+
+**D20 · `feed_entry_source`, `feed_phase` and `feed_phase_source` end to end, in
+one commit.**
+
+*Engine* (no engine behaviour changes; calibration does not read them yet):
+- **`types.ts`:** `EntrySource = 'MEASURED' | 'STANDARD_CONFIRMED'` and
+  `PhaseSource = 'FROM_CURVE' | 'EXTRAPOLATED_BEYOND_CURVE'`. `DailyRecord`
+  gains all three as **required** fields that may be null (`feed_entry_source:
+  EntrySource | null`, `feed_phase: Phase | null`, `feed_phase_source:
+  PhaseSource | null`), so every constructor states them.
+- **`enums.ts`:** `ENTRY_SOURCES` and `PHASE_SOURCES`, `as const satisfies`,
+  with the type-level completeness check (AD-92). Both are re-exported by the
+  repository layer.
+
+*Database* (migration `u7_feed_provenance`):
+- **Three nullable columns** on `facts.daily_record_versions`, each with a
+  named values CHECK (`..._feed_entry_source_values`, `..._feed_phase_values`,
+  `..._feed_phase_source_values`). There is no backfill: an existing row's
+  honest value is null, "not recorded".
+- **`daily_record_versions_phase_with_source`:** `feed_phase` and
+  `feed_phase_source` are both null or both set (AD-99).
+- **`daily_record_versions_feed_under_phase`:** when `feed_phase` is set, the
+  other two feed columns are 0 (AD-99). Neither check reads a curve (D5).
+- **▶ SIGN-OFF · new, not in AD-99:
+  `daily_record_versions_standard_from_curve`.** `STANDARD_CONFIRMED` requires
+  `feed_phase_source = 'FROM_CURVE'`. Two approved rules already imply it: a
+  standard exists only on the curve's days (AD-99: "no standard-feed suggestion
+  is offered after the curve's last day"), and a standard is a phase's figure,
+  so it cannot lack a phase. Stating it in the database turns a contradiction
+  from a buggy or hand-made call into a refusal. It is row-local and reads no
+  curve.
+- **`record_daily_records`:** reads the three keys with `payload_text`
+  (required, null allowed); includes them in the no-op comparison (`is not
+  distinct from`), so a change to provenance alone is a correction, not a
+  silent no-op; includes them in the insert. A void copies the head row as
+  now, so provenance carries into the void version unchanged.
+- **Views and snapshot:**
+  - `public.daily_records` appends the three columns.
+  - `public.daily_records_history` is recreated (finding 6).
+  - `engine_snapshot` adds the three keys to each record.
+  - The pinned contract (`snapshot-fixture.ts`) and `loadEngineInput`'s Zod and
+    mapping carry them through to `DailyRecord` unchanged.
+- **AD-63 drift test:** three new governed constraints, one per values CHECK.
+- **Every existing caller updated in the same commit:** `payloads.ts`'s `day()`,
+  T-RP1's record mapping, and the integrity, round-trip and access tests. They
+  send null, because none of them is a form.
+
+**▶ SIGN-OFF · What the database deliberately does not check: that the phase
+is the right one for the day.** You flagged U6 D23, so this is stated rather
+than left implicit:
+- **U6 D23 covers who and where.** The organisation comes from the batch,
+  `created_by` from `auth.uid()`. `recordDailyRecords` cannot send either.
+- **The phase is different: it is part of what was recorded,** like the feed
+  amount and the death count. A signed-in WORKER who bypasses the form and
+  calls the RPC by hand could file today's feed under the wrong phase. They
+  could equally type the wrong kilograms, and the database accepts both from
+  the same person for the same reason: it cannot know. The row still names
+  who wrote it, and AD-86 limits them to their own organisation and their own
+  corrections.
+- **In the app, the phase is always derived on the server** (chunk 5, D5), so
+  the form can never choose it.
+
+| Option | Against |
+|---|---|
+| **As approved in D5: the server action derives the phase; the database checks shape only** | A hand-made RPC call can mislabel the phase of its own feed |
+| `record_daily_records` checks the phase against the batch's pinned curve when it writes (a check in the function, not a CHECK constraint, so a later placement correction leaves old rows valid) | Duplicates `feedPhaseForDay`, including the past-the-curve rule, in SQL. That is a second copy of an engine rule, needing a parity test to keep them equal. And it still cannot check `STANDARD_CONFIRMED`, which would take the engine's standard-feed arithmetic |
+| The function derives the phase itself from one amount | The same duplication, and it breaks D5's "a later import of mixed historical days still fits" |
+
+*Recommended: as approved.* **If you want the second,** it adds one function
+check and one parity test to this chunk, and nothing else changes.
+
+**D21 · TD-13 is absorbed here: the session cookie becomes `HttpOnly`, and
+`Secure` in production.**
+- **Where:** `createSessionClient` in `lib/repositories/session.ts`, the only
+  place a session client is made. It passes `cookieOptions: { httpOnly: true,
+  secure, sameSite: 'lax', path: '/' }` to `createServerClient`.
+- **▶ SIGN-OFF · what decides `secure`:** `env.NODE_ENV === 'production'`,
+  read from the same `env` argument as the project-ref guard, so it is
+  testable.
+  - Netlify builds (branch and production) run in production and serve HTTPS,
+    so the cookie is `Secure` there.
+  - `next dev` on `http://localhost` is not, so local sign-in keeps working.
+  - The session client never sees the request, so it cannot read the
+    protocol itself. That is why the setting is chosen by environment.
+- **Why chunk 3:** `session.ts` is a repository file. Chunk 3 is the
+  repository chunk, and TD-13 said to fix it in chunk 3 or 4, whichever comes
+  first.
+- **It has its own commit** inside the chunk, so the change to the auth cookie
+  can be read on its own.
+- **Verified on the branch deploy** when the chunk lands: the cookie shows
+  `HttpOnly` and `Secure` in the browser, as the chunk 2 checks showed it
+  without them. That needs a dev user, which D14's window provides in chunk 5.
+  **Until then it is proven locally only** (T-S1, T-S6). I will report it as
+  unverified on Netlify until then, not as done.
+
+*Recommended.*
+
+### Tests, in TDD order, each watched red first
+
+*Engine (`packages/engine`):*
+- **T-E1 enums:** `ENTRY_SOURCES` and `PHASE_SOURCES` are complete against
+  their unions, as the existing enum tests do.
+- **T-E2 the engine ignores provenance:** `computeDecision` is deep-equal for
+  two inputs whose records differ only in the three fields. This guards against
+  a rule starting to read them before calibration decides how (D3 addition:
+  "Calibration does not read it yet").
+
+*Unit (`apps/web`, fake client, no database):*
+- **T-C1 `captureBatches`:** rows mapped; an extra column (for example
+  `chick_price_cents`) is a `RepositoryError`; an RPC error maps by SQLSTATE.
+- **T-C2 `dailyRecords`:** rows mapped with the three fields null and set; an
+  unknown enum value is refused; the query targets `daily_records` filtered by
+  batch.
+- **T-C3 `curvePoints`:** points mapped to `BreedCurvePoint`; an empty result
+  is a `RepositoryError`.
+- **T-C4 `recordDailyRecords`:**
+  - a kg decimal, a missing `clientRequestId` and an unknown enum are each
+    refused before any call;
+  - the wire payload has exactly the 14 row keys, nulls present, and no
+    `org_id` or `created_by`;
+  - 42501, 23514, 23505 and RP001 map to `Forbidden` (the database's sentence),
+    `IntegrityRejected`, `Conflict` and `StaleCorrection`.
+- **T-S1 extended (TD-13):** `createServerClient` receives the cookie options;
+  `secure` follows `NODE_ENV`.
+- **Snapshot contract:** `snapshot-fixture.ts` gains the three keys, and
+  `loadEngineInput` maps them unchanged.
+
+*Database half (`packages/db-tests`, local stack; T-AC1's style, users signed in
+through Auth):*
+- **AD-63 drift:** the three new values CHECKs.
+- **T-C6 round trip, as a WORKER:**
+  1. The WORKER writes three days through `recordDailyRecords`: one
+     `STANDARD_CONFIRMED` + `FROM_CURVE`, one `MEASURED` +
+     `EXTRAPOLATED_BEYOND_CURVE`, and one with all three null.
+  2. The WORKER reads them back unchanged through `dailyRecords`.
+  3. The OWNER's `loadEngineInput` returns the same records as `DailyRecord`s,
+     day numbers and kg included, and `computeDecision` runs on them.
+
+  This is the record path T-RP1 never exercised (finding 5).
+- **T-C7 the new CHECKs, as a WORKER:** a phase without its source, feed under
+  a second column when a phase is set, `STANDARD_CONFIRMED` with
+  `EXTRAPOLATED_BEYOND_CURVE`, and an unknown enum string. Each is
+  `IntegrityRejected` naming its constraint, and writes nothing. The removals
+  trigger still refuses a WORKER through the repository (U6 D22's trigger
+  point).
+- **T-C8 idempotency and no-ops:**
+  - the same `clientRequestId` returns the same id;
+  - an identical resubmission with a new id returns the head's id and writes
+    nothing;
+  - a resubmission that changes only `feed_entry_source` writes a correction.
+- **T-C9 AD-86 through the repository** (U6's unbuilt T-AC1 extension):
+  - a WORKER corrects and voids their own record;
+  - `Forbidden` naming the day for another's record, a manager-corrected
+    record, a seed row (`created_by` null), and a first entry on a date someone
+    else recorded;
+  - a multi-day call containing one such row writes nothing;
+  - a MANAGER corrects any record;
+  - a stale `supersedesId` is `StaleCorrection`.
+- **T-C10 WORKER reads (T-AC2 amended):**
+  - `capture_batches()` returns `breed_curve_id` and still no `_cents` column;
+  - a WORKER reads their organisation's `breed_curve_points` and none of
+    another organisation's;
+  - a WORKER still gets zero rows from `breed_curves`, `breed_curve_phases` and
+    every parameter table.
+- **T-AC5 catalog lint** passes after `capture_batches` is recreated
+  (`search_path = ''`, no `PUBLIC` or `anon` execute).
+- **T-S6 extended (TD-13):** after a real sign-in, the auth cookie written to
+  the jar carries `httpOnly: true`, `sameSite: 'lax'`, `path: '/'`.
+
+### Commits, in order, each green on engine, web, local DB, lint and typecheck
+
+1. **TD-13:** session cookie flags (D21).
+2. **Feed provenance end to end:** engine type and enums, migration
+   `u7_feed_provenance`, write function, views, snapshot, contract, drift test,
+   every caller (D20). One commit, as the D3 addition requires.
+3. **WORKER capture reads:** migration `u7_worker_capture_reads`
+   (`capture_batches` curve id, points policy) and T-AC2's amendment (D18).
+4. **The repositories:** `captureBatches`, `dailyRecords`, `curvePoints`,
+   `recordDailyRecords`, with T-C1 to T-C10 (D19).
+5. **Docs:** progress tracker; AD-101 (and AD-102 if D20's new CHECK is
+   approved); TD-13 closed in `current-issues.md` (locally proven, Netlify
+   pending); D5's note corrected; U6 D21's matrix row amended.
+
+### Out of chunk 3
+
+- The form, the draft, backfill and correction screens, and the server action
+  that derives the phase and builds the row (chunk 5).
+- `feedPhaseForDay` and the standard feed (chunk 4).
+- Any dev or Netlify change (D17).
+- Feed draws (D9).
+- Anything waiting on Daniel. Chunk 3 touches no recommendation logic, OQ-25's
+  structure C, OQ-43 or OQ-46's facility model.
+
+### For sign-off
+
+1. **Finding 1:** the approved chunk order stands. The form is chunk 5; chunk
+   3 is the data layer plus the database-to-engine round trip.
+2. **D18:** `capture_batches()` returns `breed_curve_id`; a WORKER reads
+   `breed_curve_points` only, which is narrower than D3's points and phases
+   (AD-101).
+3. **D20's new CHECK:** `STANDARD_CONFIRMED` requires `FROM_CURVE` (AD-102).
+4. **D20's boundary:** the database does not check the phase against the
+   curve; the server derives it (as approved in D5). Or the write-time check,
+   if you want it.
+5. **D21:** `secure` follows `NODE_ENV`. TD-13 is closed locally in chunk 3,
+   and verified on Netlify in chunk 5's dev window.
+6. **D17:** the migrations reach dev in chunk 5's window, not now, and chunk 3
+   stays on the branch until then.
