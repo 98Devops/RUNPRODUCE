@@ -1113,7 +1113,8 @@ Reads go through views and tables with RLS. Writes go only through the
 | Data | Read: OWNER · MANAGER · WORKER | Write function | Write: OWNER · MANAGER · WORKER |
 |---|---|---|---|
 | Parameter sets, overhead lines, planning bands, feed prices | ✓ · ✓ · — | `create_parameter_set` | ✓ · — · — (settings) |
-| Breed curves, points, phases | ✓ · ✓ · — | `create_breed_curve` | ✓ · — · — (settings) |
+| Breed curves, phases | ✓ · ✓ · — | `create_breed_curve` | ✓ · — · — (settings) |
+| Breed curve points (*amended by U7 D18, AD-101, 2026-09-28*: money-free, and all capture needs from the curve) | ✓ · ✓ · ✓ | `create_breed_curve` | ✓ · — · — (settings) |
 | `batches`, `batches_history` (placement, chick price) | ✓ · ✓ · — | `record_batch`, `record_batch_placement` | ✓ · ✓ · — |
 | Batch closure (in `batches`) | ✓ · ✓ · — | `record_batch_closure`, including a void to reopen | ✓ · — · — (batch close) |
 | `daily_records`, `daily_records_history` | ✓ · ✓ · ✓ | `record_daily_records`: new | ✓ · ✓ · ✓ |
@@ -1153,7 +1154,10 @@ The readings as drafted (the third is superseded by the amendment above):
   history shows who did what (`created_by`). Nothing is lost, because nothing is
   deleted (AD-75).
 - **A WORKER reads no breed curve.** Capture needs none, and adding a read is a
-  one-line policy later.
+  one-line policy later. *(Amended by U7 D18, AD-101, 2026-09-28: capture does
+  need the day's standard feed and phase, so a WORKER reads
+  `breed_curve_points`, and `capture_batches()` returns the batch's
+  `breed_curve_id`. Curves and phases stay OWNER and MANAGER.)*
 
 ### D22 · WORKER is kept from money by whole tables, not columns
 

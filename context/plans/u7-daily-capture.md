@@ -237,7 +237,11 @@ a later consumer must be able to tell them apart.
 
 **Found while amending, for chunk 3:** a WORKER cannot learn *which* curve is in
 force for a batch. The parameter set names it, and a WORKER cannot read
-parameter sets (money). So D3's "curve read for WORKER" also needs the curve id
+parameter sets (money). *(**Amended 2026-09-28, chunk 3 finding 3:** the
+parameter set does not name it. The batch pins it
+(`facts.batches.breed_curve_id`, U6 D11), so it is one fixed id per batch,
+whatever the date. The conclusion held: a WORKER cannot read `facts.batches`.
+Resolved by D18 / AD-101.)* So D3's "curve read for WORKER" also needs the curve id
 for the batch and date. Chunk 3 decides how: the likely shape is
 `capture_batches()` returning the curve id in force, without touching the money
 tables' grants.
@@ -547,8 +551,25 @@ else.
 
 ## Chunk 3 — Reads and the write repository (D9), feed provenance end to end
 
-**Status: drafted 2026-09-28, for sign-off.** Planning only: no code, no
-migration, no dev write. Decisions needing a yes are marked **▶ SIGN-OFF**.
+**Status: approved 2026-09-28, all six sign-off points, and built the same day**
+(`ddf0a4a`, `ba6c0e1`, `d0bb6a8`, `a5c87f1`; local stack only, dev untouched).
+The rulings:
+- **Finding 1:** the chunk order stands (data layer → engine functions → form).
+- **D18 → AD-101.**
+- **D20's new CHECK → AD-102.**
+- **D20's non-check → AD-103:** "defence in depth means layers guarding
+  different failure modes, not the same computation duplicated for redundancy",
+  now a standing principle.
+- **D21:** `Secure` in production, approved. TD-13 closes with **both**
+  `HttpOnly` and `Secure`, as drafted, not narrowed.
+- **D17** as drafted.
+
+The deviations found while building are in the progress tracker's chunk 3
+entry: there is no T-AC2 to amend, the literal count was 4 not 26, T-RT3 already
+covered the records mapping, and the wire payload has 15 keys, not 14.
+
+*The draft as presented follows.* Decisions that needed a yes are marked
+**▶ SIGN-OFF**.
 
 *Numbering:* D17 onward continues this plan's own series. U6's decisions are
 cited as "U6 Dn" (so the reminders are **U6 D22** and **U6 D23**).

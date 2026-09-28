@@ -81,6 +81,66 @@ reply logged.**
 - **TD-13 logged, HIGH:** the session cookie's `HttpOnly` and `Secure` flags,
   for chunk 3 or 4.
 
+**U7 chunk 3 built, 2026-09-28** (plan: `context/plans/u7-daily-capture.md`,
+chunk 3, D17 to D21, all approved). It is on branch `u7-daily-capture` only, and
+ran against the local stack only. **Dev was not touched:** both migrations go
+to dev in chunk 5's window (D17). Before chunk 3, `u7-daily-capture` was
+fast-forwarded to `main` (`a875946`).
+- **TD-13 fixed, both flags** (`ddf0a4a`, D21). `HttpOnly` is always on;
+  `Secure` follows `NODE_ENV`, and is inlined in the middleware bundle. It is
+  proven locally and not yet on Netlify. See `current-issues.md`.
+- **Feed provenance end to end** (`ba6c0e1`, D20):
+  - `DailyRecord` gains `feed_entry_source`, `feed_phase` and
+    `feed_phase_source`; `ENTRY_SOURCES` and `PHASE_SOURCES` are the runtime
+    arrays.
+  - Migration `u7_feed_provenance`: three nullable columns and five named
+    CHECKs (three for values, AD-99's two, and AD-102's). `record_daily_records`
+    requires the three keys, compares them for the no-op and stores them. The
+    views and `engine_snapshot` carry them; the history view is recreated.
+  - The engine reads none of them; T-E2 pins that.
+- **WORKER capture reads** (`d0bb6a8`, D18, AD-101): `capture_batches()`
+  returns `breed_curve_id`, and a WORKER reads `breed_curve_points` only.
+- **Capture repositories** (`a5c87f1`, D19): `captureBatches`,
+  `dailyRecords`, `curvePoints` and `recordDailyRecords` in
+  `lib/repositories/capture.ts`.
+- **What U6 chunk 7 deferred, and what chunk 3 now builds (a trace for later
+  reviews).**
+  - U6 chunk 7 approved ten write repositories (D30, AD-95) and built none.
+    Chunk 3 builds **`recordDailyRecords` only**.
+  - Still unbuilt: `recordBatch`, `recordBatchPlacement`, `recordBatchClosure`,
+    `recordFeedDraw` (U8), `recordSalesOrder`, `recordCashAccount`,
+    `recordCashTransaction`, `createParameterSet` and `createBreedCurve`.
+  - **T-AC1's AD-86 extension is now written, as T-C9:** a WORKER corrects and
+    voids their own record, and is refused another's, a manager-corrected
+    record, a seed row and a first entry on someone else's date. A multi-day
+    call with one refused row writes nothing; a MANAGER corrects any record; a
+    stale correction is refused.
+  - **U6's T-AC1 to T-AC5 are otherwise still unwritten** (see "Honest limits"
+    below). T-C10 covers only the objects D18 changed, plus the catalog
+    properties of the recreated `capture_batches`.
+- **Deviations from the plan, named:**
+  - D18 said "T-AC2's table changes with it", but there is no T-AC2 to change.
+    T-C10 stands in for the part D18 touches.
+  - Finding 5 counted 26 `DailyRecord` literals. That count included helper
+    calls; the constructors were four.
+  - Finding 5 said the record path had never been exercised. That was true of
+    T-RP1 only: T-RT3 already covered the records mapping. What T-C6 adds is
+    provenance, and a WORKER going through the repositories.
+  - T-C4's wire payload has 15 keys, not 14 (`voided`).
+  - T-E2 first failed on its own comparison, not on the engine: a deep equal
+    read `allocation`, which throws until OQ-25. It now compares section by
+    section, as T-RP1 does.
+  - T-C6 to T-C9 passed on their first run, because they were written after
+    `capture.ts`. A deliberate fault (the writer sending null provenance)
+    turned T-C6 and T-C8 red. T-C9 exercises rules the database has had since
+    U6.
+- **Suites:** engine 362 (from 359), web 228 (from 188), golden 11 + 1 held,
+  local DB 139 (from 78). Typecheck, lint and `next build` are clean. A fresh
+  `db reset --local` applies all nine migrations, and all 139 DB tests pass on
+  it.
+- **The migration versions are local placeholders,** like `engine_snapshot`'s:
+  rename each to the version dev stamps when chunk 5 applies them.
+
 **U6 — chunk 7 green, 2026-09-27.** The red phase below, turned green, plus the
 client factory test-first. Local stack only. **Dev not touched:** nothing reads
 `engine_snapshot` from dev until U7, so the migration waits for that.
@@ -116,6 +176,8 @@ client factory test-first. Local stack only. **Dev not touched:** nothing reads
 - **Still chunk 7, not built:** the write repositories (D30, AD-95),
   `myMemberships`, T-AC1's AD-86 extension. U7's daily-entry form needs
   `recordDailyRecords` from D30, so that one is U7's chunk 1 dependency.
+  *(Update 2026-09-28: `myMemberships` came in U7 chunk 2; `recordDailyRecords`
+  and the AD-86 extension came in U7 chunk 3. See that entry for what remains.)*
 - **Branch hygiene:** `apps/web/package.json` here gained `zod`. When this
   branch meets `u9-first-screen`, the resolution is u9's file plus `zod`.
 
@@ -987,6 +1049,56 @@ regenerating when real mortality data lands.
 Tracked in `current-issues.md`.
 
 ## Architecture Decisions
+
+**AD-103 · Defence in depth means layers guarding different failure modes, not the same computation duplicated for redundancy.**
+Decided by the user 2026-09-28 (U7 chunk 3, D20), **as a standing principle
+for future decisions about where to put checks.**
+- **The case that set it.** The database does not check that a daily record's
+  `feed_phase` is the one the batch's curve gives that day. The server derives
+  the phase (D5, AD-99), and it is the single source of truth for it.
+- **The rejected alternative.** A write-time check in `record_daily_records`
+  would be a second copy of `feedPhaseForDay`, including the past-the-curve
+  rule, in SQL. It would need a parity test to keep the two equal. And it still
+  could not check `STANDARD_CONFIRMED`, which takes the engine's standard-feed
+  arithmetic.
+- **What the database does guard is a different failure mode:** internal
+  contradiction within a row (AD-99's two checks, AD-102), and who and where
+  (U6 D23). A hand-made RPC call can mislabel its own feed's phase, just as it
+  can mistype its kilograms. The row still names its author, and AD-86 bounds
+  what that author may change.
+- **How to apply it.** Before adding a check at a second layer, name the
+  failure it catches that the first layer cannot. If the answer is "the same
+  computation, in case the first copy is wrong", that is duplication, not
+  depth: fix the first copy's tests instead.
+- **Pinned by a test:** `feed-provenance.test.ts` stores FINISHER on day 2.
+
+**AD-102 · `STANDARD_CONFIRMED` requires `feed_phase_source = 'FROM_CURVE'`, as a named CHECK.**
+Decided by the user 2026-09-28 (U7 chunk 3, D20).
+`daily_record_versions_standard_from_curve`. Two approved rules already imply
+it: a standard exists only on the curve's days (AD-99: no suggestion past the
+curve's end), and a standard is a phase's figure, so it cannot lack a phase.
+The database now refuses the contradiction instead of storing it. It is
+row-local and reads no curve.
+- **It is written with `is not distinct from`,** because a CHECK whose
+  expression is NULL passes. A plain `= 'FROM_CURVE'` would have let a
+  standard with no phase source through. There is a test for that case.
+
+**AD-101 · A WORKER learns the batch's curve from `capture_batches()`, and reads `breed_curve_points` only.**
+Decided by the user 2026-09-28 (U7 chunk 3, D18). It amends AD-86's third
+default ("a WORKER reads no breed curve") and AD-87 (what `capture_batches()`
+returns).
+- **The curve is pinned by the batch** (`facts.batches.breed_curve_id`, U6
+  D11), not named by the parameter set as U7 D5's note assumed. So it is one
+  fixed id per batch, and `capture_batches()` returns it. A WORKER still cannot
+  read `facts.batches` (U6 D22).
+- **Points only, not the whole curve.** Each point carries the day's standard
+  feed and phase, which is all capture needs. The engine's `BreedCurve` carries
+  feed prices from the parameter set, which is money. So `breed_curves`,
+  `breed_curve_phases` and every parameter table stay OWNER and MANAGER. This is narrower than U7 D3 approved (points and phases), and
+  that is correct: U6 D22 shapes whole tables to what each role needs.
+- **U6 D21's matrix row splits:** points read ✓ · ✓ · ✓; curves and phases
+  stay ✓ · ✓ · —.
+- **Tested by T-C10.**
 
 **AD-100 · U9 v1 visual pass: the console reads as a product for a farmer, not a developer document. Six deliberate amendments to `ui-context.md` §0.**
 Decided by the user 2026-09-27 ("the visual language reads as a developer

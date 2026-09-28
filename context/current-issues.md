@@ -2704,7 +2704,23 @@ and 5.0:1 on the page background; the flow colours are over 6:1.
   HARVEST_COMPLETE". Honest but not plain language. A copy follow-up, not
   accessibility.
 
-### TD-13 · The session cookie is neither HttpOnly nor Secure 🔴 HIGH — next chunk that can absorb it (U7 chunk 3 or 4)
+### TD-13 · The session cookie is neither HttpOnly nor Secure — ✅ FIXED in U7 chunk 3 (`ddf0a4a`), both flags; Netlify check pending chunk 5
+**Fixed 2026-09-28, both parts, not narrowed.** `createSessionClient` passes
+`cookieOptions: { httpOnly: true, secure, sameSite: 'lax', path: '/' }`.
+- **`HttpOnly` is always on.** No script needs the cookie (no browser client).
+- **`Secure` is on in a production build** (`NODE_ENV === 'production'`), and so
+  on every Netlify deploy, which serves HTTPS. It is off under `next dev` on
+  `http://localhost`, which would otherwise lose the cookie. `NODE_ENV` is read
+  literally in the default so Next inlines it into the edge middleware bundle;
+  the build output was checked (`NODE_ENV:"production"` in `middleware.js`).
+- **Proven locally:** T-S1 (the options reach `createServerClient`, `secure`
+  per `NODE_ENV`) and T-S6 (after a real sign-in on the local stack, every
+  auth cookie written carries the flags, `Secure` too under a production env).
+- **Not yet seen on Netlify.** That needs a signed-in dev user, which chunk 5's
+  dev window provides. Until then this is locally proven, not verified on the
+  deploy.
+
+*Original entry, kept for the reasoning:*
 Found 2026-09-28, verifying U7 chunk 2 on the Netlify branch deploy. After
 sign-in, `sb-zlvjmaorlxrjnuxhykuh-auth-token` is set with `HttpOnly` off,
 `Secure` off and `SameSite=Lax`.
