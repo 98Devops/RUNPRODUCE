@@ -38,8 +38,8 @@ export function CashCalendarCard({ view }: { readonly view: ConsoleView }) {
       }
     >
       <p className="px-5 pt-4 text-sm text-muted">
-        Net cash moved since this batch was placed on {formatShortDate(view.batch.placement_date)}. Your opening
-        balance is not in it yet, so it shows what moves, not what you hold.
+        Net cash moved since this batch was placed on {formatShortDate(view.batch.placement_date)}. Your working
+        capital setup is not in it yet, so it shows what moves, not what you have available.
       </p>
 
       <dl className="grid grid-cols-1 divide-y divide-line sm:grid-cols-3 sm:divide-x sm:divide-y-0">
@@ -81,8 +81,8 @@ export function CashCalendarCard({ view }: { readonly view: ConsoleView }) {
       <OutgoingTable view={view} />
 
       <p className="border-t border-line px-5 py-3 text-xs text-muted">
-        Reserve floor ({money(cal.reserve_floor.cents)}) not drawn: it is a bank balance, and there is no opening
-        balance here to measure it against.
+        Reserve floor ({money(cal.reserve_floor.cents)}) not drawn: without your working capital setup there is
+        nothing to measure it against.
       </p>
     </Panel>
   );

@@ -17,7 +17,7 @@ const MODE_QUESTION: Record<AllocationMode, string> = {
 };
 
 const NEED_TEXT: Record<ModeNeed, string> = {
-  opening_cash: 'your opening cash balance',
+  opening_cash: 'your working capital setup',
   sales_forecast: 'a forecast of this batch’s own sales'
 };
 

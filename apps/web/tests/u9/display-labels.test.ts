@@ -3,6 +3,8 @@
  * inside; what a farmer reads comes from one mapping file. These tests pin the
  * translations and guard the screen against an enum name leaking through.
  */
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { buildConsole } from '../../lib/u9/console.js';
 import { FIXTURE_7 } from '../../lib/u9/fixture.js';
 import {
@@ -94,5 +96,37 @@ describe('the console shows no internal references', () => {
 
   it('and a figure the client gave is attributed to the reader', () => {
     expect(view.explained.ceiling.inputs['Stated ceiling (birds)']?.source).toBe('Stated by you');
+  });
+});
+
+/**
+ * Daniel has no opening cash balance (OQ-25, structure C, 2026-09-28): the farm
+ * runs on its facilities and reinvested profit. Until OQ-46 designs what the
+ * planner needs instead, the page names it "your working capital setup" and
+ * never asks for, or implies, a balance he does not have.
+ */
+const OPENING_BALANCE = /opening (cash )?balance|a bank balance|what you hold/i;
+const SCREEN_FILES = [
+  '../../app/page.tsx',
+  '../../components/console/recommendation-card.tsx',
+  '../../components/console/modes-card.tsx',
+  '../../components/console/cash-calendar-card.tsx'
+];
+
+describe('the console never asks for an opening cash balance', () => {
+  const view = buildConsole(FIXTURE_7);
+
+  it('in any explanation', () => {
+    const texts = Object.values(view.explained).flatMap((e) => [
+      e.formula,
+      ...Object.values(e.inputs).flatMap((input) => [String(input.value), input.source])
+    ]);
+    expect(texts.filter((t) => OPENING_BALANCE.test(t))).toEqual([]);
+  });
+
+  it.each(SCREEN_FILES)('in the copy of %s', (file) => {
+    const source = readFileSync(fileURLToPath(new URL(file, import.meta.url)), 'utf8');
+    const lines = source.split('\n').filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l));
+    expect(lines.filter((l) => OPENING_BALANCE.test(l))).toEqual([]);
   });
 });

@@ -287,11 +287,11 @@ export function buildConsole(input: EngineInput): ConsoleView {
     birds: {
       value: winner.chick_count,
       formula:
-        'Maximum Growth places the most birds the reserve floor allows. With no opening balance the floor ' +
-        'cannot be checked, so it rules nothing out, and the most is your ceiling.',
+        'Maximum Growth places the most birds the reserve floor allows. Without your working capital setup the ' +
+        'floor cannot be checked, so it rules nothing out, and the most is your ceiling.',
       inputs: {
         'Your placement ceiling (birds)': { value: ceiling, source: 'Stated by you' },
-        'Reserve floor': { value: 'Not checked', source: 'No opening cash balance entered yet' }
+        'Reserve floor': { value: 'Not checked', source: 'Your working capital setup is not entered yet' }
       },
       confidence: harvest.confidence
     },

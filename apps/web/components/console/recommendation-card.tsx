@@ -41,7 +41,7 @@ export function RecommendationCard({ view }: { readonly view: ConsoleView }) {
           The most you said you would place, on the first day the {rec.gap_days}-day biosecurity gap allows after
           this batch clears on {formatShortDate(rec.harvest_completion_date)}.
         </p>
-        <p className="mt-2 text-sm">Reserve floor not checked. It needs your opening cash balance.</p>
+        <p className="mt-2 text-sm">Reserve floor not checked. It needs your working capital setup.</p>
       </div>
 
       <dl className="mx-5 mb-5 divide-y divide-line rounded-md border border-accent-soft-border bg-surface">

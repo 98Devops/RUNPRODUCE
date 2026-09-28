@@ -45,7 +45,7 @@ export default function DecisionConsole() {
           <p className="max-w-prose text-[1.0625rem] leading-snug text-pretty">
             <span className="figures font-semibold">Day {batch.as_of_day}</span> of the{' '}
             <span className="figures">{formatBirds(batch.chick_count)}</span>-bird batch placed{' '}
-            {formatShortDate(batch.placement_date)}. The next placement is worked out. Your opening cash balance
+            {formatShortDate(batch.placement_date)}. The next placement is worked out. Your working capital setup
             would let it check the reserve floor too.
           </p>
           <p className="figures text-sm text-muted">Figures as of {formatDayDate(batch.as_of_day, batch.as_of)}</p>
