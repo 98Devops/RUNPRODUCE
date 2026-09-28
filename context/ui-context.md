@@ -40,7 +40,8 @@ of these automatically):
 - **No `Inter`.** Geist Sans + Geist Mono, as specified below
 - **Serif fonts are banned** — this is a dashboard
 - **No 3-equal-card feature rows**
-- Mono font for all numbers (skill's own cockpit-mode rule)
+- Numbers in Geist Sans with tabular figures; mono for developer views only
+  (AD-100 amended the earlier all-mono rule)
 - Cards only where elevation carries meaning; otherwise `divide-y`,
   `border-t`, and space
 - Grid over flex percentage math
@@ -124,8 +125,10 @@ All components use these tokens. No hardcoded hex.
 | Raised surface | `--bg-raised` | `#FAFAF8` |
 | Primary text | `--text-primary` | `#1A1A17` |
 | Muted text | `--text-muted` | `#6B6B63` |
-| Primary accent | `--accent-primary` | `#0F6B3F` |
-| Accent hover | `--accent-hover` | `#0B5230` |
+| Primary accent | `--accent-primary` | `#4D7C0F` (warm leaf green, AD-100) |
+| Accent hover | `--accent-hover` | `#3F6212` |
+| Hero tint | `--accent-soft` | `#F4F7EC` (the recommendation card only) |
+| Hero tint border | `--accent-soft-border` | `#D9E3C4` |
 | Border | `--border-default` | `#DFDFD8` |
 | Border strong | `--border-strong` | `#B8B8AE` |
 | Error | `--state-error` | `#B42318` |
@@ -148,10 +151,12 @@ All components use these tokens. No hardcoded hex.
 | Role | Font | Variable |
 |---|---|---|
 | UI text | Geist Sans | `--font-sans` |
-| All numbers | Geist Mono | `--font-mono` |
+| All numbers | Geist Sans, tabular figures | `--font-sans` |
+| Developer / debug views | Geist Mono | `--font-mono` |
 
-**Every number renders in mono with tabular figures.** Financial
-columns must align. Use `font-variant-numeric: tabular-nums`.
+**Every number renders with tabular figures** (the `.figures` class), in
+Geist Sans: proportional, bold where it matters, confident. Financial
+columns must align. AD-100 replaced mono, which read as placeholder text.
 
 Scale:
 | Use | Size |
@@ -159,7 +164,7 @@ Scale:
 | Hero metric (cash today, birds alive) | `text-4xl` |
 | Section heading | `text-lg font-medium` |
 | Body | `text-sm` |
-| Table cell | `text-sm font-mono` |
+| Table cell | `text-sm figures` |
 | Label / caption | `text-xs text-muted` |
 
 Capture screen inputs are `text-2xl` minimum — thumbs, not cursors.
@@ -309,7 +314,8 @@ gallery.
 ## What to avoid
 
 - Dark backgrounds
-- Decorative gradients, glassmorphism, animated charts
+- Decorative gradients, glassmorphism, animated charts. (A fill whose
+  colour carries the sign, as on the cash calendar, is not decorative: AD-100.)
 - Abbreviated numbers (`2.7k` instead of `2,675`)
 - Charts where a table would be clearer. Only two charts exist: the
   cash calendar and the weight curve.
@@ -343,9 +349,11 @@ fields).
 Non-negotiables:
 - **White surface, no fill colour.** Colour appears only in delta chips
   and only where it carries meaning. Never a saturated card background.
+  One exception (AD-100): the recommendation card, the page hero, takes
+  the faint `--accent-soft` tint.
 - Every metric carries a comparison line. A number with nothing to
   compare against is a fact, not a metric.
-- Values are mono with `tabular-nums`, always.
+- Values use `tabular-nums` (`.figures`), always.
 - No decorative SVG. Decoration that carries no information does not
   ship.
 

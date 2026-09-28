@@ -23,6 +23,7 @@ import {
   type IsoDate,
   type ScoredCandidate
 } from '@runproduce/engine';
+import { plainFlowDescription } from '../display-labels';
 import { formatBirds, formatShortDate } from '../format.js';
 
 /** The calendar card's horizon, counted from `asOf` inclusive. */
@@ -198,6 +199,26 @@ function unchecked(candidate: Candidate): ScoredCandidate {
   };
 }
 
+/**
+ * The app bar's batch, from the figures the page itself shows, so the label
+ * cannot disagree with the status line under it. Fixture 7 is a worked
+ * example, not a batch on the farm: said plainly, never implied.
+ */
+export function batchLabel(batch: ConsoleView['batch']): string {
+  return `Example batch (${formatBirds(batch.chick_count)} birds, day ${batch.as_of_day})`;
+}
+
+/**
+ * Under the chart when every day is below zero and nothing has been sold: the
+ * red is accurate, not an alarm, and the reader is told what turns it green.
+ * Null otherwise, so the sentence can never describe a chart it does not fit.
+ */
+export function noSalesChartNote(calendar: ConsoleView['calendar']): string | null {
+  if (calendar.receipts_cents !== 0) return null;
+  if (calendar.points.some((p) => p.net_cents > 0)) return null;
+  return 'With no sales entered yet, every day shows more going out than coming in. Recording sales will bring the green back.';
+}
+
 export function buildConsole(input: EngineInput): ConsoleView {
   const result = computeDecision(input);
   if (result.kind !== 'ok') {
@@ -258,6 +279,10 @@ export function buildConsole(input: EngineInput): ConsoleView {
   const first = windowDays[0]!;
   const last = windowDays[windowDays.length - 1]!;
 
+  // Sources are written for the reader, who is the client (AD-100): "Stated by
+  // you", never a question number. Provenance, for us: the ceiling is OQ-23,
+  // the gap invariant 16, the dressing yield OQ-17, the opening balance OQ-25,
+  // the per-chick step OQ-18.
   const explained: ConsoleView['explained'] = {
     birds: {
       value: winner.chick_count,
@@ -265,8 +290,8 @@ export function buildConsole(input: EngineInput): ConsoleView {
         'Maximum Growth places the most birds the reserve floor allows. With no opening balance the floor ' +
         'cannot be checked, so it rules nothing out, and the most is your ceiling.',
       inputs: {
-        'Your placement ceiling (birds)': { value: ceiling, source: 'Stated by Daniel (OQ-23)' },
-        'Reserve floor': { value: 'Not checked', source: 'No opening cash balance yet (OQ-25)' }
+        'Your placement ceiling (birds)': { value: ceiling, source: 'Stated by you' },
+        'Reserve floor': { value: 'Not checked', source: 'No opening cash balance entered yet' }
       },
       confidence: harvest.confidence
     },
@@ -277,7 +302,7 @@ export function buildConsole(input: EngineInput): ConsoleView {
         'is chosen.',
       inputs: {
         'This batch clears': { value: harvestCompletion, source: 'Harvest plan' },
-        'Biosecurity gap (days)': { value: gapDays, source: 'Stated by Daniel, 2026-09-10 (invariant 16)' }
+        'Biosecurity gap (days)': { value: gapDays, source: 'Stated by you' }
       },
       confidence: harvest.confidence
     },
@@ -291,7 +316,7 @@ export function buildConsole(input: EngineInput): ConsoleView {
         'Last gate day (cycle day)': { value: harvest.gate_window.last_day, source: 'Harvest plan' },
         'Dressing yield (%)': {
           value: harvest.assumed_dressing_yield_pct,
-          source: 'Daniel’s estimate, not yet measured (OQ-17)'
+          source: 'Your estimate, not yet measured'
         }
       },
       confidence: harvest.confidence
@@ -301,13 +326,13 @@ export function buildConsole(input: EngineInput): ConsoleView {
       formula:
         'A fixed floor between this batch’s last bird and the next placement, for spraying and disinfecting ' +
         'the house. Cash never overrides it.',
-      inputs: { Rule: { value: 'Spraying and disinfection', source: 'Stated by Daniel, 2026-09-10 (invariant 16)' } },
+      inputs: { Rule: { value: 'Spraying and disinfection', source: 'Stated by you' } },
       confidence: 'measured'
     },
     ceiling: {
       value: ceiling,
       formula: 'The most birds you said you would place today. Entered, not computed.',
-      inputs: { 'Stated ceiling (birds)': { value: ceiling, source: 'Daniel, OQ-23 (answered 2026-09-11)' } },
+      inputs: { 'Stated ceiling (birds)': { value: ceiling, source: 'Stated by you' } },
       confidence: 'measured'
     },
     tied_candidates: {
@@ -327,7 +352,7 @@ export function buildConsole(input: EngineInput): ConsoleView {
         'Sizes, 1 bird to the ceiling': { value: sizes, source: `Up to your ${formatBirds(ceiling)}-bird ceiling` },
         'Placement step (birds)': {
           value: input.parameters.placement_step_birds ?? DEFAULT_PLACEMENT_STEP_BIRDS,
-          source: 'The hatchery invoices per chick (OQ-18)'
+          source: 'The hatchery invoices per chick'
         },
         'Placement dates': { value: dates.length, source: `${formatShortDate(firstDate)} to ${formatShortDate(lastDate)}` }
       },
@@ -364,7 +389,7 @@ export function buildConsole(input: EngineInput): ConsoleView {
         day: d.day_number,
         kind: f.kind,
         label: FLOW_LABEL[f.kind],
-        description: f.description,
+        description: plainFlowDescription(f.kind, f.description),
         amount_cents: -f.amount_cents,
         planned: f.kind.startsWith('PLANNED_'),
         after_harvest: f.kind === 'PLANNED_FEED_DRAW_PAYMENT' && pastHarvestDue.has(f.date)

@@ -1,9 +1,13 @@
 import { CashCalendarCard } from '@/components/console/cash-calendar-card';
+import { Greeting } from '@/components/console/greeting';
 import { ModesCard } from '@/components/console/modes-card';
 import { RecommendationCard } from '@/components/console/recommendation-card';
 import { formatBirds, formatDayDate, formatShortDate } from '@/lib/format';
-import { buildConsole } from '@/lib/u9/console';
+import { batchLabel, buildConsole } from '@/lib/u9/console';
 import { FIXTURE_7 } from '@/lib/u9/fixture';
+
+/** The client's trading name (project-overview.md). */
+const FARM_NAME = 'Danrun Poultry';
 
 /**
  * U9 v1 SHORTCUT (OQ-29). The decision is computed once, at build time, and
@@ -20,35 +24,46 @@ export const dynamic = 'force-static';
 
 export default function DecisionConsole() {
   const view = buildConsole(FIXTURE_7);
+  const batch = view.batch;
 
   return (
-    <main className="mx-auto min-h-[100dvh] max-w-[1280px] px-4 py-6 sm:px-6">
-      <header className="mb-6 flex flex-wrap items-end justify-between gap-x-6 gap-y-2 border-b border-line pb-4">
-        <div>
-          <p className="text-xs text-muted">Decision console</p>
-          <h1 className="text-2xl font-medium tracking-tight text-balance">
-            Batch placed {formatShortDate(view.batch.placement_date)},{' '}
-            <span className="figures">{formatBirds(view.batch.chick_count)}</span> birds
-          </h1>
+    <>
+      <header className="border-b border-line bg-surface">
+        <div className="mx-auto flex max-w-[1280px] items-center justify-between gap-4 px-4 py-3 sm:px-6">
+          <p className="text-lg font-semibold tracking-tight text-accent">RunProduce</p>
+          <p className="text-right text-sm leading-tight">
+            <span className="font-medium">{FARM_NAME}</span>
+            {/* Golden fixture 7, not a real batch: said plainly, never implied. */}
+            <span className="block text-xs text-muted sm:inline sm:before:content-['_·_']">{batchLabel(batch)}</span>
+          </p>
         </div>
-        <p className="text-sm">
-          <span className="text-muted">Today </span>
-          <span className="figures">{formatDayDate(view.batch.as_of_day, view.batch.as_of)}</span>
-        </p>
       </header>
 
-      {/* Stacks 1, 2, 3 on a phone; on a wide screen the calendar takes the right column. */}
-      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-12 lg:grid-rows-[auto_1fr]">
-        <div className="lg:col-span-5">
-          <RecommendationCard view={view} />
+      <main className="mx-auto min-h-[100dvh] max-w-[1280px] px-4 pt-6 pb-10 sm:px-6">
+        <section className="mb-6 grid gap-1.5">
+          <Greeting className="text-3xl font-semibold tracking-tight" />
+          <p className="max-w-prose text-[1.0625rem] leading-snug text-pretty">
+            <span className="figures font-semibold">Day {batch.as_of_day}</span> of the{' '}
+            <span className="figures">{formatBirds(batch.chick_count)}</span>-bird batch placed{' '}
+            {formatShortDate(batch.placement_date)}. The next placement is worked out. Your opening cash balance
+            would let it check the reserve floor too.
+          </p>
+          <p className="figures text-sm text-muted">Figures as of {formatDayDate(batch.as_of_day, batch.as_of)}</p>
+        </section>
+
+        {/* Stacks 1, 2, 3 on a phone; on a wide screen the calendar takes the right column. */}
+        <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-12 lg:grid-rows-[auto_1fr]">
+          <div className="lg:col-span-5">
+            <RecommendationCard view={view} />
+          </div>
+          <div className="lg:col-span-7 lg:row-span-2">
+            <CashCalendarCard view={view} />
+          </div>
+          <div className="lg:col-span-5">
+            <ModesCard view={view} />
+          </div>
         </div>
-        <div className="lg:col-span-7 lg:row-span-2">
-          <CashCalendarCard view={view} />
-        </div>
-        <div className="lg:col-span-5">
-          <ModesCard view={view} />
-        </div>
-      </div>
-    </main>
+      </main>
+    </>
   );
 }

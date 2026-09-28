@@ -18,7 +18,7 @@ const MODE_QUESTION: Record<AllocationMode, string> = {
 
 const NEED_TEXT: Record<ModeNeed, string> = {
   opening_cash: 'your opening cash balance',
-  sales_forecast: 'a forecast of this batch’s own sales (M6)'
+  sales_forecast: 'a forecast of this batch’s own sales'
 };
 
 function needsSentence(needs: readonly ModeNeed[]): string {
@@ -56,9 +56,19 @@ export function ModesCard({ view }: { readonly view: ConsoleView }) {
                 )}
               </div>
             ) : (
-              <div className="text-sm">
-                <p>Not enough information yet.</p>
-                <p className="text-xs text-muted">{needsSentence(mode.needs)}</p>
+              // Informational, not an error (AD-100): a mode that has not run yet is
+              // a gap in what we know, never a verdict on the farm.
+              <div className="flex items-start gap-2.5 rounded-md bg-raised px-3 py-2.5 text-sm">
+                <span
+                  aria-hidden="true"
+                  className="mt-0.5 grid size-4 shrink-0 place-items-center rounded-full border border-line-strong text-[0.625rem] leading-none font-semibold text-muted"
+                >
+                  i
+                </span>
+                <div>
+                  <p>Not enough information yet.</p>
+                  <p className="text-xs text-muted">{needsSentence(mode.needs)}</p>
+                </div>
               </div>
             )}
           </li>
