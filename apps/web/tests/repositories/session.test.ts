@@ -50,6 +50,20 @@ describe('T-S1 · the session client is created only after the guard passes', ()
     expect(j.written).toEqual([{ name: 'sb-test-auth-token', value: 'new', options: { path: '/' } }]);
   });
 
+  it('writes the session cookie HttpOnly, Lax, on every path (TD-13)', () => {
+    createSessionClient({ url: DEV, anonKey: 'anon' }, jar(), {});
+    expect(created.mock.calls[0]![2].cookieOptions).toMatchObject({ httpOnly: true, sameSite: 'lax', path: '/' });
+  });
+
+  it.each<[string, Record<string, string>, boolean]>([
+    ['a production build (Netlify, HTTPS)', { NODE_ENV: 'production' }, true],
+    ['next dev on http://localhost', { NODE_ENV: 'development' }, false],
+    ['no NODE_ENV at all', {}, false]
+  ])('marks it Secure only in %s (TD-13)', (_label, env, secure) => {
+    createSessionClient({ url: DEV, anonKey: 'anon' }, jar(), env);
+    expect(created.mock.calls[0]![2].cookieOptions).toMatchObject({ secure });
+  });
+
   it('allows a local stack only when the target says local', () => {
     createSessionClient({ url: LOCAL, anonKey: 'anon' }, jar(), { RUNPRODUCE_SUPABASE_TARGET: 'local' });
     expect(created).toHaveBeenCalledTimes(1);
