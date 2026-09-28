@@ -230,7 +230,7 @@ and the first three executed on 2026-09-12.
 | 8 | Offal fields on `SalesOrder` | Queued. |
 | 9 | `mortality_history` dead key | Queued — wire or delete. |
 | **10** | OQ-28 feed delivery field | ✅ **DONE** — AD-54, paid on the collection date. |
-| 11 | OQ-25 cash balance | Blocked on U6. **Now the only thing between `computeAllocation` and the `decision.allocation` getter.** **Reframed 2026-09-23:** Daniel described two credit facilities, not a balance; the structure is open (see OQ-25's amendment). **Widened 2026-09-27:** a third, interest-bearing facility and profit carried between batches; three structures now (OQ-43, OQ-44). |
+| 11 | OQ-25 cash balance | Blocked on U6. **Now the only thing between `computeAllocation` and the `decision.allocation` getter.** **Reframed 2026-09-23:** Daniel described two credit facilities, not a balance; the structure is open (see OQ-25's amendment). **Widened 2026-09-27:** a third, interest-bearing facility and profit carried between batches; three structures now (OQ-43, OQ-44). **Settled 2026-09-28 as structure C** (no separate cash): `opening_cash_cents` is not built; the replacement is OQ-46's facility model. |
 | 12 | OQ-26 Cover Fast | Blocked on M6. |
 | 13 | OQ-29 — a 1-bird grid takes 20.8 s | **New 2026-09-12.** Ours. Should land before M5b Task 9. |
 | 14 | OQ-30 — the band schedule extrapolates in planning, refuses in sales | **New 2026-09-12.** Half ours, half question 2 on the Daniel list. |
@@ -304,21 +304,20 @@ Daniel is logged here as an OQ with proposed question wording, and stops there.
 The user handles every question to Daniel, out of band and in a format they
 control. Nothing in this repository is a message to him.
 
-Every client question still open, checked against this file on 2026-09-14 (OQ-38 to OQ-41 added, OQ-35 to OQ-37 closed, 2026-09-15; OQ-42 to OQ-45 added from Daniel's reply, 2026-09-27):
+Every client question still open, checked against this file on 2026-09-14 (OQ-38 to OQ-41 added, OQ-35 to OQ-37 closed, 2026-09-15; OQ-42 to OQ-45 added from Daniel's reply, 2026-09-27; OQ-43 answered, OQ-40 closed as moot and OQ-46 added, 2026-09-28):
 
 | OQ | The gap | Shapes |
 |---|---|---|
+| OQ-46 | Design the facility model (chick, feed, loan, reinvested profit) to replace `opening_cash_cents`. **Ours; waits for a dedicated spec pass** after U7 chunk 2 verification and chunk 3 planning | A new `EngineInput` shape; M5b Task 9; every mode's affordability |
 | OQ-45 | $2,700 or $4,948.19: which is the 3,000-bird batch's net profit? **Investigated 2026-09-27:** the workbook's own `U93` ($5.00/bird) gives $2,698.19, a $1.81 match on the income side, unconfirmed. Same-batch question queued with OQ-25's follow-ups | The historical baseline (AD-51); fixture 1 is not regenerated until settled |
-| OQ-44 | Does one batch's profit fund the next placement? | A flow between batches; no `EngineInput` field holds it |
-| OQ-43 | The $20K loan at 30%, "triggered at 6 weeks": which terms? | Whether borrowing can be costed at all; nothing modelled until answered |
+| OQ-44 | Does one batch's profit fund the next placement? **Yes in part (2026-09-28):** reinvested profit funds the business; how much and where it sits is open | A flow between batches; OQ-46 |
 | OQ-42 | Does the system model his live 6,000-bird batch, or only hypothetical placements? | What `EngineInput.batch` is in production; onboarding mid-batch |
 | OQ-32 | Does one feed collection ever serve two batches? | U6 chunk 5 feed draws |
 | OQ-33 | Are bulk runs booked ahead with a fixed weight? | U6 chunk 5 sales orders |
 | OQ-34 | Is feed ever collected before the chicks arrive? | U6 chunk 5; `buildDays` throws on it |
 | OQ-41 | Where does $3.70 end and $3.50 begin? | Building AD-96's fourth band; TD-4 #9 |
-| OQ-40 | How much cash does the farm hold when the planner starts? | Opening cash (AD-67); the allocation refuses without it |
 | OQ-39 | How many birds a day does the gate take? | `gate_capacity_per_day`, seeded as assumed (U6 chunk 8) |
-| OQ-38 | Which minimum cash reserve should the planner protect? | `reserve_floor_cents`, seeded as assumed (U6 chunk 8) |
+| OQ-38 | Which minimum cash reserve should the planner protect? **Reframed 2026-09-28:** no separate cash; whether any floor survives is OQ-46's. Do not ask as worded | `reserve_floor_cents`, seeded as assumed (U6 chunk 8) |
 | OQ-21 | Does the supplier ever charge for part of a bag? | Pricing a part-bag draw (refused today) |
 | OQ-17 | ~20 paired live and dressed weights | The bulk harvest day, every dressed price |
 | OQ-15 | Do labour and electricity scale at 30,000 birds? | Overheads at any scale but 3,000 |
@@ -609,6 +608,45 @@ into the engine, a fixture or the UI.** The user is sending the two questions th
 decide OQ-25 (OQ-43's terms, and whether there is separate cash) to Daniel as one
 message; nothing in the engine changes until that reply comes back.
 
+**From Daniel's third reply, 2026-09-28** (relayed by the user): OQ-43 answered
+(flat 30% penalty past 6 weeks), and OQ-25 settled as structure C (no separate
+cash). That opens OQ-46, below. **Still nothing is wired into the engine, a
+fixture or the UI.**
+
+### OQ-46 · Design the facility model: chick, feed, loan and reinvested profit 🔴 OURS · BLOCKS M5b TASK 9 · NOT STARTED
+**Status:** open, **deliberately not started** (user, 2026-09-28). **Raised:**
+2026-09-28, from OQ-25 settling as structure C.
+**The task, in the user's words:** "Design the facility model - chick, feed,
+loan, and reinvested profit - as the replacement for opening_cash_cents.
+Requires new EngineInput shape."
+**When:** a dedicated spec pass, after U7 chunk 2's middleware verification and
+chunk 3's planning. It is a large engine change, not a field swap.
+**Known inputs to that pass (collected here so none is lost):**
+- **The chick account:** $30,000, revolving, for chick purchases (OQ-25's
+  amendment, 2026-09-23).
+- **The feed account:** $40,000, revolving, tied to the 30-day feed terms.
+- **The loan:** $20,000, a 30% flat one-time penalty if still owed after 6
+  weeks (OQ-43), with the open points listed under OQ-43.
+- **Reinvested profit:** Daniel says it funds the business (OQ-25's answer;
+  OQ-44 in part). How much is retained, and where it sits, is still open.
+- **OQ-25's open follow-ups:**
+  1. What does a sale pay down first?
+  2. Does the chick account have terms?
+  3. What is drawn on each account today?
+- **What it replaces or reconsiders:**
+  - `projectCashCalendar`'s `openingCents` and `computeAllocation`'s argument
+  - `reserve_floor_cents` (OQ-38)
+  - AD-67's tables and `engine_snapshot`'s `cash` section
+  - Cover Fast's core-credit scope (invariant 15)
+  - U9's "opening cash balance" wording
+  - CONTEXT.md's **Facility** and **Headroom** entries
+- **A candidate question for the pass, not the answer:** under C, is "affordable"
+  "every facility stays within its limit, and the loan is cleared before its
+  trigger"?
+
+**Meanwhile:** no facility, loan or profit field exists, and none is to be
+started before the spec pass.
+
 ### OQ-45 · $2,700 or $4,948.19: what did the 3,000-bird batch actually make? 🟡 OPEN · OURS FIRST
 **Status:** open. **Raised:** 2026-09-27, from Daniel's reply.
 **Affects:** the historical baseline, not a failing test. See "What it is not".
@@ -712,8 +750,15 @@ directly.
 AD-51's baseline text stands with this question against it. Nothing in the
 engine, the UI or any fixture was touched by this investigation.
 
-### OQ-44 · Does one batch's profit fund the next placement? 🟡 OPEN
-**Status:** open. **Raised:** 2026-09-27, from Daniel's reply.
+### OQ-44 · Does one batch's profit fund the next placement? 🟡 ANSWERED IN PART 2026-09-28
+**Answered in part (2026-09-28):** yes. Asked whether there is separate cash,
+Daniel said no: the business runs on the facilities and on **reinvested
+profit**, so profit does fund what comes next. **Still open:** how much is
+retained, and where it sits until the next placement (a balance, or paid off
+the accounts). The proposed question below still covers that, and it now feeds
+OQ-46.
+
+**Status (before 2026-09-28):** open. **Raised:** 2026-09-27, from Daniel's reply.
 **Affects:** OQ-25's third structure (C). It also affects what "operating
 capital" means.
 **What Daniel described:** the profit a batch retains funds the next placement.
@@ -734,7 +779,34 @@ where does it sit until then: in the bank, or paid off the chick and feed
 accounts?"*
 **Not modelled.** No field, no flow.
 
-### OQ-43 · The $20,000 loan at 30%, "triggered at 6 weeks": which terms? 🟡 OPEN · 🔴 BLOCKS MODELLING ANY INTEREST
+### OQ-43 · The $20,000 loan at 30%, "triggered at 6 weeks": which terms? ✅ ANSWERED 2026-09-28 — flat, one-time
+**Answer (Daniel, relayed by the user 2026-09-28): reading B below, "flat if
+held past 6 weeks".** If the loan is still owed after 6 weeks, a one-time
+penalty of **30% of the amount** is charged. It is not annualised interest, and
+nothing accrues day by day.
+
+**Consequences, logged, not modelled:**
+- **The loan is a short-term bridge, not a long-term facility.** Its whole
+  design is to be repaid inside 6 weeks. Held past that, it costs 30% at
+  once: $6,000 on a full $20,000.
+- **Time becomes a cliff, not a slope.** Under an interest reading, each extra
+  day held cost a little more. Here the cost is zero up to the trigger and
+  30% the day after. That is materially simpler to compute, and sharper to
+  plan against. A hold that crosses the trigger (M4's hold-versus-sell, a slow
+  gate, a late bulk run) carries the whole penalty at once, so the planner
+  needs to see the trigger date, not a daily rate.
+- **Nothing is built.** The loan lives in OQ-46's facility model, which waits
+  for its own spec pass.
+
+**Still unstated, for OQ-46's spec (proposed wording when that pass needs it,
+not now):**
+- Do the 6 weeks count from the day the loan is drawn, or from placement?
+- Is the loan drawn per batch, or a standing line drawn when needed?
+- Is $20,000 the most that can be drawn, and can part of it be drawn?
+- Is the penalty charged on the whole $20,000, or on what is still owed?
+- In what order are the chick account, the feed account and the loan drawn?
+
+**Superseded detail below.**
 **Status:** open. **Raised:** 2026-09-27, from Daniel's reply. **Part of the
 message the user is sending (with OQ-25's deciding question).**
 **Affects:** OQ-25's structure C, and whether borrowing can be costed at all.
@@ -805,7 +877,13 @@ $3.50. At what dressed weight does a bird stop getting $3.70 and start getting
 $3.50: just over 1.3 kg, at 1.4 kg, or somewhere else?"*
 **Meanwhile:** AD-58's refusal stands, and no boundary is chosen.
 
-### OQ-40 · How much cash does the farm hold when the planner starts? 🟡 OPEN
+### OQ-40 · How much cash does the farm hold when the planner starts? ✅ CLOSED 2026-09-28 — moot, no separate cash
+**Closed as moot:** Daniel's answer to OQ-25 is that there is no separate cash.
+The farm runs on its facilities and on reinvested profit (structure C). The
+question it asked has no answer to give. The opening position the planner needs
+is OQ-46's to define.
+
+**Superseded detail below.**
 **Status:** open, never asked. **Raised:** 2026-09-15, from U6 chunk 8 (seed).
 **Affects:** the opening cash balance (AD-67). Without an account opening, the
 allocation refuses `'opening_cash'`. Cover Fast and Build Reserve refuse, and
@@ -834,7 +912,13 @@ that range you would plan around?"*
 low/high pair would be a design change (the gate window reads one rate), logged
 then.
 
-### OQ-38 · Which minimum cash reserve should the planner protect? 🟡 OPEN
+### OQ-38 · Which minimum cash reserve should the planner protect? 🟡 OPEN · 🔁 REFRAMED 2026-09-28
+**Reframed (2026-09-28):** there is no separate cash (OQ-25, structure C), so a
+minimum *cash* reserve has nothing to apply to. Whether any floor survives, for
+example on facility headroom, is part of OQ-46. **Do not ask the question
+below as worded.** The $20,000 seed stays as seeded, `assumed`, until OQ-46
+decides.
+
 **Status:** open. The amount was left unanswered by OQ-3 (whose question asked
 "how much reserve is enough"; the answer settled the objective, not the
 amount). **Raised as its own OQ:** 2026-09-15, from U6 chunk 8.
@@ -2108,8 +2192,41 @@ compute — days to first receipt, or the running batch's receipts alone — wou
 produce a number that ranks, and a ranking built on the wrong quantity is worse
 than a blank. Same reasoning as AD-43's refusal to sentinel a null.
 
-### OQ-25 · The engine has no cash balance, and M5b needs one 🔴 BLOCKS M5b TASK 9 · 🔁 REFRAMED 2026-09-23 · WIDENED 2026-09-27
-**Status:** Open, **reframed by Daniel's answer (2026-09-23), and widened by his
+### OQ-25 · The engine has no cash balance, and M5b needs one ✅ STRUCTURE SETTLED 2026-09-28 — C · 🔴 STILL BLOCKS M5b TASK 9, NOW ON OQ-46
+**Third amendment (2026-09-28): settled as structure C.** Daniel answered the
+separate-cash question with **"A: no separate cash"**. The business runs
+entirely on its facilities and on reinvested profit (relayed by the user).
+- **Structure A (cash + reserve floor) is ruled out.** There is no bank balance
+  for a floor to be tested against.
+- **Structure B (facility headroom + limits) is ruled out as the whole
+  picture.** Its two facilities are real, but they are part of C, not the
+  model on their own.
+- **Structure C is Daniel's business:** facility headroom (chick $30,000, feed
+  $40,000), borrowing (the $20,000 loan, OQ-43, now a flat 30% penalty past 6
+  weeks), and reinvested profit (OQ-44), with no standalone opening cash.
+- **`opening_cash_cents` does not fit and is NOT to be built into
+  `EngineInput`.** AD-67's field was never added to `EngineInput`, and it stays
+  out. The replacement is a new `EngineInput` shape, designed as **OQ-46** in
+  its own spec pass. It is not started here.
+
+**Consequences, logged, not acted on:**
+- **OQ-40 closes as moot.** It asked how much cash the farm holds, and there is
+  no separate cash.
+- **OQ-38 is reframed, not answered.** A minimum *cash* reserve has nothing to
+  apply to. Whether a floor exists at all (on headroom? on the loan?) is part
+  of OQ-46.
+- **AD-67's tables are built and stay** (`cash_accounts`, `cash_transactions`,
+  on dev, and `engine_snapshot`'s `cash` section). They hold nothing the
+  engine needs under C. Whether they are removed or repurposed is OQ-46's call.
+- **U9's live copy now asks for the wrong thing.** The status line, card 1 and
+  Build Reserve say the page needs "your opening cash balance". Daniel has none.
+  That text is on the link he reads. Changing it is a copy decision for the
+  user; it is not changed here.
+- **OQ-25's follow-ups 1 to 3 are still open and move to OQ-46:** the paydown
+  order, the chick account's terms, and what is drawn today.
+- **M5b Task 9 stays blocked,** now on OQ-46 rather than on Daniel.
+
+**Status (before 2026-09-28):** Open, **reframed by Daniel's answer (2026-09-23), and widened by his
 second reply (2026-09-27) from two structures to three. See the amendment
 directly below.** **Raised:** 2026-09-11, from executing M5b Task 9.
 **Affects:** whether `decision.allocation` can be wired at all.
@@ -2586,6 +2703,20 @@ and 5.0:1 on the page background; the flow colours are over 6:1.
 - **The bill table shows the engine's raw descriptions**, such as "PER_BATCH,
   HARVEST_COMPLETE". Honest but not plain language. A copy follow-up, not
   accessibility.
+
+### TD-12 · The bill table cuts its descriptions off at 390px 🟡
+Found 2026-09-28 (U9 copy fixes, 390px screenshot). "Going out, bill by
+bill" is wider than a phone, so its description column runs past the card's
+edge. The page itself does not scroll sideways: the table scrolls inside its
+own `overflow-x-auto` wrapper (`components/console/outgoing-table.tsx`).
+Nothing hints that it scrolls, so lines like "Labour · One-time charge, on
+harvest day · date assumed" read as truncated, and "date assumed" is the part
+that falls off.
+- **Fix:** during U7's design pass, not as a hot-fix (user, 2026-09-28).
+  Likely a stacked row layout under `sm` (due date above the bill, description
+  wrapping), so nothing needs a sideways scroll.
+- **Until then:** the content is all there and reachable by scrolling the
+  table. No copy was cut from the source.
 
 ### TD-11 · `text-base` sets the text colour to the page background 🟡
 Found 2026-09-27 (U7 chunk 2). `globals.css` maps `--color-base` to

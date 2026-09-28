@@ -46,6 +46,29 @@ session, test-first:
 - Found: TD-11 (`text-base` sets the colour to the page background).
 - **Not merged.** Waits on the Netlify branch deploy confirming the middleware.
 
+**2026-09-28: branch deploy configured, U9 copy fixes live, Daniel's third
+reply logged.**
+- **Branch deploy:** `SUPABASE_URL` (dev) and `SUPABASE_ANON_KEY` are set on
+  Netlify for context `branch:u7-daily-capture` only; production has no
+  variables. The name is `SUPABASE_URL`, not `NEXT_PUBLIC_…` (D11, confirmed by
+  the user).
+- **Checked on Netlify:**
+  - signed-out `/capture` redirects with `next`, query string kept
+  - `/sign-in` renders
+  - a wrong password gets dev's `invalid_credentials` answer
+- **Waiting:** the signed-in checks wait on a one-off test WORKER on dev,
+  created by the user in the SQL editor with SQL that was dry-run on the local
+  stack. The cleanup SQL removes it by fixed id.
+- **U9:** the visual pass (AD-100) and the copy fixes are on `main` (`f526cdb`).
+- **Daniel's third reply** (logged in `current-issues.md`):
+  - OQ-43 answered: a flat 30% penalty if the loan is still owed past 6 weeks.
+  - OQ-25 settled as structure C: no separate cash, so `opening_cash_cents` is
+    not built.
+  - OQ-40 closed as moot, and OQ-38 reframed.
+  - OQ-46 opened: the facility model, to be designed in a dedicated spec pass,
+    not started.
+- **TD-12 logged:** the bill table at 390px, to be fixed in U7's design pass.
+
 **U6 — chunk 7 green, 2026-09-27.** The red phase below, turned green, plus the
 client factory test-first. Local stack only. **Dev not touched:** nothing reads
 `engine_snapshot` from dev until U7, so the migration waits for that.
