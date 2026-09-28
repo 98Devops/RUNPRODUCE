@@ -1,5 +1,5 @@
 import type { Cents } from '@runproduce/engine';
-import type { ConsoleView } from '@/lib/u9/console';
+import { noSalesChartNote, type ConsoleView } from '@/lib/u9/console';
 import { formatDayDate, formatMoney, formatShortDate } from '@/lib/format';
 import { CashChart } from './cash-chart';
 import { Explain } from './explain';
@@ -24,6 +24,7 @@ function Stat({ label, children }: { readonly label: string; readonly children: 
  */
 export function CashCalendarCard({ view }: { readonly view: ConsoleView }) {
   const cal = view.calendar;
+  const note = noSalesChartNote(cal);
 
   return (
     <Panel
@@ -75,6 +76,7 @@ export function CashCalendarCard({ view }: { readonly view: ConsoleView }) {
           <CashChart points={cal.points} trough={cal.trough} harvest={cal.harvest} />
         </div>
       </figure>
+      {note !== null && <p className="px-5 pb-4 text-sm text-pretty">{note}</p>}
 
       <OutgoingTable view={view} />
 

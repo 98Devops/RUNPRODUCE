@@ -948,7 +948,7 @@ silent drift. Branch `u9-visual-pass`.
   "One-time charge, on harvest day"). Engine enums are unchanged. A test fails
   if an enum token appears in any bill description.
 - **An app bar and a greeting:** the wordmark, the client's trading name
-  (Danrun Poultry, `project-overview.md`) and "Sample batch", said plainly
+  (Danrun Poultry, `project-overview.md`) and the example batch, said plainly
   because this is golden fixture 7, not a real batch. The greeting uses the
   reader's own clock (the page is static), and the status line names the real
   gap (the opening cash balance), not "everything on track".
@@ -956,6 +956,24 @@ silent drift. Branch `u9-visual-pass`.
   "i" mark. The text is unchanged: not enough information, and what is needed.
 - **Nothing honest was polished away.** Every "assumed" badge, "not checked"
   note and caveat is still on the page.
+- **Copy fixes before merge (user, 2026-09-28):**
+  - **Explanation sources speak to the reader.** "Stated by Daniel (OQ-23)"
+    became "Stated by you". Every OQ, AD and invariant number and the client's
+    name are gone from what the page shows. This is the same class of leak as
+    the enum names. A test guards every explanation and bill line, and the
+    provenance stays in a code comment in `lib/u9/console.ts`.
+  - **The all-red chart is explained under it.** "With no sales entered yet,
+    every day shows more going out than coming in. Recording sales will bring
+    the green back." It appears only when nothing is received in the window
+    and no day is above zero (`noSalesChartNote`), so it cannot describe a
+    chart it does not fit.
+  - **App bar label.** The requested "Historical batch (3,000 birds, day 41)"
+    describes Daniel's real historical batch (fixture 1's size), not fixture
+    7, which the page shows. Fixture 7 is 5,000 birds at day 30, so that label
+    would contradict the status line under it (rule 3). The bar reads
+    "Example batch (5,000 birds, day 30)", built from the page's own figures
+    (`batchLabel`). When U7's live batch lands, it becomes "Current batch (N
+    birds, day N)".
 
 **AD-98 · Bulk delivery is always to the abattoir, and the buyer collects there. `delivery_mode` stays, and no screen asks for it.**
 Answered by Daniel 2026-09-15; closes OQ-37.

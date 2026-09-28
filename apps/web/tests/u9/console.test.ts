@@ -7,7 +7,7 @@ import type { EngineInput } from '@runproduce/engine';
 import golden from '../../../../packages/engine/tests/golden/07-hold-cost-day-30-to-35.json';
 import { parseFixtureInput } from '../../../../packages/engine/tests/golden/_shared.js';
 import { FIXTURE_7, PLACEMENT_CEILING_BIRDS } from '../../lib/u9/fixture.js';
-import { buildConsole } from '../../lib/u9/console.js';
+import { batchLabel, buildConsole, noSalesChartNote } from '../../lib/u9/console.js';
 
 describe('the hardcoded input', () => {
   it('is golden fixture 7, plus only the placement ceiling', () => {
@@ -108,5 +108,28 @@ describe('buildConsole(fixture 7)', () => {
       expect(coverFast).toMatchObject({ answered: false, needs: ['sales_forecast'] });
       expect(reserve).toMatchObject({ answered: false, needs: ['opening_cash', 'sales_forecast'] });
     });
+  });
+});
+
+describe('the words around the figures', () => {
+  const view = buildConsole(FIXTURE_7);
+
+  it('labels the app bar with the batch the page shows, from its own figures', () => {
+    expect(batchLabel(view.batch)).toBe('Example batch (5,000 birds, day 30)');
+  });
+
+  it('explains an all-red chart when nothing has been sold', () => {
+    expect(noSalesChartNote(view.calendar)).toBe(
+      'With no sales entered yet, every day shows more going out than coming in. Recording sales will bring the green back.'
+    );
+  });
+
+  it('says nothing once receipts are in the window', () => {
+    expect(noSalesChartNote({ ...view.calendar, receipts_cents: 100 })).toBeNull();
+  });
+
+  it('says nothing if any day sits above zero', () => {
+    const points = [...view.calendar.points, { day: 99, date: view.calendar.harvest.date, net_cents: 1 }];
+    expect(noSalesChartNote({ ...view.calendar, points })).toBeNull();
   });
 });

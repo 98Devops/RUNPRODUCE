@@ -68,3 +68,31 @@ describe('the console shows no engine enum names', () => {
     expect(leaks).toEqual([]);
   });
 });
+
+/**
+ * Our own bookkeeping: open-question and decision numbers, invariant numbers,
+ * and the client's name. The reader is the client, so a stated figure is
+ * "Stated by you", never "Stated by Daniel (OQ-23)".
+ */
+const INTERNAL_REFERENCE = /\b(OQ|AD|TD)-\d+|\binvariant \d+|\bDaniel/;
+
+describe('the console shows no internal references', () => {
+  const view = buildConsole(FIXTURE_7);
+
+  it('in any explanation: formula, input names, values or sources', () => {
+    const texts = Object.values(view.explained).flatMap((e) => [
+      e.formula,
+      ...Object.entries(e.inputs).flatMap(([name, input]) => [name, String(input.value), input.source])
+    ]);
+    expect(texts.filter((t) => INTERNAL_REFERENCE.test(t))).toEqual([]);
+  });
+
+  it('in any bill description', () => {
+    const leaks = view.outgoing.rows.map((r) => r.description).filter((d) => INTERNAL_REFERENCE.test(d));
+    expect(leaks).toEqual([]);
+  });
+
+  it('and a figure the client gave is attributed to the reader', () => {
+    expect(view.explained.ceiling.inputs['Stated ceiling (birds)']?.source).toBe('Stated by you');
+  });
+});

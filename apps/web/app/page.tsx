@@ -3,7 +3,7 @@ import { Greeting } from '@/components/console/greeting';
 import { ModesCard } from '@/components/console/modes-card';
 import { RecommendationCard } from '@/components/console/recommendation-card';
 import { formatBirds, formatDayDate, formatShortDate } from '@/lib/format';
-import { buildConsole } from '@/lib/u9/console';
+import { batchLabel, buildConsole } from '@/lib/u9/console';
 import { FIXTURE_7 } from '@/lib/u9/fixture';
 
 /** The client's trading name (project-overview.md). */
@@ -34,7 +34,7 @@ export default function DecisionConsole() {
           <p className="text-right text-sm leading-tight">
             <span className="font-medium">{FARM_NAME}</span>
             {/* Golden fixture 7, not a real batch: said plainly, never implied. */}
-            <span className="block text-xs text-muted sm:inline sm:before:content-['_·_']">Sample batch</span>
+            <span className="block text-xs text-muted sm:inline sm:before:content-['_·_']">{batchLabel(batch)}</span>
           </p>
         </div>
       </header>
