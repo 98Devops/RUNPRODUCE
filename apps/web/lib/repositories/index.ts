@@ -32,6 +32,16 @@ export {
   type SignedInUser
 } from './auth.js';
 export {
+  captureBatches,
+  curvePoints,
+  dailyRecords,
+  recordDailyRecords,
+  type CaptureBatch,
+  type CapturedDay,
+  type DailyRecordRow,
+  type DailyRecordsWrite
+} from './capture.js';
+export {
   Conflict,
   Forbidden,
   IntegrityRejected,
