@@ -1,10 +1,17 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
+import { NotReady } from '@/components/not-ready';
+import { authEnabled } from '@/lib/auth/config';
 import { requestSessionClient } from '@/lib/auth/server';
 import { currentUser, myMemberships, type Role } from '@/lib/repositories';
 import { signOutAction } from './actions';
 
-export const metadata: Metadata = { title: 'Daily capture · RunProduce' };
+// Read per request: whether sign-in exists is the deploy's, not the build's.
+export const dynamic = 'force-dynamic';
+
+export function generateMetadata(): Metadata {
+  return { title: authEnabled() ? 'Daily capture · RunProduce' : 'Not ready yet · RunProduce' };
+}
 
 const ROLE_LABEL: Record<Role, string> = { OWNER: 'Owner', MANAGER: 'Manager', WORKER: 'Worker' };
 
@@ -14,6 +21,7 @@ const ROLE_LABEL: Record<Role, string> = { OWNER: 'Owner', MANAGER: 'Manager', W
  * Checks the user itself (D12): middleware is not the authority.
  */
 export default async function CapturePage() {
+  if (!authEnabled()) return <NotReady />;
   const client = await requestSessionClient();
   const user = await currentUser(client);
   if (user === null) redirect('/sign-in?next=%2Fcapture');

@@ -68,6 +68,18 @@ reply logged.**
   - OQ-46 opened: the facility model, to be designed in a dedicated spec pass,
     not started.
 - **TD-12 logged:** the bill table at 390px, to be fixed in U7's design pass.
+- **Chunk 2 merged to `main`** (`960cb5d`) after all five checks passed on the
+  branch deploy at 390px. The lint fix `f62e8b9` came after it: chunk 2's miss
+  on `tools/*.mjs`.
+- **Live copy:** "your working capital setup" replaces "opening cash balance"
+  in all seven places (`e18e6aa`).
+- **Production shows "not ready yet" at `/sign-in` and `/capture`.** A deploy
+  with neither Supabase setting has no sign-in (`authEnabled`). The middleware
+  passes through, the pages render `NotReady` (no Supabase, no environment), and
+  both actions refuse. With one setting only, it still fails loudly. The branch
+  deploy and local keep the real screens. U11 retires the placeholder.
+- **TD-13 logged, HIGH:** the session cookie's `HttpOnly` and `Secure` flags,
+  for chunk 3 or 4.
 
 **U6 — chunk 7 green, 2026-09-27.** The red phase below, turned green, plus the
 client factory test-first. Local stack only. **Dev not touched:** nothing reads

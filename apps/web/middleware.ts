@@ -8,10 +8,13 @@
  */
 import { NextResponse, type NextRequest } from 'next/server';
 import { gate } from '@/lib/auth/gate';
-import { sessionConfig } from '@/lib/auth/config';
+import { authEnabled, sessionConfig } from '@/lib/auth/config';
 import { createSessionClient, currentUser, type CookieJar } from '@/lib/repositories';
 
 export async function middleware(request: NextRequest) {
+  // No sign-in on this deploy (production until U11): the pages say so themselves.
+  if (!authEnabled()) return NextResponse.next();
+
   let response = NextResponse.next({ request });
 
   const jar: CookieJar = {

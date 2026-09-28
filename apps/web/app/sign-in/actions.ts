@@ -2,6 +2,7 @@
 
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
+import { authEnabled } from '@/lib/auth/config';
 import { safeNextPath } from '@/lib/auth/gate';
 import { requestSessionClient } from '@/lib/auth/server';
 import { signIn, SignInRefused } from '@/lib/repositories';
@@ -19,6 +20,8 @@ const form = z.object({
 
 /** U7 D11 and D12. Refusals come back as the form's one sentence; success redirects. */
 export async function signInAction(_previous: SignInState, data: FormData): Promise<SignInState> {
+  // No form is rendered without sign-in, but a crafted POST still lands here.
+  if (!authEnabled()) return { message: 'Sign-in isn’t ready yet.', email: '' };
   const parsed = form.safeParse({
     email: data.get('email') ?? '',
     password: data.get('password') ?? '',
