@@ -2704,6 +2704,28 @@ and 5.0:1 on the page background; the flow colours are over 6:1.
   HARVEST_COMPLETE". Honest but not plain language. A copy follow-up, not
   accessibility.
 
+### TD-13 · The session cookie is neither HttpOnly nor Secure 🔴 HIGH — next chunk that can absorb it (U7 chunk 3 or 4)
+Found 2026-09-28, verifying U7 chunk 2 on the Netlify branch deploy. After
+sign-in, `sb-zlvjmaorlxrjnuxhykuh-auth-token` is set with `HttpOnly` off,
+`Secure` off and `SameSite=Lax`.
+- **Why it is this way:** it is `@supabase/ssr`'s default. The library leaves
+  `HttpOnly` off so a browser client can read the session.
+- **Why that does not apply here:** RunProduce has no browser client (U7 D10).
+  Sign-in, sign-out and capture all go through server actions, and lint bans
+  `createBrowserClient`. Nothing in the browser needs to read this cookie, so
+  there is nothing to justify script access to it.
+- **The fix is small and has no downside:** set `cookieOptions`
+  (`httpOnly: true`, `secure` on HTTPS, `sameSite: 'lax'`, `path: '/'`) in
+  `createSessionClient` (`lib/repositories/session.ts`), the one place a session
+  client is made. Test-first, with a test that the cookie written through the
+  jar carries the flags.
+- **Why HIGH, not routine deferred (user, 2026-09-28):** defence in depth on
+  an auth cookie is much harder to argue for after the fact than to do right the
+  first time. As things stand, any script injection could read the session
+  token.
+- **Not fixed in the commit that logged it,** by instruction: it stays a
+  chunk-scoped change. Chunk 3 or 4 absorbs it, whichever comes first.
+
 ### TD-12 · The bill table cuts its descriptions off at 390px 🟡
 Found 2026-09-28 (U9 copy fixes, 390px screenshot). "Going out, bill by
 bill" is wider than a phone, so its description column runs past the card's
