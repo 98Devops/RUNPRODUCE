@@ -96,6 +96,12 @@ export default tseslint.config(
     }
   },
   {
+    // Plain Node scripts (U7 D14's local-users.mjs): not TypeScript, so the
+    // Node globals they use are declared here rather than inferred.
+    files: ['packages/db-tests/tools/**/*.mjs'],
+    languageOptions: { globals: { URL: 'readonly', console: 'readonly', process: 'readonly' } }
+  },
+  {
     files: ['packages/engine/src/**/*.ts'],
     rules: {
       'no-restricted-globals': [
