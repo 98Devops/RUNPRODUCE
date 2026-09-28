@@ -139,9 +139,20 @@ export interface DayRow {
   readonly cull_cumulative: number;
   readonly supersedes_id?: string | null;
   readonly voided?: boolean;
+  readonly feed_starter_g?: number;
+  readonly feed_grower_g?: number;
+  readonly feed_finisher_g?: number;
+  readonly feed_entry_source?: string | null;
+  readonly feed_phase?: string | null;
+  readonly feed_phase_source?: string | null;
 }
 
-/** A daily record row with feed and weight filled in; only the removals vary in these tests. */
+/**
+ * A daily record row with feed and weight filled in; only the removals vary in
+ * most tests. Feed provenance is sent as null ("not recorded", U7 D20): these
+ * rows come from tests, not the capture form. Every key is present, as
+ * `record_daily_records` requires.
+ */
 export function day(row: DayRow): Record<string, unknown> {
   return {
     client_request_id: uuid(),
@@ -151,6 +162,9 @@ export function day(row: DayRow): Record<string, unknown> {
     avg_weight_g: null,
     weight_sample_size: null,
     notes: null,
+    feed_entry_source: null,
+    feed_phase: null,
+    feed_phase_source: null,
     ...row
   };
 }

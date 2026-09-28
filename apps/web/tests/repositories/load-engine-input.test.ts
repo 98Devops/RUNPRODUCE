@@ -135,7 +135,10 @@ describe('loadEngineInput · the mapping (D27)', () => {
           feed_grower_kg: 0,
           feed_finisher_kg: 0,
           avg_weight_g: null,
-          weight_sample_size: null
+          weight_sample_size: null,
+          feed_entry_source: 'STANDARD_CONFIRMED',
+          feed_phase: 'STARTER',
+          feed_phase_source: 'FROM_CURVE'
         },
         {
           day_number: 3,
@@ -145,7 +148,10 @@ describe('loadEngineInput · the mapping (D27)', () => {
           feed_grower_kg: 14.25,
           feed_finisher_kg: 0.007,
           avg_weight_g: 95,
-          weight_sample_size: 20
+          weight_sample_size: 20,
+          feed_entry_source: null,
+          feed_phase: null,
+          feed_phase_source: null
         }
       ],
       draws: [{ collection_date: '2026-03-09', phase: 'STARTER', bags: 2.5, kg: 125, price_per_bag_cents: 3060n, terms_days: 30 }],
@@ -251,7 +257,12 @@ describe('loadEngineInput · an unrecognised categorical value is refused, never
     ['sales channel', (s) => (s.sales_orders[0]!['channel'] = 'MARKET')],
     ['sales pricing basis', (s) => (s.sales_orders[0]!['pricing_basis'] = 'PER_TONNE')],
     ['gate pricing basis', (s) => (s.parameter_set.gate_pricing_basis = 'BANDED')],
-    ['delivery mode', (s) => (s.parameter_set.delivery_mode = 'COURIER')]
+    ['delivery mode', (s) => (s.parameter_set.delivery_mode = 'COURIER')],
+    ['record feed entry source', (s) => (s.daily_records[0]!['feed_entry_source'] = 'GUESSED')],
+    ['record feed phase', (s) => (s.daily_records[0]!['feed_phase'] = 'PRESTARTER')],
+    ['record feed phase source', (s) => (s.daily_records[0]!['feed_phase_source'] = 'ASSUMED')],
+    // Present even when null: a missing key means our SQL and our schema disagree.
+    ['record with no feed_phase key', (s) => delete s.daily_records[1]!['feed_phase']]
   ])('%s', async (_what, change) => {
     await expect(load(withChange(change))).rejects.toBeInstanceOf(RepositoryError);
   });

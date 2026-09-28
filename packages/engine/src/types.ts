@@ -10,6 +10,22 @@ export type BasisPoints = number & { readonly __brand: 'BasisPoints' };
 export type IsoDate = string & { readonly __brand: 'IsoDate' };
 
 export type Phase = 'STARTER' | 'GROWER' | 'FINISHER';
+
+/**
+ * How a day's feed figure was entered (U7 D3 addition). `STANDARD_CONFIRMED`:
+ * the curve's standard for the day, offered as a suggestion, tapped and left
+ * unedited. `MEASURED`: typed, or edited after the tap. Both are a person's
+ * entry; they are different evidence, and calibration (AD-38) must be able to
+ * tell them apart.
+ */
+export type EntrySource = 'MEASURED' | 'STANDARD_CONFIRMED';
+
+/**
+ * How the phase a day's feed is filed under was set (AD-99). The phase is
+ * derived from the day against the batch's curve, never chosen by a person.
+ * Past the curve's last day the last phase carries on, and says so.
+ */
+export type PhaseSource = 'FROM_CURVE' | 'EXTRAPOLATED_BEYOND_CURVE';
 export type Channel = 'GATE' | 'BULK';
 export type PricingBasis = 'PER_BIRD' | 'PER_KG';
 
@@ -111,6 +127,20 @@ export interface DailyRecord {
   readonly feed_finisher_kg: number;
   readonly avg_weight_g: Grams | null;
   readonly weight_sample_size: number | null;
+  /**
+   * Feed provenance (U7 D3 addition, AD-99). Null on each means "not recorded"
+   * (a row that predates the capture form), never a default (invariant 5).
+   * Required, so every constructor states them. The engine reads none of them
+   * yet: calibration decides how, once real data exists.
+   *
+   * `feed_phase` is the phase the day's feed was written under, with the other
+   * two feed columns 0 by rule; it and `feed_phase_source` are both set or both
+   * null. A 0 under a phase is the operator's; three 0s with no phase say
+   * nothing about whose zeros they are.
+   */
+  readonly feed_entry_source: EntrySource | null;
+  readonly feed_phase: Phase | null;
+  readonly feed_phase_source: PhaseSource | null;
 }
 
 export interface FeedDraw {

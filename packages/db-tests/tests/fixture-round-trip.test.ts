@@ -62,7 +62,10 @@ async function recordFixture(owner: Member, orgId: string, input: EngineInput): 
         feed_finisher_g: grams(r.feed_finisher_kg, 'feed_finisher_kg'),
         avg_weight_g: r.avg_weight_g,
         weight_sample_size: r.weight_sample_size,
-        notes: null
+        notes: null,
+        feed_entry_source: r.feed_entry_source,
+        feed_phase: r.feed_phase,
+        feed_phase_source: r.feed_phase_source
       }))
     });
   }

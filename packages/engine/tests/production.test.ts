@@ -51,6 +51,9 @@ function record(
     feed_finisher_kg: 0,
     avg_weight_g: null,
     weight_sample_size: null,
+    feed_entry_source: null,
+    feed_phase: null,
+    feed_phase_source: null,
     ...overrides,
     day_number: overrides.day_number as DayNumber
   };
