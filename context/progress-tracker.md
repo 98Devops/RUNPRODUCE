@@ -141,6 +141,53 @@ fast-forwarded to `main` (`a875946`).
 - **The migration versions are local placeholders,** like `engine_snapshot`'s:
   rename each to the version dev stamps when chunk 5 applies them.
 
+**2026-10-13: change of plan, "ship the product".** The user reordered the work
+into six steps, aimed at Daniel recording his real 6,000-bird batch on his
+phone with no sample data in sight:
+1. U7 chunks 4 and 5, which become the **Today** tab. TD-13 is closed; its
+   Netlify check happens in the chunk 5 dev window.
+2. **Start batch** (OWNER and MANAGER only).
+3. **Feed & bills**, on real data, with TD-12 fixed. TD-9 is its own
+   test-first engine pass against fixture 7, and the re-baselined numbers are
+   reported before they are written.
+4. **Results:** costs, plus income from recorded sales only. With no sales, it
+   says so; it never shows an estimate as a result.
+5. **Next batch.** All three modes lose real scoring until OQ-25/OQ-46.
+   Maximum Growth says on the card that its number is "your placement ceiling,
+   not an optimised recommendation". Cover Fast and Build Reserve say "Coming
+   next".
+6. **Production (U11, pulled forward)** in one write window the user approves,
+   including Daniel's prices and curve from a reviewed SQL seed. `/` then
+   redirects to `/today`.
+- **The navigation spec** (`context/plans/navigation.md`) was approved as
+  written. It is recorded as **AD-104**.
+- **The prices gap** was approved: no step created a parameter set or a curve.
+  Daniel's **current** figures, not the workbook's, are recorded in the
+  navigation spec for the step 6 seed.
+
+**U7 chunk 4 built, 2026-10-13** (plan: `context/plans/u7-daily-capture.md`,
+chunk 4, D22 to D26). All approved, **with D25 amended:** tapping "Use" sends
+a `standard_confirmed` flag, the server computes the exact grams itself, and a
+typed amount is kg with one decimal. It is engine only, with no web or database
+change.
+- **`feedPhaseForDay(points, day)`** (`09b8f0e`, D22). It reads the point's
+  own phase. Past the curve's last day, the last phase carries on as
+  `EXTRAPOLATED_BEYOND_CURVE`. An impossible day throws (D23).
+- **`standardFeedForDay(input)`** (`e84aa62`, D24 to D26). It is the curve's
+  grams a bird times the day's opening birds, from the latest record before
+  the day. The engine adds the extras. The result is exact integer grams, or
+  `beyond_curve` with no amount.
+- **Tests:** T-E3 to T-E10, 30 tests, each watched red first.
+  - Four of T-E5's throw tests first passed for the wrong reason: "is not a
+    function" matched a loose `/day/` pattern. Each now has to name its day.
+  - The surface test was checked by removing the export, and it failed as it
+    should.
+- **Suites:** engine 392 (from 362), web 228, golden 11 + 1 held. Typecheck
+  and lint are clean.
+- **Next: chunk 5,** the Today tab inside the AD-104 layout. It opens with the
+  dev write window: the two chunk 3 migrations and TD-13's Netlify check. That
+  needs the user's yes.
+
 **U6 — chunk 7 green, 2026-09-27.** The red phase below, turned green, plus the
 client factory test-first. Local stack only. **Dev not touched:** nothing reads
 `engine_snapshot` from dev until U7, so the migration waits for that.
@@ -1049,6 +1096,29 @@ regenerating when real mortality data lands.
 Tracked in `current-issues.md`.
 
 ## Architecture Decisions
+
+**AD-104 · The app is five tabs that mirror Daniel's sheets: Start batch | Today | Feed & bills | Results | Next batch.**
+Decided by the user 2026-10-13. The spec is `context/plans/navigation.md`.
+- **Routes:** `/start`, `/today` (the landing tab, where sign-in lands),
+  `/feed`, `/results` and `/next`, in an `app/(farm)/` route group with one
+  layout. `/capture` redirects to `/today`. `/` stays the sample dashboard
+  until step 6, then redirects to `/today`.
+- **Roles:** a WORKER sees Today only, with no tab bar. Each page checks the
+  role on the server and redirects a WORKER to `/today`. Hiding the tab is not
+  the guard.
+- **The bar** is a bottom `<nav>` of text links with `aria-current`. It holds
+  no icons, has 56px targets, and leaves room for the safe area. On Today it
+  hides while a field has focus, using CSS only. **This amends ui-context's
+  "no navigation chrome beyond a back arrow"** for an OWNER or MANAGER on
+  Today.
+- **The batch is in the URL** (`?batch=<code>`). It defaults to the most
+  recently placed open batch, and the picker shows only when there is a
+  choice. Results also lists closed batches. An unknown code says so; it never
+  swaps in another batch. One pure `resolveBatch` serves the layout and every
+  page.
+- **Empty states** are a sentence and at most one link. They never show a
+  zero or a sample figure. A missing parameter set (`RP002`) says "Needs your
+  prices", with the settings by name.
 
 **AD-103 · Defence in depth means layers guarding different failure modes, not the same computation duplicated for redundancy.**
 Decided by the user 2026-09-28 (U7 chunk 3, D20), **as a standing principle

@@ -190,7 +190,13 @@ Popover, Badge, Tabs, Slider, Alert.
 
 - **Capture screen** — single column, max-width 480px, centred. Three
   large inputs, one large submit button. No navigation chrome beyond a
-  back arrow. Must be completable one-handed.
+  back arrow. Must be completable one-handed. *Amended by AD-104
+  (2026-10-13):* the capture screen is the Today tab. A WORKER sees no tab
+  bar. An OWNER or MANAGER sees the bottom tab bar, which hides while a form
+  field has focus.
+- **App navigation (AD-104)** — five tabs in a bottom bar: Start batch,
+  Today, Feed & bills, Results, Next batch. Text labels only, 56px targets.
+  Spec: `context/plans/navigation.md`.
 - **Decision console** — full width. Hero metric row across the top,
   then a two-column split: recommendation card on the left, cash
   calendar on the right. Ledgers below in tabs.

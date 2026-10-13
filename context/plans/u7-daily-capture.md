@@ -952,3 +952,203 @@ through Auth):*
    and verified on Netlify in chunk 5's dev window.
 6. **D17:** the migrations reach dev in chunk 5's window, not now, and chunk 3
    stays on the branch until then.
+
+---
+
+## Chunk 4 — The engine's phase and standard feed for a day (D3, D5, AD-99)
+
+**Status: approved 2026-10-13, all four sign-off points, D25 changed** (see
+D25's amendment). Engine only: no web change, no database, no dev write.
+
+### What chunk 4 lands
+
+Two pure functions in `packages/engine`, exported from `index.ts`, that chunk 5's
+server action and the form's label call directly:
+- **`feedPhaseForDay(points, day)`** returns `{ phase, source }`. That is the
+  phase a day's feed is filed under, and whether it came from the curve or was
+  carried past the curve's end (D5, AD-99).
+- **`standardFeedForDay(input)`** returns the day's standard feed for the whole
+  flock, in integer grams, with the figures it was made from. Past the curve's
+  end it returns no amount (AD-99: "no standard-feed suggestion is offered after
+  the curve's last day").
+
+Both take `readonly BreedCurvePoint[]`, never a `BreedCurve`, because a WORKER
+reads points only (chunk 3 finding 4, AD-101). `curvePoints` already returns
+that type.
+
+### Findings that shape it
+
+1. **The phase comes from the point, not from the phase ranges.** D5 says so,
+   and finding 4 is why: the ranges live in `breed_curve_phases`, which a WORKER
+   cannot read. `create_breed_curve` already refuses a point whose label
+   disagrees with the ranges, so the two cannot differ in stored data.
+2. **"Birds alive at the last record" needs one more word: *before*.** D3's
+   figure is the standard per bird times the birds alive. For backfill (D7) the
+   "last record" must be the latest one *before* the day being entered, not the
+   latest overall. For a correction it must exclude the day itself. Read that
+   way, it is exactly `projectProduction`'s `opening_birds` for the day: the
+   flock less the last recorded cumulatives, carried forward unchanged. Feed is
+   charged to opening birds already (AD-7). So the two functions agree by
+   construction, and a test holds them to it.
+3. **Extra chicks count, and the engine adds them.** A WORKER's `CaptureBatch`
+   carries `chickCount` and `extraChickCount` separately. If the route added
+   them, the route would be doing arithmetic and could forget the extras (KB-1,
+   invariant 9). So the function takes both and adds them itself.
+4. **The removal checks already exist.** `validateRemovals` in `production.ts`
+   enforces monotonic cumulatives and the joint bound (invariant 13). Putting
+   `standardFeedForDay` in the same module reuses it without a new
+   cross-module export, so `engine-surface.test.ts`'s internal list is
+   unchanged.
+5. **No golden fixture calls either function,** so no fixture changes and the
+   11 + 1 held stays as it is.
+
+### Decisions
+
+**D22 · `feedPhaseForDay(points, day): FeedPhase`, in `breed-curve.ts`.**
+- **On the curve:** returns the point's `phase`, with `source: 'FROM_CURVE'`.
+- **Past the curve's last day:** returns the last point's `phase`, with
+  `source: 'EXTRAPOLATED_BEYOND_CURVE'`. "Last" means the highest
+  `day_number`, not the array's last element, so the answer does not depend on
+  the reader's sort order. The last phase is read, never assumed to be
+  `FINISHER`.
+- **It throws** for day 0 or below, a non-integer day, an empty point list, or a
+  day on the curve with no point (a hole). This matches `dayNumberFor` and
+  `pointForDay`.
+- `FeedPhase = { phase: Phase; source: PhaseSource }` goes in `types.ts`. That
+  is AD-99's shape. The form's "past the curve's day 41" label reads the curve's
+  last day from the points it already holds.
+
+**D23 · ▶ SIGN-OFF · An impossible day throws; it is not a `MissingInput`.**
+`MissingInput` means "the client has not given us this value", and the UI says
+what to provide. A day before placement is not a missing value: it is a request
+that cannot exist. The database refuses a record dated before placement,
+`dayNumberFor` throws first in the server action, and the date picker's
+minimum is the placement date (D7). A hole in the curve is a broken reader, not
+a gap Daniel can fill. Both are bugs, and the engine's convention for a bug is
+to throw loudly.
+
+| Option | Against |
+|---|---|
+| **Throw** | A caller that skips `dayNumberFor` gets an exception, not a typed result |
+| A new `MissingInputKey` for the day | Tells the screen to ask for something no one can supply, and widens a closed union that the console renders |
+
+*Recommended: throw.*
+
+**D24 · `standardFeedForDay(input): StandardFeed`, in `production.ts`.**
+- **Input:** `{ points, day, chick_count, extra_chick_count, records }`. These
+  are the batch's two counts as the WORKER reads them, and the batch's records
+  as `DailyRecord[]`.
+- **Birds:** `chick_count + extra_chick_count`, less `mortality_cumulative +
+  cull_cumulative` from the latest record with `day_number < day`. With no
+  earlier record, it is the whole flock. A record on the day itself, or after
+  it, is ignored (finding 2).
+- **Checks:** the records pass `validateRemovals` first, so a record set that
+  removes more birds than the flock throws with production's own message.
+- **Result:**
+  ```ts
+  type StandardFeed =
+    | { kind: 'standard'; feed_g: Grams; per_bird_g: Grams; birds: number; phase: Phase }
+    | { kind: 'beyond_curve'; last_curve_day: DayNumber };
+  ```
+  `feed_g = per_bird_g × birds`, which is integer times integer, so it is
+  integer grams by construction (rule 2). The parts travel with the total, so
+  the form can say "50 g a bird × 6,042 birds" without doing the sum itself. A
+  flock with no birds left gives a standard of 0 g. That is a true figure, not
+  a refusal.
+- **Day checks** are D22's, so it throws in the same cases.
+
+**D25 · ▶ SIGN-OFF · The standard is exact grams, never rounded to a bag or a
+whole kilogram.** For example, 50 g × 6,042 birds = 302,100 g, shown as 302.1 kg.
+- `STANDARD_CONFIRMED` means "the standard figure, tapped and unedited" (D3
+  addition). If the suggestion were rounded, the stored value would not be the
+  standard, and AD-102 would label a rounded figure as the curve's own.
+- **What this means for chunk 5:** the kilogram field accepts up to three
+  decimals, so the tapped figure converts back to the same grams exactly
+  (TD-5's boundary). Display formatting trims trailing zeros.
+- **If a farm issues whole bags,** a worker who weighs out 300 kg types 300.
+  That is recorded as `MEASURED`, which is the truth.
+
+| Option | Against |
+|---|---|
+| **Exact grams** | The suggestion can read 302.1 kg, a figure nobody scoops |
+| Rounded to whole kg or 50 kg bags | Stores a rounded figure as `STANDARD_CONFIRMED`, so calibration later reads the rounding as the curve |
+
+*Recommended: exact.*
+
+**Amendment to D25 (the user, 2026-10-13): storage stays exact grams, and the
+form never carries the standard as a number.** This replaces the "what this
+means for chunk 5" bullet above.
+- **Tapping "Use" sends a `standard_confirmed` flag, not an amount.** The
+  server action calls `standardFeedForDay` itself, with the records as they
+  are at submit, and stores those exact grams as `STANDARD_CONFIRMED` /
+  `FROM_CURVE`. The browser's figure is display only, so a tampered request
+  cannot store a made-up standard.
+- **A typed amount is kg with one decimal,** stored as `MEASURED`. There is no
+  three-decimal input anywhere.
+- **The engine is unchanged by this.** `standardFeedForDay` already returns
+  exact integer grams; only chunk 5's form and server action change shape.
+
+**D26 · ▶ SIGN-OFF · Past the curve's end, `standardFeedForDay` returns
+`beyond_curve`, a typed result of its own, not a `MissingInput`.** AD-99 already
+rules that there is no suggestion past the curve. The form then shows the field
+with no "Use" button and the label "Finisher, past the curve's day 41".
+Nothing is missing that Daniel could enter today. Extending his curve is a
+settings change, not a capture input.
+
+*Recommended.*
+
+### Tests, in TDD order, each watched red first (`packages/engine/tests`)
+
+- **T-E3 phase from the curve.** Seed points, days 1, 13, 14, 27, 28 and 41
+  return STARTER, STARTER, GROWER, GROWER, FINISHER and FINISHER, all
+  `FROM_CURVE`. A hand-made curve whose day-5 point says GROWER returns GROWER
+  for day 5. That proves the point is read, not a range.
+- **T-E4 past the curve.** Seed days 42 and 60 return FINISHER,
+  `EXTRAPOLATED_BEYOND_CURVE`. A three-point curve ending in GROWER returns
+  GROWER for day 4, so the last phase is read, not hardcoded. Points given in
+  reverse order give the same answers.
+- **T-E5 impossible days throw.** Day 0, day -1, day 1.5, `NaN`, an empty list,
+  and a curve with a hole at the day asked for.
+- **T-E6 standard feed, no records.** 6,000 chicks plus 60 extras, day 12:
+  `{ kind: 'standard', feed_g: 303000, per_bird_g: 50, birds: 6060, phase:
+  'STARTER' }`. With the extras at 0 it gives 300,000 g, which proves the extras
+  are counted.
+- **T-E7 which record counts.** Records on days 5 and 9, asked for day 9: day
+  5's totals are used, so a correction ignores its own day. Asked for day 7 with
+  records on 5 and 9: day 5's, so backfill ignores later days. Culls subtract
+  as deaths do.
+- **T-E8 parity with production.** For a batch with records on scattered days,
+  `birds` for every day 1 to 41 equals `projectProduction`'s
+  `days[day - 1].opening_birds`, with `asOf` on day 41. This holds D24 and
+  AD-7 to one definition of opening birds.
+- **T-E9 beyond the curve.** Day 42 returns `{ kind: 'beyond_curve',
+  last_curve_day: 41 }` and carries no amount.
+- **T-E10 refusals.** Removals exceeding the flock, and a cumulative that goes
+  down, throw with `validateRemovals`' messages. Day 0 throws (D22).
+- **Surface.** `engine-surface.test.ts` passes once both are in `index.ts`, and
+  fails if either is missing.
+
+### Commits, in order, each green on engine, web, golden, lint and typecheck
+
+1. `feedPhaseForDay` and `FeedPhase` (T-E3 to T-E5).
+2. `standardFeedForDay` and `StandardFeed` (T-E6 to T-E10).
+3. Docs: the progress tracker, and D22 to D26 recorded as approved.
+
+### Out of chunk 4
+
+- The form, its label, the "Use" button, the server action that calls these
+  functions, and the kg formatting (chunk 5).
+- TD-9's change to `computeFeedLiability`. That is its own engine pass against
+  fixture 7, with the re-baselined numbers reported before they are written.
+- Any database, Netlify or dev change.
+
+### For sign-off
+
+1. **D23:** an impossible day throws; it is not a `MissingInput`.
+2. **D24:** the birds are the day's opening birds, taken from the latest record
+   before the day, and held equal to `projectProduction` by T-E8. The engine
+   adds the extra chicks itself.
+3. **D25:** the standard is exact grams, and chunk 5's kg field takes three
+   decimals so the tapped figure stores exactly.
+4. **D26:** past the curve's end the result is a typed `beyond_curve`, with no
+   amount.
