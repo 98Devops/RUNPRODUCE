@@ -26,6 +26,12 @@ export type EntrySource = 'MEASURED' | 'STANDARD_CONFIRMED';
  * Past the curve's last day the last phase carries on, and says so.
  */
 export type PhaseSource = 'FROM_CURVE' | 'EXTRAPOLATED_BEYOND_CURVE';
+
+/** The phase a day's feed is filed under, and how it was set (AD-99, U7 D22). */
+export interface FeedPhase {
+  readonly phase: Phase;
+  readonly source: PhaseSource;
+}
 export type Channel = 'GATE' | 'BULK';
 export type PricingBasis = 'PER_BIRD' | 'PER_KG';
 

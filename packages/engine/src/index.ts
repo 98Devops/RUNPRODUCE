@@ -22,7 +22,7 @@ export {
 } from './enums.js';
 export { NotImplementedError, isNotImplemented } from './errors.js';
 export { Money } from './money.js';
-export { SEED_BREED_CURVE, pointForDay, cumulativeFeedG, feedGByPhase } from './breed-curve.js';
+export { SEED_BREED_CURVE, pointForDay, cumulativeFeedG, feedGByPhase, feedPhaseForDay } from './breed-curve.js';
 export { dayNumberFor, addDays, daysBetween } from './day-number.js';
 export { projectProduction, salesMissingInputs } from './production.js';
 export { computeCosting } from './costing.js';

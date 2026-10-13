@@ -1,6 +1,6 @@
 import seed from '../../../context/breed_curve.json';
 import { Money } from './money.js';
-import type { BreedCurve, BreedCurvePoint, DayNumber, Grams, Phase, PhasePricing } from './types.js';
+import type { BreedCurve, BreedCurvePoint, DayNumber, FeedPhase, Grams, Phase, PhasePricing } from './types.js';
 
 const PHASE_NAMES: readonly Phase[] = ['STARTER', 'GROWER', 'FINISHER'];
 
@@ -99,4 +99,42 @@ export function feedGByPhase(curve: BreedCurve, throughDay: number): Record<Phas
     }
   }
   return totals;
+}
+
+/**
+ * The phase a day's feed is filed under (U7 D5, D22, AD-99).
+ *
+ * Read from the curve's own point for the day, never from the phase ranges: a
+ * WORKER reads points only (AD-101), and `create_breed_curve` already refuses a
+ * point whose label disagrees with the ranges. Takes points rather than a
+ * `BreedCurve` for the same reason, since a curve's phases carry prices.
+ *
+ * Past the curve's last day, the last point's phase carries on and says so.
+ * "Last" is the highest day number, not the array's last element, so the
+ * answer does not depend on the reader's sort order.
+ *
+ * Throws, rather than returning a typed refusal, for a day that cannot exist
+ * (U7 D23): a day before placement, a fraction of a day, an empty curve or a
+ * hole in it. Each is a bug upstream, not a value Daniel could supply.
+ */
+export function feedPhaseForDay(points: readonly BreedCurvePoint[], day: number): FeedPhase {
+  if (!Number.isInteger(day)) {
+    throw new Error(`Day ${day} is not a whole day of the batch`);
+  }
+  if (day < 1) {
+    throw new Error(`Day ${day} is before placement: placement is day 1`);
+  }
+  const [first, ...rest] = points;
+  if (first === undefined) {
+    throw new Error('Breed curve has no points');
+  }
+  const last = rest.reduce((latest, p) => (p.day_number > latest.day_number ? p : latest), first);
+  if (day > last.day_number) {
+    return { phase: last.phase, source: 'EXTRAPOLATED_BEYOND_CURVE' };
+  }
+  const point = points.find((p) => p.day_number === day);
+  if (point === undefined) {
+    throw new Error(`Breed curve has no point for day ${day}`);
+  }
+  return { phase: point.phase, source: 'FROM_CURVE' };
 }
