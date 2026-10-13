@@ -1152,3 +1152,246 @@ settings change, not a capture input.
    decimals so the tapped figure stores exactly.
 4. **D26:** past the curve's end the result is a typed `beyond_curve`, with no
    amount.
+
+---
+
+## Chunk 5 — The Today tab: the capture form inside the AD-104 layout (D3 to D8)
+
+**Status: drafted 2026-10-13, for sign-off.** It opens with the dev write
+window (D33), which needs the user's yes. Everything before that window is
+built on the local stack. Decisions that need a yes are marked **▶ SIGN-OFF**.
+
+### What chunk 5 lands
+
+Daniel, or a WORKER, signs in, lands on Today, and records one day in under a
+minute. When it is done:
+- the `(farm)` layout from AD-104 exists, with the header, the batch picker,
+  `resolveBatch` and the tab bar, and Today is its first tab;
+- the form records a day, backfills a missed one, corrects one, and voids the
+  author's own, with the draft kept on the phone (D6);
+- the feed pre-fill works as amended (D25): "Use" sends a flag, and the server
+  stores the exact standard grams;
+- the round trip "browser → `recordDailyRecords` → `dailyRecords` → the screen"
+  is proven on the local stack, then on the branch deploy against dev.
+
+### Findings that shape it
+
+1. **No tab bar shows in chunk 5, for anyone.** AD-104 shows a tab only once it
+   is built, and gives no bar when there is one tab. After chunk 5 every role
+   has one tab, so the bar is built and tested but not rendered. It appears
+   with Start batch in step 2, and so do the screenshots of it.
+2. **The screen and the engine speak different record shapes.** `dailyRecords`
+   returns `CapturedDay` (dates, grams), and `standardFeedForDay` takes
+   `DailyRecord` (day numbers, kg). A small pure mapper in `lib/today/`
+   converts the two, with the day number from the engine's `dayNumberFor`, as
+   `loadEngineInput` does. It does no other arithmetic.
+3. **"Today" needs a time zone.** Netlify's servers run on UTC, and Zimbabwe is
+   UTC+2. Between midnight and 2am on the farm, the server's date is still
+   yesterday. Nothing in the schema stores a time zone.
+4. **A kg figure must not pass through a float** (rule 2). `parseFloat("32.3")
+   * 1000` is 32,299.999…, and 47 of the 5,001 one-decimal values up to 500 kg
+   go wrong the same way. The typed amount is parsed as a decimal
+   string instead.
+5. **Staleness needs the id the form saw, not the server's current one.** If
+   the server looked up the current head itself, it would never send a stale
+   `supersedesId`, and `StaleCorrection` (D7, D8) could never fire.
+6. **The MCP is read-only in this session.** `apply_migration` is not in the
+   tool list, so the dev window needs the user to switch the MCP to write mode
+   for its duration, as U6's dev window did.
+
+### Decisions
+
+**D27 · The `(farm)` layout, built once, used by every tab from here on.**
+- `app/(farm)/layout.tsx` reads the user, the membership and the open batches
+  once, on the server. With no sign-in configured it shows `NotReady`. With no
+  membership it shows "No farm access yet. Ask the owner to add you."
+- **Header:** "RunProduce", the farm name from the membership, the batch
+  picker (only when there is a choice), and Sign out.
+- **`lib/nav/resolve-batch.ts`:** the pure `resolveBatch(batches, param)`,
+  returning `{ kind: 'batch' }`, `{ kind: 'none' }` or `{ kind: 'unknown' }`.
+  The default is the most recently placed open batch.
+- **`lib/nav/tabs.ts`:** the pure `visibleTabs(role, built)`. It returns Today
+  only for a WORKER, and the built tabs for an OWNER or MANAGER. The bar
+  renders only when it returns two or more (finding 1).
+- **`TabBar` and `BatchPicker`** are small client components that read the URL.
+  They hold no Supabase client, and the bar keeps `?batch=` on its links.
+- **Routes:** `/today` is new. `/capture` redirects to it. `HOME_AFTER_SIGN_IN`
+  becomes `/today`. The middleware matcher and `gate.isProtected` cover
+  `/today`, and the other four routes as they land.
+
+**D28 · ▶ SIGN-OFF · "Today" is the date in `Africa/Harare`, set as one
+constant.** `lib/today/farm-date.ts` has `FARM_TIME_ZONE = 'Africa/Harare'` and
+`farmToday(now)`, using `Intl.DateTimeFormat`. The clock is read in the web
+layer only, and passed in, so the function is testable. A per-organisation time
+zone column is later, if a second farm ever needs one.
+
+| Option | Against |
+|---|---|
+| **One constant, `Africa/Harare`** | A second farm in another zone needs a change |
+| The browser's date, sent with the form | A phone with a wrong clock files a day under the wrong date, and the server cannot check it |
+| UTC | Every capture between midnight and 2am on the farm is filed under yesterday |
+
+**D29 · The page: what Today shows, top to bottom.** VISUAL_DENSITY 2, one
+column, no wider than 480px.
+- **The day line:** "Day 12 · Sat 18 Oct", then "Last recorded day 11" or
+  "Last recorded day 8 · 3 days behind" (D7).
+- **Date:** `?date=YYYY-MM-DD`, defaulting to the farm's today. A native date
+  input, from the placement date to today, changes it. A date outside that range
+  says "Pick a day from placement (Mon 6 Oct) to today." It never clamps
+  silently.
+- **Total dead so far:** a required whole number. It shows "was 14 on day 11"
+  beside it, from the latest earlier record.
+- **Culled so far (D4):** "3, same as day 11 · Change". The first record of a
+  batch asks for culls outright, with no default.
+- **Feed (D5, D25 amended):** one field, "Starter feed issued today, kg". It
+  takes one decimal, uses `inputmode="decimal"`, and is required (AD-82).
+  - Under it: "Standard for day 12: 303.0 kg · Use", from `standardFeedForDay`,
+    with the kg rounded for display only. Tapping it fills the field with that
+    display figure and sets a hidden `standard_confirmed` flag. Any edit clears
+    the flag.
+  - Past the curve's end, there is no button, and the label reads "Finisher
+    feed issued today, kg · past the curve's day 41" (D26).
+- **Weighed birds today?** Collapsed. Opening it asks for the average weight in
+  grams and the sample size, both or neither.
+- **Notes:** collapsed, optional.
+- **Save:** one large button, "Save day 12". With no connection it says "No
+  connection. Your entry is kept on this phone." (D6).
+- **A day already recorded** opens with its stored values, labelled "Recorded".
+  The button becomes "Save correction". It is a correction only if the author
+  may correct it (AD-86: a WORKER corrects their own records; a MANAGER or
+  OWNER corrects any). Otherwise the values are read-only, with "Recorded by
+  someone else. A manager or owner can correct it."
+- **Remove this day's record** appears only on the author's own record (D7).
+  It takes two taps, "Remove" then "Tap again to remove", and never a browser
+  dialog.
+
+**D30 · The server action, `saveDayAction`, is the authority.**
+- It checks the user, membership and batch again (D12). The batch must be in
+  `captureBatches`, which is the WORKER's access list.
+- It reads the records and curve points again itself. It trusts nothing from
+  the browser but the typed fields, the flag, the date, the `clientRequestId`
+  and the `supersedesId`.
+- **Feed (D25 amended):**
+  - With `standard_confirmed`, it calls `standardFeedForDay` on the records as
+    they are at submit, and stores those exact grams as `STANDARD_CONFIRMED` /
+    `FROM_CURVE`.
+  - With the flag on a day past the curve, it refuses: "There is no standard
+    past the curve's day 41. Type the amount." The form never sends this, so
+    only a tampered request meets it.
+  - Without the flag, it parses the typed kg as a decimal string (finding 4).
+    It stores the result as `MEASURED`. Anything other than a whole number or
+    one decimal is refused with "Feed is in kg, to one decimal (for example
+    302.5)."
+  - The phase is `feedPhaseForDay`'s. The amount goes under it, and 0 under the
+    other two (D5, AD-99).
+- **Corrections:** `supersedesId` is the id the form opened with (finding 5).
+- **Errors (D8):** `IntegrityRejected` shows the database's sentence.
+  `Forbidden` shows the own-record message. `Conflict` shows "Someone saved
+  this date first. Reload." `StaleCorrection` shows "This record changed since
+  you opened it."
+- **On success** it returns `{ saved: 12 }`. The client clears the draft and
+  refreshes. The page then shows "Saved day 12" and the next unrecorded day.
+
+**D31 · ▶ SIGN-OFF · kg parsing: `parseKgTenths(text)` turns a string into
+integer grams, with no float.** `"302.5"` becomes 302,500 g and `"302"`
+becomes 302,000 g. `"302.55"`, `"-1"`, `"1e3"`, `""` and `"3,02"` are each
+refused. A comma decimal is refused, not guessed, because "3,02" could be a
+typo for either 3.02 or 302. It lives in `lib/format.ts`'s boundary module, as
+TD-5 placed the conversion.
+
+**D32 · The draft (D6), as built.**
+- localStorage key `runproduce:draft:<batchId>:<date>`. It holds the typed
+  fields, the flag and the `clientRequestId` (`crypto.randomUUID()`, made once
+  per draft).
+- It is restored on load, saved on every change, and cleared on success. Every
+  read and write is wrapped in try/catch, so blocked storage still captures.
+- A retry after a lost response sends the same `clientRequestId`, so it cannot
+  duplicate (AD-75).
+
+**D33 · ▶ SIGN-OFF · The dev write window, at the start of chunk 5's deploy
+step. These are the only dev writes in the chunk, done in this order:**
+1. **A read-only check first, alone:** that dev's Auth refuses sign-ups (chunk 2
+   D14), and that `list_migrations` shows dev at `20260915071004`, with
+   `engine_snapshot` absent or present as the tracker says.
+2. **You switch the Supabase MCP to write mode for the window.**
+3. **I apply three migrations to dev**, then rename the local files to the
+   versions dev stamps: `engine_snapshot`, `u7_feed_provenance` and
+   `u7_worker_capture_reads`. That is two from chunk 3 plus U6 chunk 7's
+   snapshot, if dev still lacks it (step 1 tells).
+4. **You switch the MCP back to read-only.** I confirm with
+   `transaction_read_only` before any further call.
+5. **The checks, on the branch deploy at 390px, with the one-off dev WORKER:**
+   sign-in lands on `/today`, a day saves and reads back, and the cookie shows
+   `HttpOnly` and `Secure` (TD-13's Netlify check).
+
+*Recommended.* No production project is touched. Step 6 has its own window.
+
+### Tests, in TDD order, each watched red first
+
+*Unit (`apps/web`, no database):*
+- **T-T1 `resolveBatch`:** no batches; one; several, where the latest
+  placement wins; a known code; an unknown code; codes that differ only in case.
+- **T-T2 `visibleTabs`:** WORKER gives Today only; OWNER and MANAGER get the
+  built tabs; the bar renders only when there are two or more.
+- **T-T3 `farmToday`:** 21:59 and 22:00 UTC fall on different Harare dates; a
+  date change at month and year ends.
+- **T-T4 `parseKgTenths`:** the accepted and refused strings in D31. No result
+  ever has a fraction of a gram.
+- **T-T5 the record mapper:** `CapturedDay` to `DailyRecord`, with day numbers
+  from the placement date and provenance carried through unchanged.
+- **T-T6 `buildDayRow`** (the action's pure core):
+  - the flag gives the engine's exact grams, `STANDARD_CONFIRMED`,
+    `FROM_CURVE`;
+  - typed kg gives `MEASURED`;
+  - the flag past the curve is refused;
+  - the amount goes under the derived phase, with 0 under the other two;
+  - `supersedesId` passes through as sent.
+- **T-T7 the gate:** `/today` is protected; sign-in lands there; `/capture`
+  redirects; `safeNextPath`'s fallback becomes `/today`.
+- **T-T8 the action's error mapping:** each D8 error gives its sentence. A
+  WORKER's batch outside `captureBatches` is `Forbidden`.
+
+*Database half (`packages/db-tests`, local stack):*
+- **T-T9 the round trip, as a WORKER, through the action's core:** a
+  confirmed standard stores exactly `standardFeedForDay`'s grams; a typed 302.5
+  stores 302,500 g, `MEASURED`; a backfilled day 9 uses day 9's phase; a stale
+  correction is `StaleCorrection`.
+
+*In the browser (local stack, 390px, Playwright MCP), with screenshots for the
+step report:*
+- first record of a batch; a normal day with the standard tapped; a backfill; a
+  correction; a read-only record by someone else; a removal; offline with the
+  draft kept; past the curve's end; no batch; no farm access.
+- Each is timed as the proxy for the 60-second acceptance. Your timing on a
+  real phone stays yours (chunk 6).
+
+### Commits, in order, each green on engine, web, local DB, lint and typecheck
+
+1. The `(farm)` layout, `resolveBatch`, `visibleTabs`, the gate and the
+   `/capture` redirect (D27; T-T1, T-T2, T-T7).
+2. `farmToday`, `parseKgTenths` and the record mapper (D28, D31; T-T3 to T-T5).
+3. The Today page and form, the draft, and `saveDayAction` (D29, D30, D32;
+   T-T6, T-T8, T-T9).
+4. Docs, then the dev window (D33), the branch deploy checks, and the
+   screenshots.
+
+### Out of chunk 5
+
+- The other four tabs (steps 2 to 5), and the tab bar's first appearance on
+  screen.
+- `/` and the sample dashboard (step 6).
+- The gates and acceptance in chunk 6 (`web-design-guidelines`, the user's
+  phone timing).
+- Feed draws (U8), and any production write.
+
+### For sign-off
+
+1. **Finding 1:** no tab bar is visible after chunk 5. It first shows with
+   Start batch.
+2. **D28:** "today" is the date in `Africa/Harare`, as one constant.
+3. **D31:** typed kg is parsed from the string with no float, and comma
+   decimals are refused.
+4. **D33:** the dev window's order and contents, including the MCP switch,
+   which is yours.
+5. **D17's merge recommendation still stands:** merge chunks 3 to 5 to `main`
+   together, after the branch deploy checks pass. The merge is your call.
