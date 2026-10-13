@@ -32,6 +32,34 @@ export interface FeedPhase {
   readonly phase: Phase;
   readonly source: PhaseSource;
 }
+
+/**
+ * What `standardFeedForDay` needs (U7 D24): the batch's curve points and its two
+ * counts as a WORKER reads them (no money), and its records. The two counts stay
+ * separate so the engine, not the route, adds the extra chicks (invariant 9).
+ */
+export interface StandardFeedInput {
+  readonly points: readonly BreedCurvePoint[];
+  readonly day: number;
+  readonly chick_count: number;
+  readonly extra_chick_count: number;
+  readonly records: readonly DailyRecord[];
+}
+
+/**
+ * The day's standard feed for the whole flock, in exact integer grams (U7 D25),
+ * with the two figures it is made of, so a screen can show the sum without doing
+ * it. Past the curve's last day there is no standard and no amount (D26, AD-99).
+ */
+export type StandardFeed =
+  | {
+      readonly kind: 'standard';
+      readonly feed_g: Grams;
+      readonly per_bird_g: Grams;
+      readonly birds: number;
+      readonly phase: Phase;
+    }
+  | { readonly kind: 'beyond_curve'; readonly last_curve_day: DayNumber };
 export type Channel = 'GATE' | 'BULK';
 export type PricingBasis = 'PER_BIRD' | 'PER_KG';
 
