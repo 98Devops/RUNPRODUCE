@@ -45,6 +45,15 @@ export function formatShortDate(date: IsoDate): string {
   return `${Number(day)} ${MONTHS[Number(month) - 1]}`;
 }
 
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+/** `Sat 17 Oct`. The weekday is computed in UTC from the ISO string, so no time zone can shift it. */
+export function formatWeekdayDate(date: IsoDate): string {
+  const [year, month, day] = date.split('-').map(Number);
+  const weekday = new Date(Date.UTC(year ?? 0, (month ?? 1) - 1, day ?? 1)).getUTCDay();
+  return `${WEEKDAYS[weekday]} ${formatShortDate(date)}`;
+}
+
 /** `Day 30 · 7 Mar`: the cycle day and the calendar date, always together. */
 export function formatDayDate(dayNumber: number, date: IsoDate): string {
   return `Day ${dayNumber} · ${formatShortDate(date)}`;

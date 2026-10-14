@@ -4,7 +4,7 @@
  * and grams become kg. Nothing else is derived here.
  */
 import { dayNumberFor, type DailyRecord, type DayNumber, type IsoDate } from '@runproduce/engine';
-import type { CapturedDay } from '@/lib/repositories';
+import type { CapturedDay } from '../repositories/index.js';
 
 export function toDailyRecords(placementDate: IsoDate, days: readonly CapturedDay[]): DailyRecord[] {
   return days.map((d) => ({
