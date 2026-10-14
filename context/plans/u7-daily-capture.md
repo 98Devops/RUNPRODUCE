@@ -1233,8 +1233,12 @@ zone column is later, if a second farm ever needs one.
 
 **D29 · The page: what Today shows, top to bottom.** VISUAL_DENSITY 2, one
 column, no wider than 480px.
-- **The day line:** "Day 12 · Sat 18 Oct", then "Last recorded day 11" or
-  "Last recorded day 8 · 3 days behind" (D7).
+- **The day line:** "Day 12 · Sat 18 Oct", then "Last recorded day 11". When
+  any day from placement to yesterday has no record, it adds "· 2 days missing,
+  from day 10", with "day 10" as a link to the earliest one (D7). *Amended
+  2026-10-14 (TD-14):* the count is every missing day since placement, not only
+  the days after the latest record, so a backfill that stops halfway is still
+  flagged. Today is not missing until it is over.
 - **Date:** `?date=YYYY-MM-DD`, defaulting to the farm's today. A native date
   input, from the placement date to today, changes it. A date outside that range
   says "Pick a day from placement (Mon 6 Oct) to today." It never clamps

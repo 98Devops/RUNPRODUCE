@@ -100,7 +100,6 @@ export default async function TodayPage({ searchParams }: { readonly searchParam
 
   const saved = one(params['saved']);
   const removed = one(params['removed']);
-  const behind = view.lastRecorded && view.lastRecorded.behind > 0 ? view.lastRecorded.behind : 0;
 
   return (
     <main className="grid gap-6">
@@ -110,10 +109,16 @@ export default async function TodayPage({ searchParams }: { readonly searchParam
         </h1>
         <p className="figures text-sm text-muted">
           {view.lastRecorded === null ? 'Nothing recorded yet' : `Last recorded day ${view.lastRecorded.day}`}
-          {behind > 0 && (
+          {view.missing !== null && (
             <span className="text-[var(--state-warning)]">
               {' '}
-              · {behind} {behind === 1 ? 'day' : 'days'} behind
+              · {view.missing.count} {view.missing.count === 1 ? 'day' : 'days'} missing, from{' '}
+              <Link
+                href={`/today?${batchQuery}date=${view.missing.firstDate}`}
+                className="font-medium underline decoration-[var(--state-warning)]/40 underline-offset-4"
+              >
+                day {view.missing.firstDay}
+              </Link>
             </span>
           )}
         </p>

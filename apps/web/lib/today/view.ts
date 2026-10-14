@@ -31,8 +31,12 @@ export interface TodayView {
   readonly dayNumber: number;
   readonly dayDate: string;
   readonly isToday: boolean;
-  /** `behind` counts the unrecorded days between the last record and the farm's today. */
-  readonly lastRecorded: { readonly day: number; readonly behind: number } | null;
+  readonly lastRecorded: { readonly day: number } | null;
+  /**
+   * TD-14: every day from placement to yesterday with no record, wherever it
+   * falls, and the earliest of them. Today is not missing until it is over.
+   */
+  readonly missing: { readonly count: number; readonly firstDay: number; readonly firstDate: IsoDate } | null;
   readonly previous: { readonly day: number; readonly mortality: number; readonly culls: number } | null;
   readonly feed: { readonly phase: Phase; readonly lastCurveDay: number | null; readonly standardKg: string | null };
   readonly existing: {
@@ -77,7 +81,8 @@ export function buildTodayView(input: TodayViewInput): TodayView {
     dayNumber,
     dayDate: formatWeekdayDate(date),
     isToday: date === today,
-    lastRecorded: last ? { day: dayOf(last.recordDate), behind: Math.max(0, dayOf(today) - dayOf(last.recordDate) - 1) } : null,
+    lastRecorded: last ? { day: dayOf(last.recordDate) } : null,
+    missing: missingDays(batch.placementDate, today, records),
     previous: before ? { day: dayOf(before.recordDate), mortality: before.mortalityCumulative, culls: before.cullCumulative } : null,
     feed:
       standard.kind === 'standard'
@@ -102,4 +107,22 @@ export function buildTodayView(input: TodayViewInput): TodayView {
     canEdit: current === undefined || role !== 'WORKER' || mine,
     canRemove: mine
   };
+}
+
+/** The days from placement up to, not including, the farm's today that have no record. */
+function missingDays(placementDate: IsoDate, today: IsoDate, records: readonly CapturedDay[]): TodayView['missing'] {
+  const recorded = new Set(records.map((r) => r.recordDate));
+  let count = 0;
+  let first: IsoDate | null = null;
+  for (let date = placementDate; date < today; date = nextDate(date)) {
+    if (recorded.has(date)) continue;
+    count += 1;
+    first ??= date;
+  }
+  return first === null ? null : { count, firstDay: dayNumberFor(placementDate, first), firstDate: first };
+}
+
+function nextDate(date: IsoDate): IsoDate {
+  const [y, m, d] = date.split('-').map(Number);
+  return new Date(Date.UTC(y ?? 0, (m ?? 1) - 1, (d ?? 1) + 1)).toISOString().slice(0, 10) as IsoDate;
 }

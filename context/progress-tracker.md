@@ -165,6 +165,33 @@ phone with no sample data in sight:
   Daniel's **current** figures, not the workbook's, are recorded in the
   navigation spec for the step 6 seed.
 
+**U7 chunk 5, after review, 2026-10-14.** The user approved chunk 5,
+including the four items beyond the plan.
+- **The branch is pushed**, `e8d7268..875a15c`. Chunks 4 and 5 had been on
+  this machine only. Nothing is merged.
+- **TD-14 is fixed before the merge**, test-first. The day line counts every
+  missing day since placement and links to the earliest. D29's wording is
+  amended to match.
+- **Dev was paused** (NXDOMAIN, MCP timeouts). The user restored it.
+- **The dev window's step 1 was redone on its own,** read-only:
+
+  | Check | Found |
+  |---|---|
+  | Project | `zlvjmaorlxrjnuxhykuh` |
+  | `transaction_read_only` | `on` |
+  | Migrations | The same six as before. `engine_snapshot` is absent; `capture_batches` is present, from migration 5 |
+  | Tables and views | The 32 the six migrations define |
+  | Rows | 0 auth users, 0 orgs, 0 batches |
+  | `@runproduce.local` accounts | None |
+  | Sign-ups (`/auth/v1/settings`) | `disable_signup: false`: **dev allows sign-ups** |
+
+  The sign-up setting differs from what step 1 requires (chunk 2 D14). It was
+  never read before the pause, so it is not known whether the restore changed
+  it. Write mode is held until the user rules.
+- **Step 5 needs a dev WORKER, a farm, a curve and a batch,** and dev has none.
+  Those are dev writes beyond D33's three migrations. They are raised with the
+  user, not taken.
+
 **U7 chunk 5 built on the local stack, 2026-10-14** (plan:
 `context/plans/u7-daily-capture.md`, chunk 5, D27 to D33). All five sign-off
 points were approved. The dev window (D33) and the branch deploy checks come

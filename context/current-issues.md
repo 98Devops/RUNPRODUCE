@@ -2704,7 +2704,7 @@ and 5.0:1 on the page background; the flow colours are over 6:1.
   HARVEST_COMPLETE". Honest but not plain language. A copy follow-up, not
   accessibility.
 
-### TD-14 · Today's "days behind" does not see a gap before the last record 🟡
+### TD-14 · Today's "days behind" does not see a gap before the last record ✅ FIXED 2026-10-14, before the chunk 3-5 merge
 Found 2026-10-14 (U7 chunk 5, browser check).
 - **What happens.** The day line counts the unrecorded days between the latest
   record and the farm's today, as D29 specifies. A batch with days 10 and 11

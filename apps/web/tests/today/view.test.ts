@@ -62,16 +62,44 @@ describe('buildTodayView · the day line', () => {
     expect(buildTodayView(input()).lastRecorded).toBeNull();
   });
 
-  it('gives the last recorded day, and no gap when it was yesterday', () => {
-    expect(buildTodayView(input({ records: [recorded(11, 14, 3)] })).lastRecorded).toEqual({ day: 11, behind: 0 });
+  it('gives the last recorded day', () => {
+    expect(buildTodayView(input({ records: [recorded(8, 9, 1)] })).lastRecorded).toEqual({ day: 8 });
+  });
+});
+
+/** Records for each day listed, with totals that only ever rise. */
+const recordedDays = (days: readonly number[]) => days.map((d) => recorded(d, d, 0));
+const daysExcept = (last: number, skip: readonly number[]) =>
+  Array.from({ length: last }, (_, i) => i + 1).filter((d) => !skip.includes(d));
+
+describe('buildTodayView · missing days (TD-14): every day from placement to yesterday with no record', () => {
+  it('finds a gap before the latest record: days 10 and 11 missing, day 12 recorded', () => {
+    const view = buildTodayView(input({ records: recordedDays(daysExcept(12, [10, 11])) }));
+    expect(view.lastRecorded).toEqual({ day: 12 });
+    expect(view.missing).toEqual({ count: 2, firstDay: 10, firstDate: dateOfDay(10) });
   });
 
-  it('counts the days behind: day 8 last recorded on day 12 is 3 behind', () => {
-    expect(buildTodayView(input({ records: [recorded(8, 9, 1)] })).lastRecorded).toEqual({ day: 8, behind: 3 });
+  it('counts gaps on both sides of the latest record, and points at the earliest', () => {
+    // Recorded 1 to 7 and 9; missing 8, 10 and 11. Today, day 12, is not yet missing.
+    const view = buildTodayView(input({ records: recordedDays(daysExcept(9, [8])) }));
+    expect(view.missing).toEqual({ count: 3, firstDay: 8, firstDate: dateOfDay(8) });
   });
 
-  it('counts behind from the farm’s today, not the date being viewed', () => {
-    expect(buildTodayView(input({ records: [recorded(8, 9, 1)], date: dateOfDay(9) })).lastRecorded).toEqual({ day: 8, behind: 3 });
+  it('counts every day of a batch with nothing recorded yet, from day 1', () => {
+    expect(buildTodayView(input()).missing).toEqual({ count: 11, firstDay: 1, firstDate: dateOfDay(1) });
+  });
+
+  it('says nothing is missing when every day to yesterday is recorded, with today still open', () => {
+    expect(buildTodayView(input({ records: recordedDays(daysExcept(11, [])) })).missing).toBeNull();
+  });
+
+  it('says nothing is missing on placement day itself', () => {
+    expect(buildTodayView(input({ date: dateOfDay(1), today: dateOfDay(1) })).missing).toBeNull();
+  });
+
+  it('counts from the farm’s today, not the date being viewed', () => {
+    const view = buildTodayView(input({ records: recordedDays(daysExcept(12, [10, 11])), date: dateOfDay(3) }));
+    expect(view.missing).toEqual({ count: 2, firstDay: 10, firstDate: dateOfDay(10) });
   });
 });
 
