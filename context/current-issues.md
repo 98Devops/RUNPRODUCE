@@ -2704,6 +2704,20 @@ and 5.0:1 on the page background; the flow colours are over 6:1.
   HARVEST_COMPLETE". Honest but not plain language. A copy follow-up, not
   accessibility.
 
+### TD-16 · Production `/` still shows the sample 5,000-bird dashboard 🟠 MUST CLOSE BEFORE STEP 6
+Logged 2026-10-14 by the user, after the chunk 3–5 merge (`68d828f`, Netlify
+deploy `6acf80db`).
+- **The rule (user):** "Production / still shows the sample 5,000-bird
+  dashboard. Before Daniel gets access (step 6) it must show his real batch or
+  be clearly labelled sample data."
+- **What it shows today:** golden fixture 7, through `buildConsole(FIXTURE_7)`
+  in `apps/web/app/page.tsx`. The only label is the muted header line
+  "Example batch (5,000 birds, day 30)" (`batchLabel`). The greeting underneath
+  reads "Day 30 of the 5,000-bird batch placed 6 Feb", which reads as his.
+- **Already planned:** the step 6 plan has `/` redirect to `/today` (AD-104,
+  `context/plans/navigation.md`), which closes this. If step 6 ships without
+  that redirect, the page needs a plain sample-data label first.
+
 ### TD-15 · The average weight field takes kilograms silently and answers with a generic error 🟡 CHUNK 6, NOT NOW
 Found 2026-10-14 by the user on the U7 branch deploy (step 5 check). They typed
 `1.5`, meaning kg, into "Average weight" and got only the generic error.

@@ -192,6 +192,32 @@ including the four items beyond the plan.
   Those are dev writes beyond D33's three migrations. They are raised with the
   user, not taken.
 
+**U7 chunks 3–5 merged to `main` and live, 2026-10-14.** Step 1 of "ship the
+product" is done.
+- **Step 5 checks passed on the branch deploy**
+  (`u7-daily-capture--runproduce-console.netlify.app`, commit `01845b7`), at
+  390px, signed in as the dev test WORKER:
+  - landing on `/today`, and TD-14's missing-day count;
+  - "Use", the save and its readback, the correction, and the author shown;
+  - the session cookie had `HttpOnly`, `Secure` and `SameSite=Lax` (TD-13
+    verified), and sign-out cleared it.
+- **Found:** TD-15, the average weight field taking kg silently, for chunk 6.
+- **Window B cleanup verified.** The user ran `u7-step5-cleanup.sql` from their
+  own terminal session. `u7-step5-verify.sql`, run read-only on dev, returned
+  0 for all 16 counts, and 17 immutability guards enabled, 0 not enabled.
+- **Merged:** `68d828f`, `--no-ff`, after engine 392, web 394, golden 11 + 1
+  held and local DB 148 passed, with typecheck, lint and `next build` clean.
+  Before the merge, production's Netlify context was confirmed to have no
+  Supabase variables, and a build with neither set was checked locally.
+- **Production deploy `6acf80db` is ready.** `/` shows the dashboard as before.
+  `/sign-in` and `/today`, the pages that need Supabase, show "This part of
+  RunProduce isn't ready yet." `/capture` redirects to `/today`. No key,
+  project URL or stack trace appears on any of them.
+- **Logged:** TD-16, production `/` still showing the sample batch, to be closed
+  before step 6.
+- **Next: step 2, Start batch** (`context/plans/u8-start-batch.md`, branch
+  `u8-start-batch`).
+
 **U7 chunk 5 built on the local stack, 2026-10-14** (plan:
 `context/plans/u7-daily-capture.md`, chunk 5, D27 to D33). All five sign-off
 points were approved. The dev window (D33) and the branch deploy checks come
