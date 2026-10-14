@@ -2704,6 +2704,34 @@ and 5.0:1 on the page background; the flow colours are over 6:1.
   HARVEST_COMPLETE". Honest but not plain language. A copy follow-up, not
   accessibility.
 
+### TD-19 · Netlify Supabase variables were briefly set for every deploy context, production included ✅ RESOLVED 2026-10-14
+Found 2026-10-14 while scoping the branch deploy for the U8 step 2 checks
+(`u8-step2-dev-window.md`). Re-creating `SUPABASE_URL` and
+`SUPABASE_ANON_KEY` for the `u8-start-batch` branch saved a value under
+"All deploy contexts" first, so for about twenty minutes both carried a
+production value (the dev project) and Netlify rebuilt production twice with
+them in its environment. The dev values on production could not reach
+Daniel's data: the web client refuses a non-dev host without
+`RUNPRODUCE_SUPABASE_TARGET`, and the URL was dev's. Sign-in on the
+production URL was enabled against dev for that interval.
+- **Fixed (the user, 18:20 to 18:24 UTC):** each variable now holds a value
+  only for `branch:u8-start-batch`; the other context rows are empty. The
+  production rebuild that followed finished at 18:31 UTC and `/sign-in` on
+  the live site shows "This part of RunProduce isn't ready yet." with no
+  form again. The earlier `branch:u7-daily-capture` value was dropped in the
+  edit; that deploy is finished with and needs none.
+- **Rule for step 6 (production):** set every Netlify variable with an
+  explicit per-context value, never "Same value for all deploy contexts", and
+  read the contexts back (scopes and contexts only) before any deploy. A
+  value saved for all contexts triggers an immediate production rebuild.
+- **Found on the same deploy, open:** the first `u8-start-batch` build
+  (`3c07b35`) failed in Netlify's secrets scanning. `SUPABASE_URL` is
+  flagged "contains secret values", and its value, the dev project URL, is in
+  three test files and `context/SESSION.md`. The URL is public by design (it
+  is in every request the browser makes); the anon key is the secret and is
+  not in the repo. Not changed by me: the user decides between unflagging the
+  URL variable and `SECRETS_SCAN_OMIT_KEYS`.
+
 ### TD-18 · A tap before the page's script had loaded reloaded the page empty ✅ FIXED ON `u8-start-batch`
 Found 2026-10-14 in the chunk 4 browser checks: the first Save on `/start` did
 nothing visible, and the entry was gone. Reproduced on the local stack with the
