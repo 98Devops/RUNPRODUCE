@@ -11,18 +11,20 @@ export {
   CHANNELS,
   CONFIDENCES,
   DELIVERY_MODES,
+  ENTRY_SOURCES,
   OVERHEAD_BASES,
   OVERHEAD_KEYS,
   OVERHEAD_TIMINGS,
+  PHASE_SOURCES,
   PHASES,
   PRICING_BASES,
   SALE_PRICING_BASES
 } from './enums.js';
 export { NotImplementedError, isNotImplemented } from './errors.js';
 export { Money } from './money.js';
-export { SEED_BREED_CURVE, pointForDay, cumulativeFeedG, feedGByPhase } from './breed-curve.js';
+export { SEED_BREED_CURVE, pointForDay, cumulativeFeedG, feedGByPhase, feedPhaseForDay } from './breed-curve.js';
 export { dayNumberFor, addDays, daysBetween } from './day-number.js';
-export { projectProduction, salesMissingInputs } from './production.js';
+export { projectProduction, salesMissingInputs, standardFeedForDay } from './production.js';
 export { computeCosting } from './costing.js';
 export {
   SEED_DELIVERY_CENTS_PER_TONNE,

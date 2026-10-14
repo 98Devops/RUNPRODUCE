@@ -14,10 +14,12 @@ import {
   CHANNELS,
   CONFIDENCES,
   DELIVERY_MODES,
+  ENTRY_SOURCES,
   Money,
   OVERHEAD_BASES,
   OVERHEAD_KEYS,
   OVERHEAD_TIMINGS,
+  PHASE_SOURCES,
   PHASES,
   PRICING_BASES,
   SALE_PRICING_BASES,
@@ -110,7 +112,11 @@ const snapshotSchema = z.object({
       feed_grower_g: int,
       feed_finisher_g: int,
       avg_weight_g: grams.nullable(),
-      weight_sample_size: int.nullable()
+      weight_sample_size: int.nullable(),
+      // Present even when null (U7 D20): null is "not recorded", never a default.
+      feed_entry_source: z.enum(ENTRY_SOURCES).nullable(),
+      feed_phase: z.enum(PHASES).nullable(),
+      feed_phase_source: z.enum(PHASE_SOURCES).nullable()
     })
   ),
   feed_draws: z.array(
@@ -205,7 +211,10 @@ function toEngineInput(s: Snapshot, asOf: IsoDate): EngineInput {
       feed_grower_kg: r.feed_grower_g / 1000,
       feed_finisher_kg: r.feed_finisher_g / 1000,
       avg_weight_g: r.avg_weight_g,
-      weight_sample_size: r.weight_sample_size
+      weight_sample_size: r.weight_sample_size,
+      feed_entry_source: r.feed_entry_source,
+      feed_phase: r.feed_phase,
+      feed_phase_source: r.feed_phase_source
     })),
     draws: s.feed_draws.map((d) => ({
       collection_date: d.collection_date,

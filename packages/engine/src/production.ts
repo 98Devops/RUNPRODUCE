@@ -1,11 +1,14 @@
-import { SEED_BREED_CURVE, cumulativeFeedG, pointForDay } from './breed-curve.js';
+import { SEED_BREED_CURVE, cumulativeFeedG, feedPhaseForDay, pointForDay } from './breed-curve.js';
 import { dayNumberFor } from './day-number.js';
 import type {
   DailyRecord,
   EngineInput,
+  Grams,
   MissingInput,
   ProductionDay,
-  ProductionProjection
+  ProductionProjection,
+  StandardFeed,
+  StandardFeedInput
 } from './types.js';
 
 /**
@@ -196,6 +199,49 @@ export function projectProduction(input: EngineInput): ProductionProjection {
     days,
     carried_forward: today.carried_forward,
     days_since_last_record: today.days_since_last_record
+  };
+}
+
+/**
+ * The day's standard feed for the whole flock (U7 D3, D24 to D26): the curve's
+ * grams a bird for the day, times the day's opening birds.
+ *
+ * The opening birds are the flock less the cumulatives of the latest record
+ * BEFORE the day. A correction of day 9 ignores day 9's own record, and a
+ * backfill of day 7 ignores a later day 9. That is exactly `projectProduction`'s
+ * `opening_birds`, carried forward unchanged, which is what feed is charged to
+ * (AD-7). The tests hold the two equal.
+ *
+ * Exact integer grams, never rounded to a bag or a kilogram (D25): the server
+ * stores this figure as `STANDARD_CONFIRMED` when the worker taps "Use", so a
+ * rounded figure would be stored as the curve's own. Past the curve's last day
+ * there is no standard and no amount (D26, AD-99). The day checks are
+ * `feedPhaseForDay`'s, so an impossible day throws (D23).
+ */
+export function standardFeedForDay(input: StandardFeedInput): StandardFeed {
+  const { points, day, chick_count, extra_chick_count, records } = input;
+  const { phase, source } = feedPhaseForDay(points, day);
+
+  const flock_size = chick_count + extra_chick_count;
+  const sorted = records.slice().sort((a, b) => a.day_number - b.day_number);
+  validateRemovals(sorted, flock_size);
+
+  if (source === 'EXTRAPOLATED_BEYOND_CURVE') {
+    const last_curve_day = points.reduce((max, p) => (p.day_number > max ? p.day_number : max), points[0]!.day_number);
+    return { kind: 'beyond_curve', last_curve_day };
+  }
+
+  const previous = sorted.filter((r) => r.day_number < day).pop();
+  const birds = flock_size - (previous ? previous.mortality_cumulative + previous.cull_cumulative : 0);
+  // On the curve, feedPhaseForDay has already found this day's point.
+  const per_bird_g = points.find((p) => p.day_number === day)!.feed_g;
+
+  return {
+    kind: 'standard',
+    feed_g: (per_bird_g * birds) as Grams,
+    per_bird_g,
+    birds,
+    phase
   };
 }
 

@@ -15,10 +15,12 @@ import type {
   Channel,
   Confidence,
   DeliveryMode,
+  EntrySource,
   OverheadBasis,
   OverheadKey,
   OverheadTiming,
   Phase,
+  PhaseSource,
   PricingBasis,
   SalePricingBasis
 } from '@runproduce/engine';
@@ -27,9 +29,11 @@ import {
   CHANNELS,
   CONFIDENCES,
   DELIVERY_MODES,
+  ENTRY_SOURCES,
   OVERHEAD_BASES,
   OVERHEAD_KEYS,
   OVERHEAD_TIMINGS,
+  PHASE_SOURCES,
   PHASES,
   PRICING_BASES,
   SALE_PRICING_BASES
@@ -47,7 +51,9 @@ export type Complete = [
   Assert<Same<(typeof DELIVERY_MODES)[number], DeliveryMode>>,
   Assert<Same<(typeof OVERHEAD_KEYS)[number], OverheadKey>>,
   Assert<Same<(typeof OVERHEAD_BASES)[number], OverheadBasis>>,
-  Assert<Same<(typeof OVERHEAD_TIMINGS)[number], OverheadTiming>>
+  Assert<Same<(typeof OVERHEAD_TIMINGS)[number], OverheadTiming>>,
+  Assert<Same<(typeof ENTRY_SOURCES)[number], EntrySource>>,
+  Assert<Same<(typeof PHASE_SOURCES)[number], PhaseSource>>
 ];
 
 const NAMES = [
@@ -59,7 +65,9 @@ const NAMES = [
   'DELIVERY_MODES',
   'OVERHEAD_KEYS',
   'OVERHEAD_BASES',
-  'OVERHEAD_TIMINGS'
+  'OVERHEAD_TIMINGS',
+  'ENTRY_SOURCES',
+  'PHASE_SOURCES'
 ] as const;
 
 describe('enum parity · runtime arrays (D27)', () => {

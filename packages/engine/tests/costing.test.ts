@@ -112,7 +112,10 @@ describe('computeCosting — feed is priced by phase', () => {
           feed_grower_kg: 0,
           feed_finisher_kg: 0,
           avg_weight_g: null,
-          weight_sample_size: null
+          weight_sample_size: null,
+          feed_entry_source: null,
+          feed_phase: null,
+          feed_phase_source: null
         }
       ]
     });

@@ -2704,7 +2704,56 @@ and 5.0:1 on the page background; the flow colours are over 6:1.
   HARVEST_COMPLETE". Honest but not plain language. A copy follow-up, not
   accessibility.
 
-### TD-13 · The session cookie is neither HttpOnly nor Secure 🔴 HIGH — next chunk that can absorb it (U7 chunk 3 or 4)
+### TD-15 · The average weight field takes kilograms silently and answers with a generic error 🟡 CHUNK 6, NOT NOW
+Found 2026-10-14 by the user on the U7 branch deploy (step 5 check). They typed
+`1.5`, meaning kg, into "Average weight" and got only the generic error.
+- **What to build (user, 2026-10-14):**
+  - The field shows the day's standard weight in grams, as the feed field shows
+    "Standard for day N: X kg". It comes from the batch's own curve and is shown
+    only when the curve has that day, never made up (rule 3).
+  - When the value is under 10, the message is exactly: "Looks like kilograms.
+    Enter grams, e.g. 1500."
+- **Scope:** a small UX item for chunk 6. By instruction it is not fixed in
+  chunks 3–5 and does not block their merge. Test-first, like the rest of the
+  Today form.
+
+### TD-14 · Today's "days behind" does not see a gap before the last record ✅ FIXED 2026-10-14, before the chunk 3-5 merge
+Found 2026-10-14 (U7 chunk 5, browser check).
+- **What happens.** The day line counts the unrecorded days between the latest
+  record and the farm's today, as D29 specifies. A batch with days 10 and 11
+  missing but day 12 recorded reads "Last recorded day 12", with no warning.
+- **Why it matters.** A backfill that stops halfway leaves a hole nobody is
+  told about. Production carries the last totals across the hole without
+  inventing anything (invariant 5), so no figure is wrong. But the feed for
+  those days is never entered.
+- **Proposed fix.** Count the missing days from placement to today, not just
+  the days after the latest record. Say "2 days missing · day 10 first", with
+  that as the link.
+- **Who decides.** It changes D29's wording, so it is the user's call. It is
+  not a blocker for chunk 5's merge.
+
+### TD-13 · The session cookie is neither HttpOnly nor Secure — ✅ FIXED in U7 chunk 3 (`ddf0a4a`), both flags; ✅ VERIFIED ON NETLIFY 2026-10-14
+**Verified on the branch deploy 2026-10-14** (U7 step 5, deploy `01845b7`).
+After the test worker signed in, `sb-zlvjmaorlxrjnuxhykuh-auth-token` was set
+with `HttpOnly` on, `Secure` on and `SameSite=Lax`, and signing out cleared it.
+Only the names and flags were read, never the value.
+
+**Fixed 2026-09-28, both parts, not narrowed.** `createSessionClient` passes
+`cookieOptions: { httpOnly: true, secure, sameSite: 'lax', path: '/' }`.
+- **`HttpOnly` is always on.** No script needs the cookie (no browser client).
+- **`Secure` is on in a production build** (`NODE_ENV === 'production'`), and so
+  on every Netlify deploy, which serves HTTPS. It is off under `next dev` on
+  `http://localhost`, which would otherwise lose the cookie. `NODE_ENV` is read
+  literally in the default so Next inlines it into the edge middleware bundle;
+  the build output was checked (`NODE_ENV:"production"` in `middleware.js`).
+- **Proven locally:** T-S1 (the options reach `createServerClient`, `secure`
+  per `NODE_ENV`) and T-S6 (after a real sign-in on the local stack, every
+  auth cookie written carries the flags, `Secure` too under a production env).
+- **Not yet seen on Netlify.** That needs a signed-in dev user, which chunk 5's
+  dev window provides. Until then this is locally proven, not verified on the
+  deploy.
+
+*Original entry, kept for the reasoning:*
 Found 2026-09-28, verifying U7 chunk 2 on the Netlify branch deploy. After
 sign-in, `sb-zlvjmaorlxrjnuxhykuh-auth-token` is set with `HttpOnly` off,
 `Secure` off and `SameSite=Lax`.

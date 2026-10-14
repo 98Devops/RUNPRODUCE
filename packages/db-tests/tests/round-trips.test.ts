@@ -108,7 +108,11 @@ describe('T-RT3 · corrections and voids round-trip to production', () => {
       feed_finisher_g: 0,
       avg_weight_g: null,
       weight_sample_size: null,
-      notes: null
+      notes: null,
+      // Not from the capture form: provenance not recorded (U7 D20).
+      feed_entry_source: null,
+      feed_phase: null,
+      feed_phase_source: null
     });
     await rpc(farm.worker, 'record_daily_records', {
       p_batch_id: batchId,

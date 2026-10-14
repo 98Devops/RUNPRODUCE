@@ -4,7 +4,7 @@
  * text.
  */
 import type { Cents, IsoDate } from '@runproduce/engine';
-import { formatBirds, formatDayDate, formatInput, formatMoney, formatShortDate } from '../lib/format.js';
+import { formatBirds, formatDayDate, formatInput, formatMoney, formatShortDate, formatWeekdayDate } from '../lib/format.js';
 
 const cents = (n: bigint) => n as Cents;
 
@@ -71,5 +71,16 @@ describe('formatInput, for an explanation’s inputs', () => {
 
   it('prints any other text as it is', () => {
     expect(formatInput('Not checked')).toBe('Not checked');
+  });
+});
+
+describe('formatWeekdayDate', () => {
+  it.each([
+    ['2026-10-06', 'Tue 6 Oct'],
+    ['2026-10-17', 'Sat 17 Oct'],
+    ['2026-12-31', 'Thu 31 Dec'],
+    ['2028-02-29', 'Tue 29 Feb']
+  ])('shows %s as %s, read from the ISO string so no time zone can shift it', (date, text) => {
+    expect(formatWeekdayDate(date as IsoDate)).toBe(text);
   });
 });

@@ -2,10 +2,12 @@ import type {
   Channel,
   Confidence,
   DeliveryMode,
+  EntrySource,
   OverheadBasis,
   OverheadKey,
   OverheadTiming,
   Phase,
+  PhaseSource,
   PricingBasis,
   SalePricingBasis
 } from './types.js';
@@ -31,3 +33,5 @@ export const OVERHEAD_KEYS = [
 ] as const satisfies readonly OverheadKey[];
 export const OVERHEAD_BASES = ['PER_BIRD', 'PER_BATCH'] as const satisfies readonly OverheadBasis[];
 export const OVERHEAD_TIMINGS = ['PLACEMENT', 'MONTHLY', 'HARVEST_COMPLETE'] as const satisfies readonly OverheadTiming[];
+export const ENTRY_SOURCES = ['MEASURED', 'STANDARD_CONFIRMED'] as const satisfies readonly EntrySource[];
+export const PHASE_SOURCES = ['FROM_CURVE', 'EXTRAPOLATED_BEYOND_CURVE'] as const satisfies readonly PhaseSource[];

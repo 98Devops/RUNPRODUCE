@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { computeDecision, isNotImplemented } from '../src/index.js';
 import { Money } from '../src/money.js';
-import type { BasisPoints, DayNumber, EngineInput, Grams, IsoDate, SalesOrder } from '../src/types.js';
+import type { BasisPoints, DailyRecord, DayNumber, EngineInput, Grams, IsoDate, SalesOrder } from '../src/types.js';
 
 function input(overrides: Partial<EngineInput> = {}): EngineInput {
   return {
@@ -268,5 +268,66 @@ describe('sales quantity validation — 0 < ordered <= birds alive', () => {
     const result = computeDecision(input({ sales: [gateSale(999_999, '2026-04-01')] }));
     if (result.kind !== 'missing_input') throw new Error('expected refusal');
     expect(result.missing.map((m) => m.key)).toContain('sales_bird_count');
+  });
+});
+
+/**
+ * T-E2 (U7 chunk 3, D20). How the feed was entered and which phase it was
+ * written under are recorded for calibration, which does not read them yet (D3
+ * addition, AD-99). Until it is decided how, no forecast may move with them.
+ */
+describe('feed provenance does not change any forecast', () => {
+  function day(n: number, provenance: Pick<DailyRecord, 'feed_entry_source' | 'feed_phase' | 'feed_phase_source'>): DailyRecord {
+    return {
+      day_number: n as DayNumber,
+      mortality_cumulative: n,
+      cull_cumulative: 0,
+      feed_starter_kg: 100 * n,
+      feed_grower_kg: 0,
+      feed_finisher_kg: 0,
+      avg_weight_g: n === 3 ? (95 as Grams) : null,
+      weight_sample_size: n === 3 ? 50 : null,
+      ...provenance
+    };
+  }
+  const unrecorded = { feed_entry_source: null, feed_phase: null, feed_phase_source: null } as const;
+
+  /**
+   * Each section as a value or as what it threw. `allocation` is held until
+   * OQ-25 and throws on read, so a plain deep-equal would stop there; this way it
+   * is compared too, as the same refusal on both sides (T-RP1 does the same).
+   */
+  function sections(result: ReturnType<typeof computeDecision>): Record<string, unknown> {
+    if (result.kind !== 'ok') return { result };
+    const d = result.decision;
+    const read = (get: () => unknown) => {
+      try {
+        return { value: get() };
+      } catch (error) {
+        return { threw: error instanceof Error ? `${error.name}: ${error.message}` : String(error) };
+      }
+    };
+    return {
+      production: read(() => d.production),
+      costing: read(() => d.costing),
+      feed: read(() => d.feed),
+      harvest: read(() => d.harvest),
+      allocation: read(() => d.allocation)
+    };
+  }
+
+  it('gives the same decision whether provenance is unrecorded or set', () => {
+    const without = computeDecision(input({ records: [1, 2, 3].map((n) => day(n, unrecorded)) }));
+    const withProvenance = computeDecision(
+      input({
+        records: [
+          day(1, { feed_entry_source: 'STANDARD_CONFIRMED', feed_phase: 'STARTER', feed_phase_source: 'FROM_CURVE' }),
+          day(2, { feed_entry_source: 'MEASURED', feed_phase: 'STARTER', feed_phase_source: 'FROM_CURVE' }),
+          day(3, { feed_entry_source: 'MEASURED', feed_phase: 'FINISHER', feed_phase_source: 'EXTRAPOLATED_BEYOND_CURVE' })
+        ]
+      })
+    );
+    expect(without.kind).toBe('ok');
+    expect(sections(withProvenance)).toEqual(sections(without));
   });
 });

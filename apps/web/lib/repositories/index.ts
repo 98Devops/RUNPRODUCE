@@ -32,6 +32,16 @@ export {
   type SignedInUser
 } from './auth.js';
 export {
+  captureBatches,
+  curvePoints,
+  dailyRecords,
+  recordDailyRecords,
+  type CaptureBatch,
+  type CapturedDay,
+  type DailyRecordRow,
+  type DailyRecordsWrite
+} from './capture.js';
+export {
   Conflict,
   Forbidden,
   IntegrityRejected,
@@ -52,9 +62,11 @@ export {
   CHANNELS,
   CONFIDENCES,
   DELIVERY_MODES,
+  ENTRY_SOURCES,
   OVERHEAD_BASES,
   OVERHEAD_KEYS,
   OVERHEAD_TIMINGS,
+  PHASE_SOURCES,
   PHASES,
   PRICING_BASES,
   SALE_PRICING_BASES

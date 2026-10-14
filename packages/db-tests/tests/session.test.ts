@@ -12,7 +12,8 @@ import {
   SignInRefused,
   signOut,
   type CookieJar,
-  type SessionCookie
+  type SessionCookie,
+  type SessionCookieWrite
 } from '../../../apps/web/lib/repositories/index.js';
 import { env, newAccount, newOrg, type Account } from '../src/harness.js';
 
@@ -21,10 +22,13 @@ const LOCAL = { RUNPRODUCE_SUPABASE_TARGET: 'local' };
 /** The browser, reduced to its cookie store. */
 class MemoryJar implements CookieJar {
   readonly cookies = new Map<string, string>();
+  /** Every write, with the options a browser would get in `Set-Cookie`. */
+  readonly writes: SessionCookieWrite[] = [];
   getAll(): SessionCookie[] {
     return [...this.cookies].map(([name, value]) => ({ name, value }));
   }
-  setAll(cookies: { name: string; value: string; options: Readonly<Record<string, unknown>> }[]): void {
+  setAll(cookies: SessionCookieWrite[]): void {
+    this.writes.push(...cookies);
     for (const { name, value, options } of cookies) {
       if (value === '' || options['maxAge'] === 0) this.cookies.delete(name);
       else this.cookies.set(name, value);
@@ -63,6 +67,25 @@ describe('T-S6 · a sign-in round trip through the cookie jar', () => {
     await signIn(sessionFor(jar), { email: worker.email, password: worker.password });
     const memberships = await myMemberships(sessionFor(jar));
     expect(memberships.map((m) => [m.orgId, m.role])).toEqual([[orgId, 'WORKER']]);
+  });
+
+  it('writes every auth cookie HttpOnly, Lax, on every path, and not Secure off production (TD-13)', async () => {
+    const jar = new MemoryJar();
+    await signIn(sessionFor(jar), { email: worker.email, password: worker.password });
+    const written = jar.writes.filter((w) => w.name.includes('-auth-token') && w.value !== '');
+    expect(written.length).toBeGreaterThan(0);
+    for (const { options } of written) {
+      expect(options).toMatchObject({ httpOnly: true, sameSite: 'lax', path: '/', secure: false });
+    }
+  });
+
+  it('marks them Secure in a production build (TD-13)', async () => {
+    const jar = new MemoryJar();
+    const client = createSessionClient({ url: env.url, anonKey: env.anonKey }, jar, { ...LOCAL, NODE_ENV: 'production' });
+    await signIn(client, { email: worker.email, password: worker.password });
+    const written = jar.writes.filter((w) => w.name.includes('-auth-token') && w.value !== '');
+    expect(written.length).toBeGreaterThan(0);
+    for (const { options } of written) expect(options).toMatchObject({ httpOnly: true, secure: true });
   });
 
   it('has no user without a sign-in', async () => {

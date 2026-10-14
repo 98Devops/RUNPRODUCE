@@ -81,6 +81,214 @@ reply logged.**
 - **TD-13 logged, HIGH:** the session cookie's `HttpOnly` and `Secure` flags,
   for chunk 3 or 4.
 
+**U7 chunk 3 built, 2026-09-28** (plan: `context/plans/u7-daily-capture.md`,
+chunk 3, D17 to D21, all approved). It is on branch `u7-daily-capture` only, and
+ran against the local stack only. **Dev was not touched:** both migrations go
+to dev in chunk 5's window (D17). Before chunk 3, `u7-daily-capture` was
+fast-forwarded to `main` (`a875946`).
+- **TD-13 fixed, both flags** (`ddf0a4a`, D21). `HttpOnly` is always on;
+  `Secure` follows `NODE_ENV`, and is inlined in the middleware bundle. It is
+  proven locally and not yet on Netlify. See `current-issues.md`.
+- **Feed provenance end to end** (`ba6c0e1`, D20):
+  - `DailyRecord` gains `feed_entry_source`, `feed_phase` and
+    `feed_phase_source`; `ENTRY_SOURCES` and `PHASE_SOURCES` are the runtime
+    arrays.
+  - Migration `u7_feed_provenance`: three nullable columns and five named
+    CHECKs (three for values, AD-99's two, and AD-102's). `record_daily_records`
+    requires the three keys, compares them for the no-op and stores them. The
+    views and `engine_snapshot` carry them; the history view is recreated.
+  - The engine reads none of them; T-E2 pins that.
+- **WORKER capture reads** (`d0bb6a8`, D18, AD-101): `capture_batches()`
+  returns `breed_curve_id`, and a WORKER reads `breed_curve_points` only.
+- **Capture repositories** (`a5c87f1`, D19): `captureBatches`,
+  `dailyRecords`, `curvePoints` and `recordDailyRecords` in
+  `lib/repositories/capture.ts`.
+- **What U6 chunk 7 deferred, and what chunk 3 now builds (a trace for later
+  reviews).**
+  - U6 chunk 7 approved ten write repositories (D30, AD-95) and built none.
+    Chunk 3 builds **`recordDailyRecords` only**.
+  - Still unbuilt: `recordBatch`, `recordBatchPlacement`, `recordBatchClosure`,
+    `recordFeedDraw` (U8), `recordSalesOrder`, `recordCashAccount`,
+    `recordCashTransaction`, `createParameterSet` and `createBreedCurve`.
+  - **T-AC1's AD-86 extension is now written, as T-C9:** a WORKER corrects and
+    voids their own record, and is refused another's, a manager-corrected
+    record, a seed row and a first entry on someone else's date. A multi-day
+    call with one refused row writes nothing; a MANAGER corrects any record; a
+    stale correction is refused.
+  - **U6's T-AC1 to T-AC5 are otherwise still unwritten** (see "Honest limits"
+    below). T-C10 covers only the objects D18 changed, plus the catalog
+    properties of the recreated `capture_batches`.
+- **Deviations from the plan, named:**
+  - D18 said "T-AC2's table changes with it", but there is no T-AC2 to change.
+    T-C10 stands in for the part D18 touches.
+  - Finding 5 counted 26 `DailyRecord` literals. That count included helper
+    calls; the constructors were four.
+  - Finding 5 said the record path had never been exercised. That was true of
+    T-RP1 only: T-RT3 already covered the records mapping. What T-C6 adds is
+    provenance, and a WORKER going through the repositories.
+  - T-C4's wire payload has 15 keys, not 14 (`voided`).
+  - T-E2 first failed on its own comparison, not on the engine: a deep equal
+    read `allocation`, which throws until OQ-25. It now compares section by
+    section, as T-RP1 does.
+  - T-C6 to T-C9 passed on their first run, because they were written after
+    `capture.ts`. A deliberate fault (the writer sending null provenance)
+    turned T-C6 and T-C8 red. T-C9 exercises rules the database has had since
+    U6.
+- **Suites:** engine 362 (from 359), web 228 (from 188), golden 11 + 1 held,
+  local DB 139 (from 78). Typecheck, lint and `next build` are clean. A fresh
+  `db reset --local` applies all nine migrations, and all 139 DB tests pass on
+  it.
+- **The migration versions are local placeholders,** like `engine_snapshot`'s:
+  rename each to the version dev stamps when chunk 5 applies them.
+
+**2026-10-13: change of plan, "ship the product".** The user reordered the work
+into six steps, aimed at Daniel recording his real 6,000-bird batch on his
+phone with no sample data in sight:
+1. U7 chunks 4 and 5, which become the **Today** tab. TD-13 is closed; its
+   Netlify check happens in the chunk 5 dev window.
+2. **Start batch** (OWNER and MANAGER only).
+3. **Feed & bills**, on real data, with TD-12 fixed. TD-9 is its own
+   test-first engine pass against fixture 7, and the re-baselined numbers are
+   reported before they are written.
+4. **Results:** costs, plus income from recorded sales only. With no sales, it
+   says so; it never shows an estimate as a result.
+5. **Next batch.** All three modes lose real scoring until OQ-25/OQ-46.
+   Maximum Growth says on the card that its number is "your placement ceiling,
+   not an optimised recommendation". Cover Fast and Build Reserve say "Coming
+   next".
+6. **Production (U11, pulled forward)** in one write window the user approves,
+   including Daniel's prices and curve from a reviewed SQL seed. `/` then
+   redirects to `/today`.
+- **The navigation spec** (`context/plans/navigation.md`) was approved as
+  written. It is recorded as **AD-104**.
+- **The prices gap** was approved: no step created a parameter set or a curve.
+  Daniel's **current** figures, not the workbook's, are recorded in the
+  navigation spec for the step 6 seed.
+
+**U7 chunk 5, after review, 2026-10-14.** The user approved chunk 5,
+including the four items beyond the plan.
+- **The branch is pushed**, `e8d7268..875a15c`. Chunks 4 and 5 had been on
+  this machine only. Nothing is merged.
+- **TD-14 is fixed before the merge**, test-first. The day line counts every
+  missing day since placement and links to the earliest. D29's wording is
+  amended to match.
+- **Dev was paused** (NXDOMAIN, MCP timeouts). The user restored it.
+- **The dev window's step 1 was redone on its own,** read-only:
+
+  | Check | Found |
+  |---|---|
+  | Project | `zlvjmaorlxrjnuxhykuh` |
+  | `transaction_read_only` | `on` |
+  | Migrations | The same six as before. `engine_snapshot` is absent; `capture_batches` is present, from migration 5 |
+  | Tables and views | The 32 the six migrations define |
+  | Rows | 0 auth users, 0 orgs, 0 batches |
+  | `@runproduce.local` accounts | None |
+  | Sign-ups (`/auth/v1/settings`) | `disable_signup: false`: **dev allows sign-ups** |
+
+  The sign-up setting differs from what step 1 requires (chunk 2 D14). It was
+  never read before the pause, so it is not known whether the restore changed
+  it. Write mode is held until the user rules.
+- **Step 5 needs a dev WORKER, a farm, a curve and a batch,** and dev has none.
+  Those are dev writes beyond D33's three migrations. They are raised with the
+  user, not taken.
+
+**U7 chunk 5 built on the local stack, 2026-10-14** (plan:
+`context/plans/u7-daily-capture.md`, chunk 5, D27 to D33). All five sign-off
+points were approved. The dev window (D33) and the branch deploy checks come
+next and need the user's MCP switch.
+- **The `(farm)` layout and the gate** (`397d887`, D27):
+  - `resolveBatch` and `visibleTabs` are in place. Today is the only tab built,
+    so no tab bar renders yet, for anyone (finding 1).
+  - `HOME_AFTER_SIGN_IN` is `/today`, and `/capture` redirects there with its
+    query kept.
+  - **All five farm paths are gated from the start, built or not,** so a tab
+    that lands later is never briefly open. The plan said "as they land"; this
+    is the stricter reading.
+- **`farmToday`, `parseKgTenths` and the mapper** (`c510dca`, D28, D31):
+  - The kg parse is exact for all 5,001 one-decimal values up to 500 kg. The
+    test also holds parseFloat's 47 wrong ones, so it proves what it claims.
+  - Figures above the integer gram column's limit are refused.
+- **The Today page, the form, the draft and `saveDayAction`** (`01b02c0`, D29,
+  D30, D32). Two additions, both inside D8 and D30:
+  - **Totals are pre-checked** against the days either side and against the
+    flock. The farmer reads "Total dead can't go down: it was 14 on day 11"
+    rather than the database's "mortality_cumulative must be monotonic". The
+    database still decides.
+  - **A blank form for a date saved since it opened is refused** with "Someone
+    saved this date first. Reload." This is a race the write function does not
+    see: with no `supersedes_id`, it supersedes whatever head it finds.
+    - The first version of this check would have refused a retry after a lost
+      reply (AD-75). T-T9 caught it before it ran.
+    - It now lets a head through when it holds exactly the entry's values,
+      which is the write function's own no-op test.
+    - `public.daily_records` has no `client_request_id`, so matching on the id
+      would have needed a migration outside the window.
+  - **Removal** is the author's own record only, for every role, as D29 says.
+- **Tests,** each watched red first, or mutation-checked where written after
+  the code (the view model and T-T9; both caught the mutation):
+
+  | Tests | Cover |
+  |---|---|
+  | T-T1, T-T2, T-T7 | Navigation and the gate |
+  | T-T3, T-T4, T-T5 | The farm date, the kg parse and the mapper |
+  | T-T6, T-T8 | `buildDayRow`, `parseDayForm` and the error sentences |
+  | (no number) | The view model and the draft |
+  | T-T9, 9 tests on the local stack | The DB round trip as a WORKER |
+
+- **Browser, local stack, 390px:** 11 screenshots in `.playwright-mcp/chunk5/`
+  (untracked, not committed). Each case was checked against `facts.daily_record_versions`:
+  - **First record:** "Day 12", standard 303.0 kg.
+  - **"Use" tapped:** stored as exactly 303,000 g, STANDARD_CONFIRMED /
+    FROM_CURVE.
+  - **Backfill:** refused in plain words, then saved, and moved on to the next
+    unrecorded day.
+  - **Correction:** editing the feed dropped the flag, and the record was
+    stored as MEASURED.
+  - **Read-only:** a WORKER opening the OWNER's record.
+  - **Two-tap removal:** the record was voided.
+  - **Offline:** the entry was kept, restored after a reload, saved, and the
+    draft cleared.
+  - **Past the curve:** no "Use" button. 1150.5 kg stored as 1,150,500 g,
+    FINISHER / EXTRAPOLATED_BEYOND_CURVE.
+  - **Unknown batch, date out of range, no batch, no farm access:** each says
+    so in one sentence.
+  - **Timings:** a scripted save takes 1.7 to 2.4 s from page load. A normal
+    day is one typed total, the culls carried, one tap on "Use" and Save. The
+    user's real-phone timing stays chunk 6.
+- **Suites:**
+
+  | Suite | Count |
+  |---|---|
+  | Engine | 392 |
+  | Web | 390 (from 228) |
+  | Golden | 11 + 1 held |
+  | Local DB | 148 |
+
+  Typecheck, lint and `next build` are clean.
+
+**U7 chunk 4 built, 2026-10-13** (plan: `context/plans/u7-daily-capture.md`,
+chunk 4, D22 to D26). All approved, **with D25 amended:** tapping "Use" sends
+a `standard_confirmed` flag, the server computes the exact grams itself, and a
+typed amount is kg with one decimal. It is engine only, with no web or database
+change.
+- **`feedPhaseForDay(points, day)`** (`09b8f0e`, D22). It reads the point's
+  own phase. Past the curve's last day, the last phase carries on as
+  `EXTRAPOLATED_BEYOND_CURVE`. An impossible day throws (D23).
+- **`standardFeedForDay(input)`** (`e84aa62`, D24 to D26). It is the curve's
+  grams a bird times the day's opening birds, from the latest record before
+  the day. The engine adds the extras. The result is exact integer grams, or
+  `beyond_curve` with no amount.
+- **Tests:** T-E3 to T-E10, 30 tests, each watched red first.
+  - Four of T-E5's throw tests first passed for the wrong reason: "is not a
+    function" matched a loose `/day/` pattern. Each now has to name its day.
+  - The surface test was checked by removing the export, and it failed as it
+    should.
+- **Suites:** engine 392 (from 362), web 228, golden 11 + 1 held. Typecheck
+  and lint are clean.
+- **Next: chunk 5,** the Today tab inside the AD-104 layout. It opens with the
+  dev write window: the two chunk 3 migrations and TD-13's Netlify check. That
+  needs the user's yes.
+
 **U6 — chunk 7 green, 2026-09-27.** The red phase below, turned green, plus the
 client factory test-first. Local stack only. **Dev not touched:** nothing reads
 `engine_snapshot` from dev until U7, so the migration waits for that.
@@ -116,6 +324,8 @@ client factory test-first. Local stack only. **Dev not touched:** nothing reads
 - **Still chunk 7, not built:** the write repositories (D30, AD-95),
   `myMemberships`, T-AC1's AD-86 extension. U7's daily-entry form needs
   `recordDailyRecords` from D30, so that one is U7's chunk 1 dependency.
+  *(Update 2026-09-28: `myMemberships` came in U7 chunk 2; `recordDailyRecords`
+  and the AD-86 extension came in U7 chunk 3. See that entry for what remains.)*
 - **Branch hygiene:** `apps/web/package.json` here gained `zod`. When this
   branch meets `u9-first-screen`, the resolution is u9's file plus `zod`.
 
@@ -987,6 +1197,79 @@ regenerating when real mortality data lands.
 Tracked in `current-issues.md`.
 
 ## Architecture Decisions
+
+**AD-104 · The app is five tabs that mirror Daniel's sheets: Start batch | Today | Feed & bills | Results | Next batch.**
+Decided by the user 2026-10-13. The spec is `context/plans/navigation.md`.
+- **Routes:** `/start`, `/today` (the landing tab, where sign-in lands),
+  `/feed`, `/results` and `/next`, in an `app/(farm)/` route group with one
+  layout. `/capture` redirects to `/today`. `/` stays the sample dashboard
+  until step 6, then redirects to `/today`.
+- **Roles:** a WORKER sees Today only, with no tab bar. Each page checks the
+  role on the server and redirects a WORKER to `/today`. Hiding the tab is not
+  the guard.
+- **The bar** is a bottom `<nav>` of text links with `aria-current`. It holds
+  no icons, has 56px targets, and leaves room for the safe area. On Today it
+  hides while a field has focus, using CSS only. **This amends ui-context's
+  "no navigation chrome beyond a back arrow"** for an OWNER or MANAGER on
+  Today.
+- **The batch is in the URL** (`?batch=<code>`). It defaults to the most
+  recently placed open batch, and the picker shows only when there is a
+  choice. Results also lists closed batches. An unknown code says so; it never
+  swaps in another batch. One pure `resolveBatch` serves the layout and every
+  page.
+- **Empty states** are a sentence and at most one link. They never show a
+  zero or a sample figure. A missing parameter set (`RP002`) says "Needs your
+  prices", with the settings by name.
+
+**AD-103 · Defence in depth means layers guarding different failure modes, not the same computation duplicated for redundancy.**
+Decided by the user 2026-09-28 (U7 chunk 3, D20), **as a standing principle
+for future decisions about where to put checks.**
+- **The case that set it.** The database does not check that a daily record's
+  `feed_phase` is the one the batch's curve gives that day. The server derives
+  the phase (D5, AD-99), and it is the single source of truth for it.
+- **The rejected alternative.** A write-time check in `record_daily_records`
+  would be a second copy of `feedPhaseForDay`, including the past-the-curve
+  rule, in SQL. It would need a parity test to keep the two equal. And it still
+  could not check `STANDARD_CONFIRMED`, which takes the engine's standard-feed
+  arithmetic.
+- **What the database does guard is a different failure mode:** internal
+  contradiction within a row (AD-99's two checks, AD-102), and who and where
+  (U6 D23). A hand-made RPC call can mislabel its own feed's phase, just as it
+  can mistype its kilograms. The row still names its author, and AD-86 bounds
+  what that author may change.
+- **How to apply it.** Before adding a check at a second layer, name the
+  failure it catches that the first layer cannot. If the answer is "the same
+  computation, in case the first copy is wrong", that is duplication, not
+  depth: fix the first copy's tests instead.
+- **Pinned by a test:** `feed-provenance.test.ts` stores FINISHER on day 2.
+
+**AD-102 · `STANDARD_CONFIRMED` requires `feed_phase_source = 'FROM_CURVE'`, as a named CHECK.**
+Decided by the user 2026-09-28 (U7 chunk 3, D20).
+`daily_record_versions_standard_from_curve`. Two approved rules already imply
+it: a standard exists only on the curve's days (AD-99: no suggestion past the
+curve's end), and a standard is a phase's figure, so it cannot lack a phase.
+The database now refuses the contradiction instead of storing it. It is
+row-local and reads no curve.
+- **It is written with `is not distinct from`,** because a CHECK whose
+  expression is NULL passes. A plain `= 'FROM_CURVE'` would have let a
+  standard with no phase source through. There is a test for that case.
+
+**AD-101 · A WORKER learns the batch's curve from `capture_batches()`, and reads `breed_curve_points` only.**
+Decided by the user 2026-09-28 (U7 chunk 3, D18). It amends AD-86's third
+default ("a WORKER reads no breed curve") and AD-87 (what `capture_batches()`
+returns).
+- **The curve is pinned by the batch** (`facts.batches.breed_curve_id`, U6
+  D11), not named by the parameter set as U7 D5's note assumed. So it is one
+  fixed id per batch, and `capture_batches()` returns it. A WORKER still cannot
+  read `facts.batches` (U6 D22).
+- **Points only, not the whole curve.** Each point carries the day's standard
+  feed and phase, which is all capture needs. The engine's `BreedCurve` carries
+  feed prices from the parameter set, which is money. So `breed_curves`,
+  `breed_curve_phases` and every parameter table stay OWNER and MANAGER. This is narrower than U7 D3 approved (points and phases), and
+  that is correct: U6 D22 shapes whole tables to what each role needs.
+- **U6 D21's matrix row splits:** points read ✓ · ✓ · ✓; curves and phases
+  stay ✓ · ✓ · —.
+- **Tested by T-C10.**
 
 **AD-100 · U9 v1 visual pass: the console reads as a product for a farmer, not a developer document. Six deliberate amendments to `ui-context.md` §0.**
 Decided by the user 2026-09-27 ("the visual language reads as a developer

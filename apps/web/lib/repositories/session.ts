@@ -35,13 +35,26 @@ export interface SessionClientOptions {
   readonly anonKey: string;
 }
 
+/**
+ * TD-13. `@supabase/ssr` leaves `HttpOnly` off so a browser client can read the
+ * session; there is none here (D10), so no script ever needs this cookie.
+ * `Secure` follows the build: Netlify serves production over HTTPS, and
+ * `next dev` on http://localhost would lose the cookie with it on.
+ */
+function sessionCookieOptions(env: TargetEnv) {
+  return { httpOnly: true, secure: env['NODE_ENV'] === 'production', sameSite: 'lax', path: '/' } as const;
+}
+
 export function createSessionClient(
   options: SessionClientOptions,
   jar: CookieJar,
-  env: TargetEnv = process.env
+  // NODE_ENV is read literally so Next inlines it in the edge middleware bundle,
+  // where a dynamic `env['NODE_ENV']` lookup is not guaranteed to find it.
+  env: TargetEnv = { ...process.env, NODE_ENV: process.env.NODE_ENV }
 ): SupabaseClient {
   resolveProjectTarget(options.url, env);
   return createServerClient(options.url as string, options.anonKey, {
+    cookieOptions: sessionCookieOptions(env),
     cookies: {
       getAll: () => jar.getAll(),
       setAll: (cookies) => jar.setAll(cookies)

@@ -11,9 +11,11 @@ import {
   CHANNELS,
   CONFIDENCES,
   DELIVERY_MODES,
+  ENTRY_SOURCES,
   OVERHEAD_BASES,
   OVERHEAD_KEYS,
   OVERHEAD_TIMINGS,
+  PHASE_SOURCES,
   PHASES,
   PRICING_BASES,
   SALE_PRICING_BASES
@@ -44,6 +46,9 @@ const GOVERNED: ReadonlyArray<readonly [string, readonly string[]]> = [
   ['feed_draw_versions_phase_values', PHASES],
   ['sales_order_versions_channel_values', CHANNELS],
   ['sales_order_versions_pricing_basis_values', SALE_PRICING_BASES],
+  ['daily_record_versions_feed_entry_source_values', ENTRY_SOURCES],
+  ['daily_record_versions_feed_phase_values', PHASES],
+  ['daily_record_versions_feed_phase_source_values', PHASE_SOURCES],
   ['cash_transaction_versions_direction_values', CASH_DIRECTIONS_PENDING_UNION],
   ['memberships_role_values', ROLES]
 ];

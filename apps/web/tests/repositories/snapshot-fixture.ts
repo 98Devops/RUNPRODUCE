@@ -11,6 +11,8 @@
  * - Lists arrive already ordered: overhead lines by `position`, planning bands by
  *   `dressed_floor_g`, curve points by `day_number`, curve phases by `first_day`,
  *   records by `record_date`, draws and orders by date then `created_at`.
+ * - Each daily record carries its feed provenance (U7 D20, AD-99), null when the
+ *   row predates the capture form. The keys are always present.
  * - `cash` is D25's AD-67 section. `loadEngineInput` does not map it yet: the
  *   engine has no opening-cash field until AD-67's engine side lands.
  */
@@ -101,7 +103,10 @@ export function cannedSnapshot() {
         feed_grower_g: 0,
         feed_finisher_g: 0,
         avg_weight_g: null,
-        weight_sample_size: null
+        weight_sample_size: null,
+        feed_entry_source: 'STANDARD_CONFIRMED',
+        feed_phase: 'STARTER',
+        feed_phase_source: 'FROM_CURVE'
       },
       {
         record_date: '2026-03-12',
@@ -111,7 +116,11 @@ export function cannedSnapshot() {
         feed_grower_g: 14250,
         feed_finisher_g: 7,
         avg_weight_g: 95,
-        weight_sample_size: 20
+        weight_sample_size: 20,
+        // A row from before the capture form: provenance not recorded.
+        feed_entry_source: null,
+        feed_phase: null,
+        feed_phase_source: null
       }
     ] as Array<Record<string, unknown>>,
     feed_draws: [
