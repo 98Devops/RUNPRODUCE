@@ -2704,6 +2704,25 @@ and 5.0:1 on the page background; the flow colours are over 6:1.
   HARVEST_COMPLETE". Honest but not plain language. A copy follow-up, not
   accessibility.
 
+### TD-17 · The engine charges extras as well as the ordered chicks; Daniel's sheet charges the ordered chicks only 🟠 AWAITING DANIEL
+Logged 2026-10-14, from the U8 Start batch plan (finding 4).
+- **As logged (the user):** "Engine charges chicks on ordered + extras ($6,060
+  for 6,000+60); Daniel's Final Report charges ordered only ($6,000). Awaiting
+  Daniel's answer. Until then, Start batch shows no chick cost total."
+- **Where it comes from:**
+  - `cash.ts`: `CHICK_COST = chick_price_cents × (chick_count + extra_chick_count)`.
+  - `costing.test.ts`: "charges every placed chick, extras included (KB-1)".
+  - Daniel's Final Report: `C3 = Init!B5 × Init!B7`, which is B5 (ordered)
+    only.
+  - CONTEXT.md calls extras "free chicks". KB-1 was about the flock count,
+    which stays ordered + extras.
+- **The engine is not changed** until Daniel answers (the user, 2026-10-14).
+  When he does, the fix is test-first, and the re-baselined numbers are
+  reported before they are written.
+- **The question, proposed wording:** "When the hatchery sends extra chicks on
+  top of your order, like 60 extra on 6,000, do you pay the same $1.00 for each
+  extra chick, or are they free?"
+
 ### TD-16 · Production `/` still shows the sample 5,000-bird dashboard 🟠 MUST CLOSE BEFORE STEP 6
 Logged 2026-10-14 by the user, after the chunk 3–5 merge (`68d828f`, Netlify
 deploy `6acf80db`).
