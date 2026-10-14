@@ -1,10 +1,10 @@
 /**
  * U7 D12. Refreshes the session and applies `gate`. A thin shell: the decision
- * is `lib/auth/gate.ts`, and it is not the authority, since the capture page
+ * is `lib/auth/gate.ts`, and it is not the authority, since every farm page
  * and every server action check the user again.
  *
- * Matches `/capture` and `/sign-in` only. The console at `/` is never touched
- * (D13).
+ * Matches the five farm tabs (AD-104), the retired `/capture` and `/sign-in`.
+ * The console at `/` is never touched until step 6 (D13).
  */
 import { NextResponse, type NextRequest } from 'next/server';
 import { gate } from '@/lib/auth/gate';
@@ -38,5 +38,20 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/capture', '/capture/:path*', '/sign-in']
+  // Literals only: Next reads the matcher at build time. Keep in step with gate's FARM_PATHS.
+  matcher: [
+    '/start',
+    '/start/:path*',
+    '/today',
+    '/today/:path*',
+    '/feed',
+    '/feed/:path*',
+    '/results',
+    '/results/:path*',
+    '/next',
+    '/next/:path*',
+    '/capture',
+    '/capture/:path*',
+    '/sign-in'
+  ]
 };

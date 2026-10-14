@@ -1,7 +1,7 @@
 import Link from 'next/link';
 
 /**
- * What `/sign-in` and `/capture` show on a deploy without sign-in (production
+ * What `/sign-in` and the farm tabs show on a deploy without sign-in (production
  * until U11; `authEnabled`). Plain on purpose: no form, no session, no
  * Supabase, so it renders with no environment at all. U11 retires it.
  */

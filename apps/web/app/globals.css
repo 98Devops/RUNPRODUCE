@@ -83,3 +83,11 @@ body {
   font-family: var(--font-sans);
   font-variant-numeric: tabular-nums;
 }
+
+/*
+ * AD-104: the tab bar steps aside while a field has focus, so the phone's
+ * keyboard never lifts it over the form being filled in.
+ */
+body:has(input:focus, textarea:focus, select:focus) .tab-bar {
+  display: none;
+}

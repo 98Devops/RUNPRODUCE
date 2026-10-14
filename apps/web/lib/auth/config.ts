@@ -8,7 +8,7 @@ import type { SessionClientOptions } from '@/lib/repositories';
 
 /**
  * Whether this deploy has sign-in at all. Off only when neither setting exists,
- * as on production until U11: `/sign-in` and `/capture` then show "not ready
+ * as on production until U11: `/sign-in` and the farm tabs then show "not ready
  * yet" and nothing touches Supabase. One setting without the other is a
  * misconfiguration, so it counts as on and fails loudly in `sessionConfig` or
  * the project-ref guard, never hidden behind the placeholder.
