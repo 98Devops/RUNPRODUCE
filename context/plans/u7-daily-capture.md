@@ -1157,7 +1157,7 @@ settings change, not a capture input.
 
 ## Chunk 5 — The Today tab: the capture form inside the AD-104 layout (D3 to D8)
 
-**Status: drafted 2026-10-13, for sign-off.** It opens with the dev write
+**Status: approved 2026-10-14, all five points; built on the local stack 2026-10-14 (`397d887`, `c510dca`, `01b02c0`). The dev window and the branch deploy checks remain.** As drafted: it opens with the dev write
 window (D33), which needs the user's yes. Everything before that window is
 built on the local stack. Decisions that need a yes are marked **▶ SIGN-OFF**.
 

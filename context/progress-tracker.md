@@ -165,6 +165,80 @@ phone with no sample data in sight:
   Daniel's **current** figures, not the workbook's, are recorded in the
   navigation spec for the step 6 seed.
 
+**U7 chunk 5 built on the local stack, 2026-10-14** (plan:
+`context/plans/u7-daily-capture.md`, chunk 5, D27 to D33). All five sign-off
+points were approved. The dev window (D33) and the branch deploy checks come
+next and need the user's MCP switch.
+- **The `(farm)` layout and the gate** (`397d887`, D27):
+  - `resolveBatch` and `visibleTabs` are in place. Today is the only tab built,
+    so no tab bar renders yet, for anyone (finding 1).
+  - `HOME_AFTER_SIGN_IN` is `/today`, and `/capture` redirects there with its
+    query kept.
+  - **All five farm paths are gated from the start, built or not,** so a tab
+    that lands later is never briefly open. The plan said "as they land"; this
+    is the stricter reading.
+- **`farmToday`, `parseKgTenths` and the mapper** (`c510dca`, D28, D31):
+  - The kg parse is exact for all 5,001 one-decimal values up to 500 kg. The
+    test also holds parseFloat's 47 wrong ones, so it proves what it claims.
+  - Figures above the integer gram column's limit are refused.
+- **The Today page, the form, the draft and `saveDayAction`** (`01b02c0`, D29,
+  D30, D32). Two additions, both inside D8 and D30:
+  - **Totals are pre-checked** against the days either side and against the
+    flock. The farmer reads "Total dead can't go down: it was 14 on day 11"
+    rather than the database's "mortality_cumulative must be monotonic". The
+    database still decides.
+  - **A blank form for a date saved since it opened is refused** with "Someone
+    saved this date first. Reload." This is a race the write function does not
+    see: with no `supersedes_id`, it supersedes whatever head it finds.
+    - The first version of this check would have refused a retry after a lost
+      reply (AD-75). T-T9 caught it before it ran.
+    - It now lets a head through when it holds exactly the entry's values,
+      which is the write function's own no-op test.
+    - `public.daily_records` has no `client_request_id`, so matching on the id
+      would have needed a migration outside the window.
+  - **Removal** is the author's own record only, for every role, as D29 says.
+- **Tests,** each watched red first, or mutation-checked where written after
+  the code (the view model and T-T9; both caught the mutation):
+
+  | Tests | Cover |
+  |---|---|
+  | T-T1, T-T2, T-T7 | Navigation and the gate |
+  | T-T3, T-T4, T-T5 | The farm date, the kg parse and the mapper |
+  | T-T6, T-T8 | `buildDayRow`, `parseDayForm` and the error sentences |
+  | (no number) | The view model and the draft |
+  | T-T9, 9 tests on the local stack | The DB round trip as a WORKER |
+
+- **Browser, local stack, 390px:** 11 screenshots in `.playwright-mcp/chunk5/`
+  (untracked, not committed). Each case was checked against `facts.daily_record_versions`:
+  - **First record:** "Day 12", standard 303.0 kg.
+  - **"Use" tapped:** stored as exactly 303,000 g, STANDARD_CONFIRMED /
+    FROM_CURVE.
+  - **Backfill:** refused in plain words, then saved, and moved on to the next
+    unrecorded day.
+  - **Correction:** editing the feed dropped the flag, and the record was
+    stored as MEASURED.
+  - **Read-only:** a WORKER opening the OWNER's record.
+  - **Two-tap removal:** the record was voided.
+  - **Offline:** the entry was kept, restored after a reload, saved, and the
+    draft cleared.
+  - **Past the curve:** no "Use" button. 1150.5 kg stored as 1,150,500 g,
+    FINISHER / EXTRAPOLATED_BEYOND_CURVE.
+  - **Unknown batch, date out of range, no batch, no farm access:** each says
+    so in one sentence.
+  - **Timings:** a scripted save takes 1.7 to 2.4 s from page load. A normal
+    day is one typed total, the culls carried, one tap on "Use" and Save. The
+    user's real-phone timing stays chunk 6.
+- **Suites:**
+
+  | Suite | Count |
+  |---|---|
+  | Engine | 392 |
+  | Web | 390 (from 228) |
+  | Golden | 11 + 1 held |
+  | Local DB | 148 |
+
+  Typecheck, lint and `next build` are clean.
+
 **U7 chunk 4 built, 2026-10-13** (plan: `context/plans/u7-daily-capture.md`,
 chunk 4, D22 to D26). All approved, **with D25 amended:** tapping "Use" sends
 a `standard_confirmed` flag, the server computes the exact grams itself, and a

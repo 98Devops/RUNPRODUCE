@@ -2704,6 +2704,21 @@ and 5.0:1 on the page background; the flow colours are over 6:1.
   HARVEST_COMPLETE". Honest but not plain language. A copy follow-up, not
   accessibility.
 
+### TD-14 · Today's "days behind" does not see a gap before the last record 🟡
+Found 2026-10-14 (U7 chunk 5, browser check).
+- **What happens.** The day line counts the unrecorded days between the latest
+  record and the farm's today, as D29 specifies. A batch with days 10 and 11
+  missing but day 12 recorded reads "Last recorded day 12", with no warning.
+- **Why it matters.** A backfill that stops halfway leaves a hole nobody is
+  told about. Production carries the last totals across the hole without
+  inventing anything (invariant 5), so no figure is wrong. But the feed for
+  those days is never entered.
+- **Proposed fix.** Count the missing days from placement to today, not just
+  the days after the latest record. Say "2 days missing · day 10 first", with
+  that as the link.
+- **Who decides.** It changes D29's wording, so it is the user's call. It is
+  not a blocker for chunk 5's merge.
+
 ### TD-13 · The session cookie is neither HttpOnly nor Secure — ✅ FIXED in U7 chunk 3 (`ddf0a4a`), both flags; Netlify check pending chunk 5
 **Fixed 2026-09-28, both parts, not narrowed.** `createSessionClient` passes
 `cookieOptions: { httpOnly: true, secure, sameSite: 'lax', path: '/' }`.
