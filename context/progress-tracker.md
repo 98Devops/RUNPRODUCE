@@ -192,6 +192,68 @@ including the four items beyond the plan.
   Those are dev writes beyond D33's three migrations. They are raised with the
   user, not taken.
 
+**U8 Start batch: chunks 2 to 4 built on the local stack, 2026-10-14** (plan:
+`context/plans/u8-start-batch.md`, approved with D12, the confirm step). Branch
+`u8-start-batch`. **Dev was not touched:** D7's migration waits for the user's
+window (chunk 5).
+- **Chunk 2, the pure core** (`0d6c0ad`):
+  - `parseCount` and `parseCents` read typed text with no float, with the same
+    comma rule as feed.
+  - `parseStartBatchForm`, `buildStart` and `buildCorrection` give D5's
+    sentences in field order, plus D12's confirm lines. `liveSummary` shows no
+    cost total (TD-17).
+  - `canStartBatch` is the single role rule.
+  - Tests: T-SB1 and T-SB2 are engine pins, mutation-checked. T-SB3 to T-SB8
+    are web tests, watched red.
+- **Chunk 3, the database side** (`9a99013`):
+  - Migration `20261014160000_u8_start_batch_guards` (a local placeholder
+    version): `batches_code_shape` (trimmed, 1 to 24 characters), and the
+    farm-zone future-date refusal in `record_batch` and
+    `record_batch_placement`.
+  - `batches.ts`: two writers and three readers. The price is read as `::text`.
+    `placementByRequest` makes a retry after a lost reply count as saved.
+  - `mapDatabaseError` takes the batch's own conflict and stale sentences.
+  - Tests: T-SB10 unit; T-SB11 to T-SB17 on the local stack. The 5 guard tests
+    were red before the migration, and a fresh `db reset --local` applies all
+    ten migrations.
+- **Chunk 4, the page** (this commit):
+  - `/start` and its action, the form with the confirm step, the correction
+    form, and Today's no-batch states per role. `BUILT_TABS` adds `start`, so
+    an OWNER or MANAGER now sees the two-tab bar.
+  - T-SB9 (a WORKER is refused before the client is touched) and T-SB18 (the
+    core's check then save, and the retry) were mutation-checked.
+  - `tabs.ts` now imports relatively, so `packages/db-tests` can run the core.
+- **Browser, local stack, 390px** (`.playwright-mcp/u8/`, untracked):
+  - the empty form;
+  - the future-date refusal, "The chicks can’t arrive after today (Wed 14
+    Oct).";
+  - the live summary;
+  - the confirm step, with nothing written at check;
+  - Go back, with the values kept;
+  - the save, landing on Today "Day 3 · Wed 14 Oct · 2 days missing, from day
+    1". Read back as 6000, 60 and 100, `created_by` the OWNER;
+  - "Type 6000, without the comma.";
+  - the duplicate name;
+  - the correction 60 → 61, a second version in `batches_history`;
+  - the WORKER sent from `/start` to `/today`, with no bar.
+- **Found and fixed:**
+  - the placeholders "B1" and "1.00" looked like values (rule 3), so they are
+    removed;
+  - plan finding 2 overstated a Today crash, and is corrected in the plan.
+- **Not checked in the browser:** Today's two no-batch states. The local farm
+  had a batch by then.
+- **Suites:**
+
+  | Suite | Count |
+  |---|---|
+  | Engine | 395 |
+  | Web | 508 |
+  | Golden | 11 + 1 held |
+  | Local DB | 170 |
+
+  Typecheck, lint and `next build` are clean.
+- **Next: chunk 5,** the dev window, opened by the user from their terminal.
+
 **U7 chunks 3–5 merged to `main` and live, 2026-10-14.** Step 1 of "ship the
 product" is done.
 - **Step 5 checks passed on the branch deploy**

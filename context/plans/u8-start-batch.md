@@ -5,7 +5,11 @@ and added two things:
 - **TD-17 is logged** (finding 4). The engine is unchanged.
 - **D12, a confirm step before saving** (below).
 
-D10 and D11 were not ruled on separately, and are built as drafted. Chunks 2
+D10 and D11 were not ruled on separately, and are built as drafted.
+**Chunks 2 to 4 are built on the local stack** (`0d6c0ad`, `9a99013`, and
+chunk 4's commit; see `progress-tracker.md`). There are two deviations:
+- `buildPlacement` is two functions, `buildStart` and `buildCorrection`.
+- T-SB18 (the action's core on the local stack) is added. Chunks 2
 to 4 run against the local stack only. Chunk 5, the dev window, waits for the
 user, who opens it from their own terminal. D7's migration is not applied to
 dev until then.
@@ -48,11 +52,15 @@ Initialization sheet (B5 chicks, B6 extras, B7 price).
    there are two or more, and AD-104 calls overlapping batches "a real case: a
    leveraged rollover places the next batch before the current one is
    harvested." See D6.
-2. **`record_batch` does not refuse a future placement date, and a future date
-   crashes Today.** Today picks the most recently placed batch by default, and
-   `dayNumberFor` throws when today is before placement. A MANAGER can call the
-   RPC directly with the public anon key and their own session, so the form
-   alone is not the guard. See D7.
+2. **`record_batch` does not refuse a future placement date.** A MANAGER can
+   call the RPC directly with the public anon key and their own session, so the
+   form alone is not the guard. See D7.
+   - **Corrected in chunk 4:** this said a future date "crashes Today". It does
+     not. Today checks `today < placement` before calling `dayNumberFor`, and
+     says "Batch X is placed on …".
+   - But the batch, being the most recently placed, becomes the farm's default
+     on Today, and nothing can be recorded against it until that date. The
+     guard is for the rule, not for a crash.
 3. **A blank or padded batch code is storable.** `code text not null` has no
    check, so `''` and `' B1 '` are valid rows. The code is the batch's name in
    the URL (`?batch=`), the picker and every page. Because `facts.batches` is
@@ -259,7 +267,7 @@ code.** ▶ SIGN-OFF
   rule.
 - **Why a migration at all:** findings 2 and 3, and the pattern so far (the form
   pre-checks, the database decides). Without it, a future date from a direct
-  RPC call takes Today down for the whole farm.
+  RPC call becomes Today's default batch, with nothing recordable until then.
 - **Recorded as AD-105** once approved.
 
 **D8 · Two write repositories and two readers, thin (AD-95).**

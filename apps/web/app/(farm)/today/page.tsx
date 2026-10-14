@@ -10,6 +10,7 @@ import { SIGN_IN_PATH } from '@/lib/auth/gate';
 import { formatWeekdayDate } from '@/lib/format';
 import { loadFarm } from '@/lib/nav/farm';
 import { resolveBatch } from '@/lib/nav/resolve-batch';
+import { canStartBatch } from '@/lib/nav/tabs';
 import { curvePoints, dailyRecords } from '@/lib/repositories';
 import { farmToday } from '@/lib/today/farm-date';
 import { buildTodayView } from '@/lib/today/view';
@@ -41,10 +42,18 @@ export default async function TodayPage({ searchParams }: { readonly searchParam
   const params = await searchParams;
   const resolved = resolveBatch(farm.batches, one(params['batch']));
 
+  // The navigation spec's wording (AD-104 §4): only those who can start a batch are sent to do it.
   if (resolved.kind === 'none') {
-    return (
+    return canStartBatch(farm.membership.role) ? (
+      <main className="grid gap-3">
+        <p className="text-lg">No batch to record yet.</p>
+        <Link href="/start" className={LINK}>
+          Start a batch
+        </Link>
+      </main>
+    ) : (
       <main>
-        <p className="text-lg">No batch is running yet.</p>
+        <p className="text-lg">No batch to record yet. Ask the owner to start one.</p>
       </main>
     );
   }

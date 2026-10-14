@@ -16,6 +16,8 @@ import {
   StaleCorrection,
   type BatchInsert
 } from '../../../apps/web/lib/repositories/index.js';
+import { parseStartBatchForm, type CorrectRequest, type StartRequest } from '../../../apps/web/lib/start/placement.js';
+import { submitPlacement } from '../../../apps/web/lib/start/save.js';
 import { day, newFarm, type Farm } from '../src/payloads.js';
 import { pool, refused, rowCount, rpc, uuid } from '../src/harness.js';
 
@@ -266,5 +268,82 @@ describe('T-SB17 · what a WORKER sees of it', () => {
     const curves = await farm.worker.client.from('breed_curves').select('id');
     expect(curves.data).toEqual([]);
     expect((await captureBatches(farm.worker.client)).map((b) => b.batchId)).toContain(batchId);
+  });
+});
+
+describe('T-SB18 · the action’s core, check then save (D12)', () => {
+  const form = (over: Record<string, unknown>): StartRequest | CorrectRequest => {
+    const parsed = parseStartBatchForm({
+      kind: 'start',
+      mode: 'check',
+      name: code('S'),
+      placementDate: '2026-10-12',
+      chickCount: '6000',
+      extraChickCount: '60',
+      chickPrice: '1.00',
+      curveId: farm.curveId,
+      clientRequestId: uuid(),
+      ...over
+    });
+    if (!parsed.ok) throw new Error(parsed.message);
+    return parsed.request;
+  };
+  const actor = () => ({ orgId: farm.orgId, role: 'MANAGER' as const });
+
+  it('check answers with the confirm lines and writes nothing; save writes once, and a retry is saved', async () => {
+    const name = code('S');
+    const crid = uuid();
+    const before = await rowCount('select 1 from facts.batches where org_id = $1', [farm.orgId]);
+
+    const checked = await submitPlacement(farm.manager.client, actor(), form({ name, clientRequestId: crid }), farmToday);
+    expect(checked).toEqual({
+      kind: 'confirm',
+      confirm: [`Batch name ‘${name}’ can’t be changed later.`, expect.stringMatching(/^Placement date Mon 12 Oct → today is day \d+\.$/)]
+    });
+    expect(await rowCount('select 1 from facts.batches where org_id = $1', [farm.orgId])).toBe(before);
+
+    const save = form({ name, clientRequestId: crid, mode: 'save' });
+    await expect(submitPlacement(farm.manager.client, actor(), save, farmToday)).resolves.toEqual({ kind: 'saved', code: name });
+    // The reply was lost and the farmer taps Save again: the same request, not "already a batch called".
+    await expect(submitPlacement(farm.manager.client, actor(), save, farmToday)).resolves.toEqual({ kind: 'saved', code: name });
+    expect(await rowCount('select 1 from facts.batches where code = $1', [name])).toBe(1);
+
+    // A new request with the same name is the duplicate.
+    await expect(submitPlacement(farm.manager.client, actor(), form({ name, mode: 'save' }), farmToday)).resolves.toEqual({
+      kind: 'refused',
+      message: `There is already a batch called ${name}. Pick another name.`
+    });
+  });
+
+  it('corrects through the same core, and a WORKER claiming a MANAGER’s role still reads no batch', async () => {
+    const name = code('S');
+    await submitPlacement(farm.owner.client, { orgId: farm.orgId, role: 'OWNER' }, form({ name, mode: 'save' }), farmToday);
+    const batch = (await farmBatches(farm.owner.client)).find((b) => b.code === name)!;
+    const correction = (over: Record<string, unknown>) => {
+      const parsed = parseStartBatchForm({
+        kind: 'correct',
+        mode: 'save',
+        batchId: batch.batchId,
+        supersedesId: batch.placementVersionId,
+        placementDate: '2026-10-12',
+        chickCount: '6000',
+        extraChickCount: '61',
+        chickPrice: '1.00',
+        clientRequestId: uuid(),
+        ...over
+      });
+      if (!parsed.ok) throw new Error(parsed.message);
+      return parsed.request;
+    };
+    await expect(submitPlacement(farm.manager.client, actor(), correction({}), farmToday)).resolves.toEqual({
+      kind: 'saved',
+      code: name
+    });
+    expect((await farmBatches(farm.owner.client)).find((b) => b.code === name)?.extraChickCount).toBe(61);
+
+    await expect(submitPlacement(farm.worker.client, actor(), correction({ extraChickCount: '62' }), farmToday)).resolves.toEqual({
+      kind: 'refused',
+      message: 'That batch isn’t one you can see.'
+    });
   });
 });

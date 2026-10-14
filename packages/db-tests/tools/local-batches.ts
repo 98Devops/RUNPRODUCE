@@ -10,6 +10,9 @@
 // batch code: re-running reuses the curve and the batches.
 //   L-TODAY   placed 11 days before the farm's today: today is day 12.
 //   L-LATE    placed past the curve's end, for the "no standard" case.
+//
+// With --curve-only (U8): the curve and the parameter set, and no batch, for
+// checking Start batch by hand from an empty farm.
 import { execSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
@@ -42,10 +45,17 @@ const lastCurveDay = Math.max(...SEED_BREED_CURVE.points.map((p) => p.day_number
 
 const existing = await owner.from('batches').select('code, breed_curve_id').eq('org_id', orgId);
 if (existing.error) throw existing.error;
-let curveId = existing.data[0]?.breed_curve_id as string | undefined;
+const curves = await owner.from('breed_curves').select('id').eq('org_id', orgId).order('created_at');
+if (curves.error) throw curves.error;
+let curveId = (existing.data[0]?.breed_curve_id ?? curves.data[0]?.id) as string | undefined;
 if (curveId === undefined) {
   curveId = await call<string>('create_breed_curve', { payload: curvePayload(orgId) });
   await call('create_parameter_set', { payload: parameterSetPayload(orgId, '2026-01-01', BASE_PARAMETERS) });
+}
+
+if (process.argv.includes('--curve-only')) {
+  console.log(`curve ${curveId}; no batch placed (--curve-only)`);
+  process.exit(0);
 }
 
 for (const [code, placementDate] of [

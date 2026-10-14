@@ -6,7 +6,8 @@
  * has two or more. A WORKER has Today alone: the other four carry money, and
  * every page checks the role again on the server.
  */
-import type { Role } from '@/lib/repositories';
+// Relative: the Start batch save core imports this, and packages/db-tests runs that core.
+import type { Role } from '../repositories/index.js';
 
 export type TabId = 'start' | 'today' | 'feed' | 'results' | 'next';
 
@@ -25,7 +26,7 @@ export const TABS: readonly Tab[] = [
 ];
 
 /** The tabs that exist so far. Each step of the plan adds its own. */
-export const BUILT_TABS: readonly TabId[] = ['today'];
+export const BUILT_TABS: readonly TabId[] = ['start', 'today'];
 
 export function visibleTabs(role: Role, built: readonly TabId[]): Tab[] {
   return TABS.filter((tab) => built.includes(tab.id) && (role !== 'WORKER' || tab.id === 'today'));

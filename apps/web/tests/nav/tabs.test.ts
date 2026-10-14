@@ -32,8 +32,8 @@ describe('T-T2 · visibleTabs', () => {
     expect(visibleTabs('WORKER', ['start']).map((t) => t.id)).toEqual([]);
   });
 
-  it('has Today alone built after chunk 5', () => {
-    expect(BUILT_TABS).toEqual(['today']);
+  it('has Start batch and Today built after U8 step 2', () => {
+    expect(BUILT_TABS).toEqual(['start', 'today']);
   });
 });
 
@@ -47,8 +47,13 @@ describe('T-T2 · showTabBar', () => {
     expect(showTabBar(visibleTabs('OWNER', ['start', 'today']))).toBe(true);
   });
 
-  it.each(['OWNER', 'MANAGER', 'WORKER'] as const)('shows no bar to an %s while Today is the only tab built', (role) => {
-    expect(showTabBar(visibleTabs(role, BUILT_TABS))).toBe(false);
+  it.each(['OWNER', 'MANAGER'] as const)('shows an %s the bar now that Start batch is built', (role) => {
+    expect(visibleTabs(role, BUILT_TABS).map((t) => t.id)).toEqual(['start', 'today']);
+    expect(showTabBar(visibleTabs(role, BUILT_TABS))).toBe(true);
+  });
+
+  it('still shows a WORKER no bar: Today is their only tab', () => {
+    expect(showTabBar(visibleTabs('WORKER', BUILT_TABS))).toBe(false);
   });
 });
 
