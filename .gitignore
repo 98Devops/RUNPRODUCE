@@ -20,3 +20,11 @@ coverage/
 # Netlify CLI state, and the U9 v1 static export (TD-10)
 .netlify/
 out/
+
+# Local agent tooling, not the project. Playwright MCP screenshots and
+# snapshots are session evidence; AGENTS.md is a copy of CLAUDE.md for
+# other agents; .agents/ mirrors .claude/skills; .codex/ is a local config.
+.playwright-mcp/
+.agents/
+.codex/
+AGENTS.md
