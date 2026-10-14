@@ -211,6 +211,28 @@ checklist written, 2026-10-14.** Branch `u8-start-batch`, chunks 2 to 4 pushed.
   (`.playwright-mcp/u8/08-confirm-after-replayed-tap.png`, untracked).
 - **Suites:** engine 395, web 512, golden 11 + 1 held, local DB 170.
   Typecheck, lint and `next build` clean.
+- **The dev trio,** `supabase/dev-windows/u8-step2-{setup,cleanup,verify}.sql`,
+  on the U7 pattern with the fixed org id `c8000000-…-0001`. Setup refuses
+  unless dev is empty, has exactly the two check users and D7 is applied; it
+  makes the organisation, MANAGER and WORKER, and the 41-point curve, and no
+  batch. Cleanup deletes by that id with the guards off and on in one
+  transaction, then the two check users (the plan had the user delete them;
+  the user runs cleanup, so it is the same hand). Verify adds a second row
+  for what stays: `batches_code_shape` 1, farm-zone functions 2.
+- **Dry run on the local stack** (`db reset --local`, the two users made
+  locally, setup, then a CHECK-2 batch with two placement versions and one
+  daily record inserted as the check would, cleanup, verify): setup's row
+  was 1 / "MANAGER, WORKER" / 41 / 0; a second setup refused ("dev already
+  has an organisation"); cleanup deleted 1, 2, 1, 41, 3, 1, 2, 1 and 2 users;
+  verify was all 0, 17 / 0, then 1 and 2.
+- **The window checklist:** `context/plans/u8-step2-dev-window.md`, with
+  window A (the migration through `apply_migration`, the stamped version
+  renamed locally as U7's were, then setup), nine checks on the branch
+  deploy (the plan's eight plus the lost tap under a throttled network),
+  window B and verify. Not yet run: the user opens the window.
+- **Local stack after this:** reset, so the local farm, B1 and the owner@ and
+  worker@ accounts are gone until `local-users.mjs` and the curve tool are
+  re-run.
 
 **U8 Start batch: chunks 2 to 4 built on the local stack, 2026-10-14** (plan:
 `context/plans/u8-start-batch.md`, approved with D12, the confirm step). Branch
