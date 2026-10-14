@@ -2704,6 +2704,19 @@ and 5.0:1 on the page background; the flow colours are over 6:1.
   HARVEST_COMPLETE". Honest but not plain language. A copy follow-up, not
   accessibility.
 
+### TD-15 · The average weight field takes kilograms silently and answers with a generic error 🟡 CHUNK 6, NOT NOW
+Found 2026-10-14 by the user on the U7 branch deploy (step 5 check). They typed
+`1.5`, meaning kg, into "Average weight" and got only the generic error.
+- **What to build (user, 2026-10-14):**
+  - The field shows the day's standard weight in grams, as the feed field shows
+    "Standard for day N: X kg". It comes from the batch's own curve and is shown
+    only when the curve has that day, never made up (rule 3).
+  - When the value is under 10, the message is exactly: "Looks like kilograms.
+    Enter grams, e.g. 1500."
+- **Scope:** a small UX item for chunk 6. By instruction it is not fixed in
+  chunks 3–5 and does not block their merge. Test-first, like the rest of the
+  Today form.
+
 ### TD-14 · Today's "days behind" does not see a gap before the last record ✅ FIXED 2026-10-14, before the chunk 3-5 merge
 Found 2026-10-14 (U7 chunk 5, browser check).
 - **What happens.** The day line counts the unrecorded days between the latest
@@ -2719,7 +2732,12 @@ Found 2026-10-14 (U7 chunk 5, browser check).
 - **Who decides.** It changes D29's wording, so it is the user's call. It is
   not a blocker for chunk 5's merge.
 
-### TD-13 · The session cookie is neither HttpOnly nor Secure — ✅ FIXED in U7 chunk 3 (`ddf0a4a`), both flags; Netlify check pending chunk 5
+### TD-13 · The session cookie is neither HttpOnly nor Secure — ✅ FIXED in U7 chunk 3 (`ddf0a4a`), both flags; ✅ VERIFIED ON NETLIFY 2026-10-14
+**Verified on the branch deploy 2026-10-14** (U7 step 5, deploy `01845b7`).
+After the test worker signed in, `sb-zlvjmaorlxrjnuxhykuh-auth-token` was set
+with `HttpOnly` on, `Secure` on and `SameSite=Lax`, and signing out cleared it.
+Only the names and flags were read, never the value.
+
 **Fixed 2026-09-28, both parts, not narrowed.** `createSessionClient` passes
 `cookieOptions: { httpOnly: true, secure, sameSite: 'lax', path: '/' }`.
 - **`HttpOnly` is always on.** No script needs the cookie (no browser client).
