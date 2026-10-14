@@ -192,6 +192,26 @@ including the four items beyond the plan.
   Those are dev writes beyond D33's three migrations. They are raised with the
   user, not taken.
 
+**U8 chunk 5 prep: the lost first tap fixed; the dev trio and the window
+checklist written, 2026-10-14.** Branch `u8-start-batch`, chunks 2 to 4 pushed.
+**Dev was not touched;** D7's migration is still local only.
+- **The lost tap (TD-18), reproduced:** with the page's scripts blocked, a
+  Save on `/today` or `/start` was the browser's own submit, `GET /today?`,
+  and the entry came back empty. Both forms had `onSubmit` only, which is
+  nothing until hydration.
+- **Fixed:** both forms submit through `action` with named inputs, so React
+  queues a pre-hydration submit and replays it after hydration; the handlers
+  read the figures from the submitted form. T-F1
+  (`tests/forms/before-hydration.test.ts`) renders both forms on the server
+  and was red before the change: no `action`, no names. The vitest config
+  gains the `@/` alias for it.
+- **Proof, local stack, scripts held back 6 s, tap at 0.2 to 0.3 s:** Today
+  saved day 3 with the typed figures (`saved=3`); Start reached the confirm
+  step, wrote nothing, and Go back kept the values
+  (`.playwright-mcp/u8/08-confirm-after-replayed-tap.png`, untracked).
+- **Suites:** engine 395, web 512, golden 11 + 1 held, local DB 170.
+  Typecheck, lint and `next build` clean.
+
 **U8 Start batch: chunks 2 to 4 built on the local stack, 2026-10-14** (plan:
 `context/plans/u8-start-batch.md`, approved with D12, the confirm step). Branch
 `u8-start-batch`. **Dev was not touched:** D7's migration waits for the user's

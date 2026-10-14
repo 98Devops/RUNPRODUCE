@@ -2704,6 +2704,32 @@ and 5.0:1 on the page background; the flow colours are over 6:1.
   HARVEST_COMPLETE". Honest but not plain language. A copy follow-up, not
   accessibility.
 
+### TD-18 · A tap before the page's script had loaded reloaded the page empty ✅ FIXED ON `u8-start-batch`
+Found 2026-10-14 in the chunk 4 browser checks: the first Save on `/start` did
+nothing visible, and the entry was gone. Reproduced on the local stack with the
+page's scripts blocked: on `/today`, typing 7, 1 and 121.2 and tapping "Save
+day 3" sent `GET /today?` and every field came back empty. The same on
+`/start`.
+- **Cause:** both forms had `onSubmit` only. Until React hydrates there is no
+  handler at all, so the browser runs its own submit, a GET to the page itself,
+  and the reload wipes the entry. On a slow connection this is real: a worker
+  types three figures and taps Save within seconds of the page showing.
+- **Fix (U8 chunk 5 prep):** both forms submit through `action` with named
+  inputs, as the sign-in form already did. React 19 renders such a form with
+  its replay runtime: a submit before hydration is prevented, queued and
+  replayed once hydrated, with the figures as typed. The handler therefore
+  reads the figures from the submitted form, not from state, which never saw
+  anything typed before hydration. T-F1
+  (`apps/web/tests/forms/before-hydration.test.ts`) renders both forms on the
+  server and fails without it.
+- **Proof in the browser, local stack, scripts held back 6 s, tap at 0.2 to
+  0.3 s:** Today saved day 3 with the typed figures; Start reached the confirm
+  step with nothing written, and Go back kept the values.
+- **Still true before hydration:** the plain buttons ("Use", "Change", "Weighed
+  birds today?", "Add a note", "Remove this day’s record", and the confirm
+  step's Save) are `onClick` handlers and do nothing until the script loads. A
+  tap on them is lost, not harmful: the user taps again. Not changed here.
+
 ### TD-17 · The engine charges extras as well as the ordered chicks; Daniel's sheet charges the ordered chicks only 🟠 AWAITING DANIEL
 Logged 2026-10-14, from the U8 Start batch plan (finding 4).
 - **As logged (the user):** "Engine charges chicks on ordered + extras ($6,060

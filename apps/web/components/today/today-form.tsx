@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useTransition, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useState, useTransition, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Phase } from '@runproduce/engine';
 import { removeDayAction, saveDayAction } from '@/app/(farm)/today/actions';
@@ -42,6 +42,12 @@ function initialDraft(view: TodayView): Draft {
  * the server reads it, finds the standard itself when "Use" was tapped, and
  * decides. The draft is kept on the phone on every change and cleared only
  * when the server says saved.
+ *
+ * The form submits through `action`, never `onSubmit` (T-F1): a tap before the
+ * page's script has loaded is then queued by React and replayed once hydrated,
+ * with the figures as typed, instead of the browser reloading the page empty.
+ * So the figures are read from the submitted form, not from the draft, which
+ * has not seen anything typed before hydration.
  */
 export function TodayForm({
   batchId,
@@ -88,9 +94,30 @@ export function TodayForm({
     setMessage(null);
   }
 
-  function submit(event: FormEvent) {
-    event.preventDefault();
-    writeDraft(phoneStorage(), batchId, date, draft);
+  /** The form as submitted; a field the form does not carry keeps the draft's. */
+  function adopt(form: FormData): Draft {
+    const text = (name: string, kept: string) => {
+      const value = form.get(name);
+      return typeof value === 'string' ? value : kept;
+    };
+    const feedKg = text('feedKg', draft.feedKg);
+    return {
+      ...draft,
+      dead: text('dead', draft.dead),
+      culls: text('culls', draft.culls),
+      feedKg,
+      // Typing over the standard withdraws "Use", as the field's own onChange does.
+      standardConfirmed: feedKg === draft.feedKg && draft.standardConfirmed,
+      avgWeightG: text('avgWeightG', draft.avgWeightG),
+      weightSampleSize: text('weightSampleSize', draft.weightSampleSize),
+      notes: text('notes', draft.notes)
+    };
+  }
+
+  function submit(form: FormData) {
+    const entry = adopt(form);
+    setDraft(entry);
+    writeDraft(phoneStorage(), batchId, date, entry);
     if (navigator.onLine === false) {
       setMessage(OFFLINE);
       return;
@@ -100,14 +127,14 @@ export function TodayForm({
         const result = await saveDayAction({
           batchId,
           recordDate: date,
-          mortalityCumulative: draft.dead,
-          cullCumulative: draft.cullsOpen ? draft.culls : String(view.previous?.culls ?? draft.culls),
-          feedKg: draft.feedKg,
-          standardConfirmed: draft.standardConfirmed,
-          avgWeightG: draft.weighOpen ? draft.avgWeightG : '',
-          weightSampleSize: draft.weighOpen ? draft.weightSampleSize : '',
-          notes: draft.notesOpen ? draft.notes : '',
-          clientRequestId: draft.clientRequestId,
+          mortalityCumulative: entry.dead,
+          cullCumulative: entry.cullsOpen ? entry.culls : String(view.previous?.culls ?? entry.culls),
+          feedKg: entry.feedKg,
+          standardConfirmed: entry.standardConfirmed,
+          avgWeightG: entry.weighOpen ? entry.avgWeightG : '',
+          weightSampleSize: entry.weighOpen ? entry.weightSampleSize : '',
+          notes: entry.notesOpen ? entry.notes : '',
+          clientRequestId: entry.clientRequestId,
           supersedesId: view.existing?.id ?? null
         });
         if (result.kind === 'refused') {
@@ -150,7 +177,7 @@ export function TodayForm({
   const when = view.isToday ? 'today' : `on day ${dayNumber}`;
 
   return (
-    <form onSubmit={submit} className="grid gap-6" noValidate>
+    <form action={submit} className="grid gap-6" noValidate>
       {(view.existing !== null || restored) && (
         <p className="flex flex-wrap items-center gap-2 text-sm text-muted">
           {view.existing !== null && (
@@ -163,6 +190,7 @@ export function TodayForm({
       <Field id="dead" label="Total dead so far" hint={previous ? `was ${previous.mortality} on day ${previous.day}` : null}>
         <input
           id="dead"
+          name="dead"
           inputMode="numeric"
           pattern="[0-9]*"
           autoComplete="off"
@@ -177,6 +205,7 @@ export function TodayForm({
         <Field id="culls" label="Culled so far" hint={previous ? `was ${previous.culls} on day ${previous.day}` : null}>
           <input
             id="culls"
+            name="culls"
             inputMode="numeric"
             pattern="[0-9]*"
             autoComplete="off"
@@ -205,6 +234,7 @@ export function TodayForm({
       >
         <input
           id="feed"
+          name="feedKg"
           inputMode="decimal"
           autoComplete="off"
           required
@@ -240,6 +270,7 @@ export function TodayForm({
             <Field id="avg-weight" label="Average weight, g" hint={null}>
               <input
                 id="avg-weight"
+                name="avgWeightG"
                 inputMode="numeric"
                 pattern="[0-9]*"
                 autoComplete="off"
@@ -251,6 +282,7 @@ export function TodayForm({
             <Field id="sample" label="Birds weighed" hint={null}>
               <input
                 id="sample"
+                name="weightSampleSize"
                 inputMode="numeric"
                 pattern="[0-9]*"
                 autoComplete="off"
@@ -271,6 +303,7 @@ export function TodayForm({
         {draft.notesOpen && (
           <textarea
             aria-label="Note"
+            name="notes"
             rows={3}
             maxLength={2000}
             value={draft.notes}

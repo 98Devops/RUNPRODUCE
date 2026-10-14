@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition, type FormEvent, type ReactNode } from 'react';
+import { useState, useTransition, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import type { IsoDate } from '@runproduce/engine';
 import { submitPlacementAction } from '@/app/(farm)/start/actions';
@@ -33,6 +33,12 @@ export type StartFormProps =
  * sends is text as typed; the server reads it and decides. Save asks the server
  * to check first, and only an entry that passed every check reaches the
  * confirm step. Go back keeps every value.
+ *
+ * The form submits through `action`, never `onSubmit` (T-F1): a tap before the
+ * page's script has loaded is then queued by React and replayed once hydrated,
+ * with the figures as typed, instead of the browser reloading the page empty.
+ * So the figures are read from the submitted form, not from state, which has
+ * not seen anything typed before hydration.
  */
 export function StartForm(props: StartFormProps) {
   const router = useRouter();
@@ -56,24 +62,49 @@ export function StartForm(props: StartFormProps) {
     setMessage(null);
   }
 
-  function payload(mode: 'check' | 'save') {
+  function payload(mode: 'check' | 'save', f: SummaryFields, curve: string) {
     const figures = {
       mode,
-      placementDate: fields.placementDate,
-      chickCount: fields.chickCount,
-      extraChickCount: fields.extraChickCount,
-      chickPrice: fields.chickPrice,
+      placementDate: f.placementDate,
+      chickCount: f.chickCount,
+      extraChickCount: f.extraChickCount,
+      chickPrice: f.chickPrice,
       clientRequestId: requestId
     };
     return props.kind === 'correct'
       ? { kind: 'correct', batchId: props.batch.batchId, supersedesId: props.batch.placementVersionId, ...figures }
-      : { kind: 'start', name: fields.name, curveId, ...figures };
+      : { kind: 'start', name: f.name, curveId: curve, ...figures };
   }
 
-  function send(mode: 'check' | 'save') {
+  /** The form as submitted; a field the form does not carry keeps its state. */
+  function adopt(form: FormData): { fields: SummaryFields; curve: string } {
+    const text = (name: string, kept: string) => {
+      const value = form.get(name);
+      return typeof value === 'string' ? value : kept;
+    };
+    return {
+      fields: {
+        name: text('name', fields.name),
+        placementDate: text('placementDate', fields.placementDate),
+        chickCount: text('chickCount', fields.chickCount),
+        extraChickCount: text('extraChickCount', fields.extraChickCount),
+        chickPrice: text('chickPrice', fields.chickPrice)
+      },
+      curve: text('curveId', curveId)
+    };
+  }
+
+  function check(form: FormData) {
+    const submitted = adopt(form);
+    setFields(submitted.fields);
+    setCurveId(submitted.curve);
+    send('check', submitted.fields, submitted.curve);
+  }
+
+  function send(mode: 'check' | 'save', f: SummaryFields, curve: string) {
     startTransition(async () => {
       try {
-        const result = await submitPlacementAction(payload(mode));
+        const result = await submitPlacementAction(payload(mode, f, curve));
         if (result.kind === 'refused') {
           // A refusal shows on the form, never on the confirm step (D12).
           setConfirm(null);
@@ -92,11 +123,6 @@ export function StartForm(props: StartFormProps) {
     });
   }
 
-  function check(event: FormEvent) {
-    event.preventDefault();
-    send('check');
-  }
-
   if (confirm !== null) {
     return (
       <section aria-labelledby="confirm-heading" className="grid gap-5">
@@ -111,7 +137,7 @@ export function StartForm(props: StartFormProps) {
           ))}
         </ul>
         <div className="grid gap-3">
-          <button type="button" className={PRIMARY} disabled={pending} onClick={() => send('save')}>
+          <button type="button" className={PRIMARY} disabled={pending} onClick={() => send('save', fields, curveId)}>
             {pending ? 'Saving…' : 'Save'}
           </button>
           <button
@@ -133,7 +159,7 @@ export function StartForm(props: StartFormProps) {
   const summary = liveSummary(fields, props.today);
 
   return (
-    <form onSubmit={check} className="grid gap-6" noValidate>
+    <form action={check} className="grid gap-6" noValidate>
       {correcting ? (
         <p className="text-lg">
           Batch <span className="font-semibold">{fields.name}</span>. Its name can’t be changed.
@@ -142,6 +168,7 @@ export function StartForm(props: StartFormProps) {
         <Field id="name" label="Batch name" hint={`up to ${NAME_MAX} characters`}>
           <input
             id="name"
+            name="name"
             className={INPUT}
             value={fields.name}
             maxLength={NAME_MAX + 10}
@@ -154,6 +181,7 @@ export function StartForm(props: StartFormProps) {
       <Field id="placementDate" label="Day the chicks arrived" hint={null}>
         <input
           id="placementDate"
+          name="placementDate"
           type="date"
           className={`figures ${INPUT}`}
           value={fields.placementDate}
@@ -166,6 +194,7 @@ export function StartForm(props: StartFormProps) {
         <Field id="chickCount" label="Chicks placed" hint={null}>
           <input
             id="chickCount"
+            name="chickCount"
             inputMode="numeric"
             className={`figures ${INPUT}`}
             value={fields.chickCount}
@@ -176,6 +205,7 @@ export function StartForm(props: StartFormProps) {
         <Field id="extraChickCount" label="Extra chicks" hint={null}>
           <input
             id="extraChickCount"
+            name="extraChickCount"
             inputMode="numeric"
             className={`figures ${INPUT}`}
             value={fields.extraChickCount}
@@ -192,6 +222,7 @@ export function StartForm(props: StartFormProps) {
       <Field id="chickPrice" label="Price per chick, $" hint={null}>
         <input
           id="chickPrice"
+          name="chickPrice"
           inputMode="decimal"
           className={`figures ${INPUT}`}
           value={fields.chickPrice}
@@ -209,6 +240,7 @@ export function StartForm(props: StartFormProps) {
           <Field id="curve" label="Growth curve" hint={null}>
             <select
               id="curve"
+              name="curveId"
               className={INPUT}
               value={curveId}
               onChange={(e) => {
