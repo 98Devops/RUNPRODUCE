@@ -3,7 +3,7 @@
  * an OWNER or MANAGER sees every tab built so far, in the sheets' order. The
  * bar renders only when there are two or more.
  */
-import { BUILT_TABS, showTabBar, TABS, visibleTabs } from '../../lib/nav/tabs.js';
+import { BUILT_TABS, canStartBatch, showTabBar, TABS, visibleTabs } from '../../lib/nav/tabs.js';
 
 const ALL = TABS.map((t) => t.id);
 
@@ -49,5 +49,22 @@ describe('T-T2 · showTabBar', () => {
 
   it.each(['OWNER', 'MANAGER', 'WORKER'] as const)('shows no bar to an %s while Today is the only tab built', (role) => {
     expect(showTabBar(visibleTabs(role, BUILT_TABS))).toBe(false);
+  });
+});
+
+describe('T-SB8 · canStartBatch (u8-start-batch.md D1)', () => {
+  it.each([
+    ['OWNER', true],
+    ['MANAGER', true],
+    ['WORKER', false]
+  ] as const)('gives %s %s', (role, allowed) => {
+    expect(canStartBatch(role)).toBe(allowed);
+  });
+
+  it('agrees with the tabs: whoever may start a batch sees the Start batch tab', () => {
+    for (const role of ['OWNER', 'MANAGER', 'WORKER'] as const) {
+      const seesStart = visibleTabs(role, ['start', 'today']).some((t) => t.id === 'start');
+      expect(seesStart).toBe(canStartBatch(role));
+    }
   });
 });

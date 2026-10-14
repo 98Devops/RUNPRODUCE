@@ -80,6 +80,33 @@ export function parseKgTenths(text: string): number | null {
 }
 
 /**
+ * A typed count of birds, ASCII digits only, up to seven of them (U8 D2). The
+ * same rule as Today's totals: "6,000" and "6.0" are null, never read as 6000.
+ */
+export function parseCount(text: string): number | null {
+  const trimmed = text.trim();
+  return /^\d{1,7}$/.test(trimmed) ? Number(trimmed) : null;
+}
+
+/**
+ * Typed dollars to integer cents, read as a decimal string with no float (U8
+ * D2, rule 2). A dot is the decimal point, with up to two decimals; a comma is
+ * null, never guessed, as in `parseKgTenths`: "1,00" could be one dollar or a
+ * hundred. One leading "$" is accepted, since it cannot be misread.
+ */
+export function parseCents(text: string): Cents | null {
+  const match = /^\$?(\d{1,4})(?:\.(\d{1,2}))?$/.exec(text.trim());
+  if (match === null) return null;
+  const [, whole = '', fraction = ''] = match;
+  return (BigInt(whole) * 100n + BigInt(fraction.padEnd(2, '0'))) as Cents;
+}
+
+/** Cents as the form shows them to be edited, `1.00`: no "$", never grouped, so `parseCents` reads it back. */
+export function formatCentsPlain(value: Cents): string {
+  return `${value / 100n}.${(value % 100n).toString().padStart(2, '0')}`;
+}
+
+/**
  * Grams to kilograms at one decimal, half up, for display and for the
  * standard the "Use" button fills in. Never grouped, so the figure it fills
  * is one `parseKgTenths` accepts. The stored figure stays the exact grams.

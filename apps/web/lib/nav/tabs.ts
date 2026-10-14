@@ -31,6 +31,15 @@ export function visibleTabs(role: Role, built: readonly TabId[]): Tab[] {
   return TABS.filter((tab) => built.includes(tab.id) && (role !== 'WORKER' || tab.id === 'today'));
 }
 
+/**
+ * Who may start or correct a batch (U8 D1). The same rule the tab follows, so
+ * the tab and the server's guard cannot disagree; `record_batch` checks it a
+ * third time in the database.
+ */
+export function canStartBatch(role: Role): boolean {
+  return role === 'OWNER' || role === 'MANAGER';
+}
+
 export function showTabBar(tabs: readonly Tab[]): boolean {
   return tabs.length >= 2;
 }
