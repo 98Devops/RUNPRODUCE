@@ -42,6 +42,17 @@ export {
   type DailyRecordsWrite
 } from './capture.js';
 export {
+  breedCurves,
+  farmBatches,
+  placementByRequest,
+  recordBatch,
+  recordBatchPlacement,
+  type BatchInsert,
+  type BreedCurveChoice,
+  type FarmBatch,
+  type PlacementCorrection
+} from './batches.js';
+export {
   Conflict,
   Forbidden,
   IntegrityRejected,
@@ -53,6 +64,7 @@ export {
   StaleCorrection,
   type AuthFailure,
   type DatabaseError,
+  type DatabaseErrorContext,
   type SignInRefusedCode,
   type TypedRepositoryError
 } from './errors.js';

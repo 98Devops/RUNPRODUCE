@@ -78,19 +78,30 @@ export interface DatabaseError {
 }
 
 /**
+ * What a caller may add to the mapping. `asOf` is the date `NoParametersInForce`
+ * names. `conflict` and `stale` replace Today's sentences for writers whose
+ * duplicate is not a date (U8 D8): a duplicate batch name is also a 23505.
+ */
+export interface DatabaseErrorContext {
+  readonly asOf?: string;
+  readonly conflict?: string;
+  readonly stale?: string;
+}
+
+/**
  * D28's table. `asOf` is the date `NoParametersInForce` names, so the operator
  * knows which parameter set to create; only `engine_snapshot` raises RP002.
  */
-export function mapDatabaseError(error: DatabaseError, context: { readonly asOf?: string } = {}): TypedRepositoryError {
+export function mapDatabaseError(error: DatabaseError, context: DatabaseErrorContext = {}): TypedRepositoryError {
   switch (error.code) {
     case '42501':
       return new Forbidden(error.message, { cause: error });
     case '23514':
       return new IntegrityRejected(error.message, { cause: error });
     case '23505':
-      return new Conflict('Someone saved this date first. Reload.', { cause: error });
+      return new Conflict(context.conflict ?? 'Someone saved this date first. Reload.', { cause: error });
     case 'RP001':
-      return new StaleCorrection('This record changed since you opened it.', { cause: error });
+      return new StaleCorrection(context.stale ?? 'This record changed since you opened it.', { cause: error });
     case 'RP002':
       return new NoParametersInForce(`No parameter set is effective on ${context.asOf ?? 'that date'}.`, { cause: error });
     default:
